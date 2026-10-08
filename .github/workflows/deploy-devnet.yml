@@ -67,7 +67,11 @@ jobs:
           for i in 1 2 3; do solana airdrop 2 || true; sleep 5; done
           BAL=$(solana balance | awk '{print $1}')
           SIZE=$(stat -c%s target/deploy/cambi_pool.so)
-          NEED=$(solana rent $((SIZE * 2)) | awk '/Rent-exempt minimum/ {print $3}')
+          MAX_LEN=$((SIZE * 5 / 4))
+          echo "MAX_LEN=$MAX_LEN" >> "$GITHUB_ENV"
+          # Pico durante o deploy: buffer (tamanho do programa) + conta do programa (com 25% de folga)
+          NEED=$(awk -v a="$(solana rent $SIZE | awk '/Rent-exempt minimum/ {print $3}')" \
+                     -v b="$(solana rent $MAX_LEN | awk '/Rent-exempt minimum/ {print $3}')" 'BEGIN {printf "%.2f", a + b}')
           echo "Saldo: $BAL SOL | programa: $SIZE bytes | necessário (aprox.): $NEED SOL + taxas"
           if awk "BEGIN {exit !($BAL < $NEED + 0.5)}"; then
             {
@@ -87,6 +91,7 @@ jobs:
         run: |
           solana program deploy target/deploy/cambi_pool.so \
             --program-id target/deploy/cambi_pool-keypair.json \
+            --max-len "$MAX_LEN" \
             --with-compute-unit-price 100000 \
             --max-sign-attempts 60 \
             --use-rpc
