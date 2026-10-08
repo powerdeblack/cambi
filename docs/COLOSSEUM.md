@@ -16,6 +16,8 @@ Fonte dos requisitos: FAQ oficial ([colosseum.com/hackathon](https://colosseum.c
 | Localização do time | ⬜ Você | Cidade/estado |
 | Logo ou imagem do produto | ✅ Pronto | [`brand/logo.svg`](../brand/logo.svg) e [`brand/icon.svg`](../brand/icon.svg) (exporte em PNG se o portal pedir) |
 | Link do GitHub | ✅ Pronto | https://github.com/powerdeblack/cambi (público) |
+| Programa na devnet | ✅ Pronto | `AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ` · provas no [README](../README.md#na-devnet-ao-vivo) |
+| Demo no ar | ✅ Pronto | https://powerdeblack.github.io/cambi/ (aba Pool lê a devnet ao vivo) |
 | Vídeo de apresentação (2–3 min) | ⬜ Você grava | Estrutura abaixo |
 | Vídeo de demo (até 3 min) | ⬜ Você grava | Roteiro de telas abaixo |
 | Go-to-market, validação de demanda e distribuição | ⬜ Você escreve | Perguntas-guia abaixo + resultados de [VALIDACAO.md](VALIDACAO.md) |
@@ -73,8 +75,10 @@ Dica: grave a tela do celular ou do navegador em modo celular (largura ~420px).
 
 ## Antes de enviar
 
-- [ ] Repositório público e README atualizado
-- [ ] Demo publicada (GitHub Pages: Settings → Pages → Source: GitHub Actions) e link testado
+- [x] Repositório público e README atualizado
+- [x] Demo publicada (GitHub Pages) e link testado
+- [x] Programa implantado na devnet com transações de prova
+- [ ] Campos do portal atualizados com o endereço do programa na devnet
 - [ ] Os dois vídeos enviados (YouTube não listado ou Loom) e links testados em janela anônima
 - [ ] Textos revisados por outra pessoa
 - [ ] Enviar até 12/10 à noite

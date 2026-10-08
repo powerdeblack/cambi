@@ -44,7 +44,7 @@ Premissas, fontes e riscos em [docs/ECONOMIA.md](docs/ECONOMIA.md). **Simulaçõ
 |---|---|---|
 | [`programs/cambi_pool`](programs/cambi_pool) | Programa Solana em Rust/Anchor 0.31 | ✅ Compila para a Solana (SBF, 371 KB) · 9 testes unitários |
 | [`tests/`](tests) | Testes de integração numa Solana local | ✅ 15 testes passando no [GitHub Actions](../../actions/workflows/solana.yml) |
-| [`scripts/`](scripts) | Montagem do pool de demonstração na devnet | ✅ Pronto · ⏳ aguardando SOL de devnet para o deploy |
+| [`scripts/`](scripts) | Montagem do pool de demonstração na devnet | ✅ [Implantado na devnet](#na-devnet-ao-vivo) |
 | [`app/`](app) | Demo web (React + Vite + TypeScript) | ✅ [No ar](https://powerdeblack.github.io/cambi/) · 10 testes |
 | [`sim/`](sim) | Simulação econômica (Python) | ✅ |
 | [`docs/`](docs) | [Arquitetura](docs/ARQUITETURA.md) · [Economia](docs/ECONOMIA.md) · [Marca](docs/MARCA.md) · [Validação](docs/VALIDACAO.md) · [Colosseum](docs/COLOSSEUM.md) | ✅ |
@@ -62,6 +62,30 @@ Rodando o programa de verdade numa Solana local:
 - **Pausa de emergência** bloqueia trocas e depósitos, mas **saques continuam liberados**
 - Só o oráculo muda o preço; só o admin muda taxas, e dentro de limites
 - Troca recusada com cotação desatualizada
+
+## Na devnet, ao vivo
+
+O programa está implantado na **Solana devnet** e o pool de demonstração foi montado com transações reais.
+Qualquer pessoa pode conferir no Solana Explorer:
+
+- **Programa:** [`AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ`](https://explorer.solana.com/address/AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ?cluster=devnet)
+- **Pool:** [`8BdcLFvLUxu1DD1xJ3487kMdVgqg6ArMrVLfNasNJebL`](https://explorer.solana.com/address/8BdcLFvLUxu1DD1xJ3487kMdVgqg6ArMrVLfNasNJebL?cluster=devnet)
+
+| Operação | Prova |
+|---|---|
+| Pool criado (R$ 5,40 por dólar) | [ver transação](https://explorer.solana.com/tx/2v9xmfq3Tvwu7wJJ1PNpR7BYACw4ecpgoRZbuzQhQ4mc3kxJNLyWCB1W6eS6WRkqf49qSdaCid3JN2kDCDXLmN8v?cluster=devnet) |
+| Depósito Rende: R$ 50.000 | [ver transação](https://explorer.solana.com/tx/4MJDtZ7n27frjaGd633amWax9qGrsVzoidF3JVGX3VYrj3uVMrF9uBP4MkZjB8KSYivXKZt9RneHHSdmN4wvkS33?cluster=devnet) |
+| Depósito Rende: US$ 10.000 | [ver transação](https://explorer.solana.com/tx/2XRNt5LSBeM6q1oBBk5MpaGzXMGNzFX4PhNCQvQVMaeE7e9JpA4opCXCKiW8VBA9M6yB45VJ18U3bEscN8uRNg5Y?cluster=devnet) |
+| Depósito Baleia: R$ 10.000 | [ver transação](https://explorer.solana.com/tx/4DXstZx6Msx7jQCCXaMZN7e2KwWW5koV8fu6RVP2X3BKJCxrwJXBn15FtGUB7KALTQyzaJmejFnVdcRLsEvKmvUW?cluster=devnet) |
+| Depósito Baleia: US$ 2.000 | [ver transação](https://explorer.solana.com/tx/4bJfGwAWwaajaNesT6wXkj91vjSXwqgRxc35qaap8qYW3jybj4eq75ftntvbsoDTgc2woggWUxMrXY4FRbjy4GYt?cluster=devnet) |
+| Troca varejo: R$ 1.000 → dólar (taxa 1%) | [ver transação](https://explorer.solana.com/tx/28NR7xGDRV4ge9qZASKDZwzT9KsYCiUsbbyuNPvAdr8fMFvBuLxgNif1Pd7mbV69vs1oNESAdrSNQzG7iW7hBiHF?cluster=devnet) |
+| Troca depositante: R$ 1.000 → dólar (taxa 0,5%) | [ver transação](https://explorer.solana.com/tx/4kSAZPPikBGf86XtjTztgaigqoH4Fk1F4rbmyLeQotp1ASmYa9PB8oEMdg2qPhRQbfcH3Z2cNRYZrESta7rEQvxN?cluster=devnet) |
+| App parceiro registrado | [ver transação](https://explorer.solana.com/tx/khe4AZ9tqUHgfzZhHgWsPyCtYLazDQcnZoPbCJZc9EeUDBR6dUxmKbtQoMRtjdZtN89ztSEMhdaBL7tQDzPBSBx?cluster=devnet) |
+| Troca B2B: US$ 200 → real (taxa 0,4%) | [ver transação](https://explorer.solana.com/tx/w7pX5eVXALoVtnipR96bDZx8WDbdm5DZEsz6jtj7es2Vne4CL5SeVsdm3Kp7VhjDUar6j5gR3rrqriJwL3Y9vnt?cluster=devnet) |
+| Depositante colhe as taxas (nas duas moedas) | [ver transação](https://explorer.solana.com/tx/3LmwU3boC6TbjhHuxopFZSGrgKRaxwP1EzUnavoWoDw2Drt8xUsRDe9Q82VBcyUaNjP7igNbcwAMzJqxoCdSNmMu?cluster=devnet) |
+
+Moedas de teste (cBRL e cUSD), sem valor real. Endereços completos em [`deployments/devnet.json`](deployments/devnet.json).
+A aba **Pool** da [demo](https://powerdeblack.github.io/cambi/) lê esse pool direto da blockchain.
 
 ## Rodar localmente
 

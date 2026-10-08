@@ -26,7 +26,7 @@
 
 | Pasta | O que é | Estado |
 |---|---|---|
-| `programs/cambi_pool` | Programa on-chain em Rust/Anchor 0.31 | 9 testes unitários (`cargo test`) + testes de integração numa Solana local (`anchor test`) no GitHub Actions; deploy na devnet pelo workflow `deploy-devnet.yml` (endereços em `deployments/devnet.json`) |
+| `programs/cambi_pool` | Programa on-chain em Rust/Anchor 0.31 | 9 testes unitários (`cargo test`) + testes de integração numa Solana local (`anchor test`) no GitHub Actions; **implantado na devnet** em `AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ` pelo workflow `deploy-devnet.yml` (endereços em `deployments/devnet.json`) |
 | `tests/` | Testes de integração (TypeScript, mocha) | Fluxo completo e cada regra de segurança |
 | `scripts/` | Utilitários e montagem do pool de demonstração na devnet | Registra cada transação como prova |
 | `app/` | Demo web (React + Vite + TypeScript) com motor do pool em TypeScript | Funcional, com testes (Vitest); simula o pool no navegador e lê o pool real da devnet na aba Pool |
