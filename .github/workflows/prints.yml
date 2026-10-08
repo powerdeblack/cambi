@@ -34,6 +34,9 @@ jobs:
           npm ci --ignore-scripts
           npx playwright install --with-deps chromium
 
+      - name: Instalar Pillow (versão fixa)
+        run: python3 -m pip install --user --break-system-packages pillow==11.0.0
+
       - name: Restaurar chave do admin (devnet), depois de instalar tudo
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -48,6 +51,9 @@ jobs:
           sleep 3
           node scripts/ui-e2e.cjs http://localhost:4173/ /tmp/prints
           rm -rf .devnet-keys
+
+      - name: Montar as imagens para post (JPG 1600x900)
+        run: python3 scripts/post-images.py /tmp/prints /tmp/prints/post
 
       - name: Publicar no branch "prints"
         env:
