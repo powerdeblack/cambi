@@ -1,0 +1,63 @@
+name: Prints do app (divulgação)
+
+# Rodado manualmente. Faz o mesmo percurso do teste de telas na devnet e publica os prints no branch "prints".
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: e2e-devnet
+  cancel-in-progress: false
+
+jobs:
+  prints:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+        working-directory: app
+      - run: npm run build
+        working-directory: app
+
+      - name: Instalar navegador (Playwright travado no package-lock da raiz)
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+
+      - name: Restaurar chave do admin (devnet), depois de instalar tudo
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .devnet-keys
+          key: devnet-keys-v2
+
+      - name: Percorrer o app na devnet e tirar os prints
+        env:
+          ANCHOR_WALLET: .devnet-keys/deployer.json
+          PRINTS: "1"
+        run: |
+          (cd app && npx vite preview --port 4173 --strictPort > /tmp/preview.log 2>&1 &)
+          sleep 3
+          node scripts/ui-e2e.cjs http://localhost:4173/ /tmp/prints
+          rm -rf .devnet-keys
+
+      - name: Publicar no branch "prints"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd /tmp/prints
+          git init -q -b prints
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -q -m "Prints do app na devnet [skip ci]"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:prints

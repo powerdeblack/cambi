@@ -56,6 +56,7 @@ fs.mkdirSync(out, { recursive: true });
   await page.getByRole("button", { name: /^Trocar R\$/ }).click();
   await page.getByText("Registrada na Solana").waitFor({ timeout: CHAIN });
   await shot("troca-comprovante");
+  const swapTx = await page.locator("a.chain-badge").first().getAttribute("href");
   step("troca real com comprovante na Solana");
   await page.getByRole("button", { name: "Deixar na carteira" }).click();
 
@@ -90,6 +91,16 @@ fs.mkdirSync(out, { recursive: true });
   await page.reload();
   await page.getByText("Conta na Solana · devnet").waitFor({ timeout: CHAIN });
   step("conta continua ativa depois de recarregar");
+  await shot("inicio");
+
+  // Opcional (PRINTS=1): print da troca no Solana Explorer, para divulgação.
+  if (process.env.PRINTS && swapTx && swapTx.startsWith("https://explorer.solana.com/tx/")) {
+    await page.goto(swapTx);
+    await page.getByText(/Success|Finalized|Confirmed/i).first().waitFor({ timeout: CHAIN });
+    await page.waitForTimeout(3000);
+    await shot("explorer");
+    step("transação da troca aberta no Solana Explorer");
+  }
 
   await browser.close();
   const relevant = errors.filter((e) => !/favicon|429|Failed to load resource/i.test(e));
