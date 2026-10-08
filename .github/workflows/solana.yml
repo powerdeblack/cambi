@@ -21,6 +21,7 @@ jobs:
         run: |
           anchor build
           anchor keys sync
+          sed -i "s/^cambi_pool = \".*\"/cambi_pool = \"$(solana address -k target/deploy/cambi_pool-keypair.json)\"/" Anchor.toml
           anchor build
       - name: Conferir IDs
         run: |

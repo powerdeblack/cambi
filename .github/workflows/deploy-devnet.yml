@@ -57,7 +57,9 @@ jobs:
       - name: Compilar
         run: |
           anchor keys sync
+          sed -i "s/^cambi_pool = \".*\"/cambi_pool = \"$(solana address -k target/deploy/cambi_pool-keypair.json)\"/" Anchor.toml
           anchor build
+          test "$(node -p "require('./target/idl/cambi_pool.json').address")" = "$PROGRAM_ID"
           ls -la target/deploy/
 
       - name: Verificar saldo de SOL de devnet
