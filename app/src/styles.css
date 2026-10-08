@@ -339,3 +339,29 @@ button.link.inline { padding: 0; font-size: inherit; text-decoration: underline;
 .receipt-big { display: block; text-align: center; font-size: 2.3rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .actions-row svg { width: 18px; height: 18px; }
+
+/* ---------- Conta na blockchain ---------- */
+.chain-card { display: flex; flex-direction: column; gap: 10px; }
+.chain-card p { margin: 0; }
+.chain-card button.primary { margin-top: 4px; }
+.chain-card button.link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 0; }
+.chain-card button.link svg { width: 18px; height: 18px; }
+.chain-head { display: flex; align-items: center; gap: 12px; }
+.chain-head h3 { margin: 0; }
+.chain-head > div { display: flex; flex-direction: column; gap: 2px; }
+.chain-head a { text-decoration: none; }
+.chain-card.ready { border-color: var(--green); }
+.chain-connecting { display: flex; align-items: center; gap: 12px; }
+.ticks { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; }
+.ticks li::before { content: "✓"; color: var(--green); font-weight: 800; margin-right: 8px; }
+.small-link { font-size: 0.85rem; color: var(--muted) !important; }
+.spinner.small { width: 28px; height: 28px; border-width: 4px; flex-shrink: 0; }
+.spinner.tiny { width: 18px; height: 18px; border-width: 3px; border-color: rgba(255, 255, 255, 0.35); border-top-color: #fff; }
+.chain-badge {
+  display: inline-flex; align-items: center; gap: 8px; align-self: center; margin: 4px auto 8px; padding: 6px 12px;
+  border-radius: 999px; background: var(--green-soft); color: var(--green-strong); font-weight: 700; font-size: 0.85rem; text-decoration: none;
+}
+.chain-badge .live-dot { width: 8px; height: 8px; box-shadow: none; }
+@media (prefers-color-scheme: dark) { .chain-badge { color: #7ee2a8; } }
+.receipt .chain-badge { display: flex; width: fit-content; }
+.chain-link { color: var(--green); font-size: 0.8rem; font-weight: 700; text-decoration: none; }

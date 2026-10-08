@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Side } from "../engine/pool";
 import { money } from "../format";
 import {
@@ -21,11 +21,12 @@ interface Props {
   side: Side; // BRL = Pix; USD = conta nos EUA ou carteira
   wallet: Wallet;
   initialCents?: number;
-  onSend: (side: Side, amount: number, fee: number, recipient: Recipient) => void;
+  /** Pode ser assíncrono (modo blockchain); devolve a assinatura da transação quando houver. */
+  onSend: (side: Side, amount: number, fee: number, recipient: Recipient) => void | string | Promise<void | string>;
   onClose: () => void;
 }
 
-type Step = "destino" | "valor" | "revisar" | "enviando" | "pronto";
+type Step = "destino" | "valor" | "revisar" | "enviando" | "pronto" | "erro";
 
 const STAGES: Record<Recipient["route"], string[]> = {
   pix: ["Conferindo a chave Pix", "Enviando pelo parceiro autorizado", "Pix concluído"],
@@ -40,7 +41,11 @@ export function SendFlow({ side, wallet, initialCents, onSend, onClose }: Props)
   const [recipient, setRecipient] = useState<Recipient | null>(null);
   const [cents, setCents] = useState(initialCents ?? 0);
   const [stage, setStage] = useState(0);
-  const [receipt, setReceipt] = useState<{ id: string; at: Date } | null>(null);
+  const [receipt, setReceipt] = useState<{ id: string; at: Date; sig?: string } | null>(null);
+  const [failure, setFailure] = useState("");
+  const [tick, setTick] = useState(0);
+  // Resultado do envio: chega em paralelo à animação das etapas.
+  const result = useRef<{ done: boolean; sig?: string; error?: string }>({ done: false });
 
   const route = recipient?.route ?? (side === "BRL" ? "pix" : "ach");
   const fee = route === "pix" ? 0 : USD_ROUTE[route].fee;
@@ -48,22 +53,41 @@ export function SendFlow({ side, wallet, initialCents, onSend, onClose }: Props)
   const balance = wallet.balance[side];
   const over = amount + fee > balance + 1e-9;
 
-  // Processamento com etapas visíveis; no fim, debita e mostra o comprovante.
+  // Começa o envio uma única vez ao entrar na etapa "enviando".
+  useEffect(() => {
+    if (step !== "enviando" || !recipient) return;
+    result.current = { done: false };
+    Promise.resolve()
+      .then(() => onSend(side, amount, fee, recipient))
+      .then((sig) => (result.current = { done: true, sig: sig || undefined }))
+      .catch((e: Error) => (result.current = { done: true, error: e.message }));
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Etapas visíveis; a última só aparece quando o envio confirma de verdade.
   useEffect(() => {
     if (step !== "enviando" || !recipient) return;
     const delay = reduceMotion() ? 150 : 750;
-    if (stage < STAGES[route].length - 1) {
-      const t = setTimeout(() => setStage((s) => s + 1), delay);
-      return () => clearTimeout(t);
-    }
+    const last = STAGES[route].length - 1;
     const t = setTimeout(() => {
-      onSend(side, amount, fee, recipient);
-      setReceipt({ id: route === "pix" ? pixEndToEndId() : fakeTxId(route), at: new Date() });
-      navigator.vibrate?.(30);
-      setStep("pronto");
+      const r = result.current;
+      if (r.done && r.error) {
+        setFailure(r.error);
+        setStep("erro");
+      } else if (stage < last - 1) {
+        setStage((x) => x + 1);
+      } else if (r.done && stage === last - 1) {
+        setStage(last);
+      } else if (r.done && stage === last) {
+        setReceipt({ id: route === "pix" ? pixEndToEndId() : r.sig ?? fakeTxId(route), at: new Date(), sig: r.sig });
+        navigator.vibrate?.(30);
+        setStep("pronto");
+      } else {
+        setStage((x) => x); // ainda confirmando: confere de novo
+        setTick((n) => n + 1);
+      }
     }, delay);
     return () => clearTimeout(t);
-  }, [step, stage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [step, stage, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (step === "destino") {
     return (
@@ -175,6 +199,21 @@ export function SendFlow({ side, wallet, initialCents, onSend, onClose }: Props)
     );
   }
 
+  if (step === "erro") {
+    return (
+      <FlowScreen
+        title="Não foi enviado"
+        onClose={onClose}
+        footer={<button className="primary" onClick={() => setStep("revisar")}>Tentar de novo</button>}
+      >
+        <div className="processing">
+          <p className="error" role="alert">{failure}</p>
+          <p className="muted center">Nenhum valor saiu da sua conta.</p>
+        </div>
+      </FlowScreen>
+    );
+  }
+
   if (step === "pronto" && recipient && receipt) {
     return (
       <FlowScreen
@@ -182,7 +221,7 @@ export function SendFlow({ side, wallet, initialCents, onSend, onClose }: Props)
         onClose={onClose}
         footer={<button className="primary" onClick={onClose}>Concluir</button>}
       >
-        <SendReceipt side={side} amount={amount} fee={fee} recipient={recipient} id={receipt.id} at={receipt.at} />
+        <SendReceipt side={side} amount={amount} fee={fee} recipient={recipient} id={receipt.id} at={receipt.at} sig={receipt.sig} />
       </FlowScreen>
     );
   }
@@ -413,8 +452,8 @@ function UsdcForm({ onPick }: { onPick: (r: Recipient) => void }) {
 
 /* ---------- Comprovante ---------- */
 
-function SendReceipt(props: { side: Side; amount: number; fee: number; recipient: Recipient; id: string; at: Date }) {
-  const { side, amount, fee, recipient, id, at } = props;
+function SendReceipt(props: { side: Side; amount: number; fee: number; recipient: Recipient; id: string; at: Date; sig?: string }) {
+  const { side, amount, fee, recipient, id, at, sig } = props;
   const [copied, setCopied] = useState(false);
   const route = recipient.route;
   const when = at.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
@@ -458,6 +497,11 @@ function SendReceipt(props: { side: Side; amount: number; fee: number; recipient
       <p className="muted center">{title}</p>
       <strong className="receipt-big">{money(side, amount)}</strong>
       <p className="muted center">{when}</p>
+      {sig && (
+        <a className="chain-badge" href={`https://explorer.solana.com/tx/${sig}?cluster=devnet`} target="_blank" rel="noreferrer">
+          <span className="live-dot" aria-hidden /> Registrado na Solana · ver transação ↗
+        </a>
+      )}
 
       <dl className="summary boxed">
         <div><dt>Para</dt><dd>{recipient.name}</dd></div>
@@ -475,8 +519,13 @@ function SendReceipt(props: { side: Side; amount: number; fee: number; recipient
         <button className="secondary" onClick={share}><ShareIcon /> Compartilhar</button>
       </div>
       <p className="muted small center">
-        Demonstração: nenhum dinheiro real foi enviado. Em produção, o Pix sai por um parceiro autorizado pelo Banco Central
-        e o dólar por parceiro bancário nos EUA ou direto na sua carteira.
+        {sig
+          ? route === "usdc"
+            ? "As moedas de teste saíram da sua conta e chegaram na carteira de destino, na Solana (rede de testes)."
+            : "As moedas de teste saíram da sua conta na Solana para o parceiro, com o destino registrado na transação. O pagamento do outro lado é simulado."
+          : "Demonstração: nenhum dinheiro real foi enviado."}{" "}
+        Em produção, o Pix sai por um parceiro autorizado pelo Banco Central e o dólar por parceiro bancário nos EUA ou
+        direto na sua carteira.
       </p>
     </div>
   );

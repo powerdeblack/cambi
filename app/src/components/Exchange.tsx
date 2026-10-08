@@ -9,7 +9,9 @@ import { MoneyInput } from "./MoneyInput";
 interface Props {
   pool: PoolState;
   wallet: Wallet;
-  onSwap: (side: Side, amount: number) => SwapResult;
+  onSwap: (side: Side, amount: number) => SwapResult | Promise<SwapResult>;
+  /** Modo blockchain: prévia exata do programa (taxa, valor recebido e motivo de recusa). */
+  preview?: (side: Side, amount: number) => { amountOut: number; feeTotal: number; feeRate: number; blocker: string | null; price: number };
   onDone: () => void;
   /** Depois da troca, levar o valor recebido para fora (Pix ou conta em dólar). */
   onSendOut: (side: Side, amount: number) => void;
@@ -17,24 +19,30 @@ interface Props {
 
 const FLAG: Record<Side, string> = { BRL: "🇧🇷 BRL", USD: "🇺🇸 USD" };
 
-export function Exchange({ pool, wallet, onSwap, onDone, onSendOut }: Props) {
+export function Exchange({ pool, wallet, onSwap, preview, onDone, onSendOut }: Props) {
   const [side, setSide] = useState<Side>("BRL");
   const [cents, setCents] = useState(50_000);
   const amount = cents / 100;
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<SwapResult | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const out: Side = side === "BRL" ? "USD" : "BRL";
   const over = amount > wallet.balance[side] + 1e-9;
-  const valid = amount > 0 && !over;
-  const q = valid ? quote(pool, side, amount, kindFor(wallet)) : null;
+  const pv = preview && amount > 0 && !over ? preview(side, amount) : null;
+  const valid = amount > 0 && !over && !pv?.blocker;
+  const q = pv ?? (valid ? quote(pool, side, amount, kindFor(wallet)) : null);
+  const price = pv?.price ?? pool.price;
 
-  function confirm() {
+  async function confirm() {
+    setBusy(true);
+    setError("");
     try {
-      setReceipt(onSwap(side, amount));
-      setError("");
+      setReceipt(await onSwap(side, amount));
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -78,8 +86,8 @@ export function Exchange({ pool, wallet, onSwap, onDone, onSendOut }: Props) {
       {q && (
         <dl className="summary">
           <div>
-            <dt>Cotação</dt>
-            <dd>1 US$ = {rate(pool.price)}</dd>
+            <dt>Cotação{preview ? " do pool" : ""}</dt>
+            <dd>1 US$ = {rate(price)}</dd>
           </div>
           <div>
             <dt>Taxa {isDepositor(wallet) ? "(depositante)" : ""}</dt>
@@ -94,10 +102,18 @@ export function Exchange({ pool, wallet, onSwap, onDone, onSendOut }: Props) {
         <p className="tip">Quem tem dinheiro na <Brand /> Rende paga metade: 0,5%.</p>
       )}
 
-      {error && <p className="error">{error}</p>}
-      <button className="primary" disabled={!valid} onClick={confirm}>
-        Trocar {valid ? money(side, amount) : ""}
+      {pv?.blocker && <p className="error">{pv.blocker}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
+      <button className="primary" disabled={!valid || busy} onClick={confirm}>
+        {busy ? (
+          <>
+            <span className="spinner tiny" aria-hidden /> Confirmando na Solana…
+          </>
+        ) : (
+          <>Trocar {valid ? money(side, amount) : ""}</>
+        )}
       </button>
+      {preview && !busy && <p className="muted small center">Troca real no programa da cambI na Solana (rede de testes).</p>}
     </section>
   );
 }
@@ -119,6 +135,11 @@ function Receipt({ r, onClose, onSendOut }: { r: SwapResult; onClose: () => void
     <section className="card receipt">
       <div className="done-icon"><CheckIcon /></div>
       <h2>Troca concluída</h2>
+      {r.signature && (
+        <a className="chain-badge" href={`https://explorer.solana.com/tx/${r.signature}?cluster=devnet`} target="_blank" rel="noreferrer">
+          <span className="live-dot" aria-hidden /> Registrada na Solana · ver transação ↗
+        </a>
+      )}
       <p className="receipt-amount">
         {money(r.side, r.amountIn)} → <strong>{money(out, r.amountOut)}</strong>
       </p>

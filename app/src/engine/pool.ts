@@ -61,6 +61,7 @@ export interface SwapResult {
   feeCurrency: Side;
   comparison: { name: string; cost: number }[];
   state: PoolState;
+  signature?: string; // quando a troca foi feita na Solana
 }
 
 const zero = (): Record<Side, number> => ({ BRL: 0, USD: 0 });

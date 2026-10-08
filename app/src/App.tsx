@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { previewSwap, fromUnits, toUnits } from "./chain/accounts";
+import { useChain } from "./chain/useChain";
+import { ChainCard } from "./components/ChainCard";
 import { Exchange } from "./components/Exchange";
 import { Home } from "./components/Home";
 import { BankIcon, ChevronIcon, GrowIcon, HomeIcon, KeyIcon, PoolIcon, SwapIcon } from "./components/Icons";
@@ -9,10 +12,10 @@ import { QuoteBadge } from "./components/QuoteBadge";
 import { Rende } from "./components/Rende";
 import { SendFlow } from "./components/SendFlow";
 import { Sheet } from "./components/Sheet";
-import { PoolState, Side, createPool, deposit, setPrice } from "./engine/pool";
+import { BENCHMARKS, PoolState, Side, SwapResult, createPool, deposit, setPrice } from "./engine/pool";
 import { money } from "./format";
 import { useLiveQuote } from "./useLiveQuote";
-import { INITIAL_WALLET, Recipient, Wallet, simulateMarket, walletDeposit, walletSend, walletSwap } from "./wallet";
+import { INITIAL_WALLET, Recipient, Wallet, rememberRecipient, simulateMarket, walletDeposit, walletSend, walletSwap } from "./wallet";
 
 const PRICE = 5.4; // cotação de referência, usada só até chegar a cotação ao vivo (ou se as fontes estiverem fora do ar)
 const STORAGE_KEY = "cambi-demo-v1";
@@ -41,6 +44,8 @@ function loadSaved(): { pool: PoolState; wallet: Wallet } | null {
   }
 }
 
+const idx = (s: Side) => (s === "BRL" ? 0 : 1);
+
 type Tab = "inicio" | "trocar" | "rende" | "pool";
 type Flow = { kind: "send"; side: Side; cents?: number } | null;
 
@@ -63,6 +68,27 @@ export default function App() {
   const touched = useRef(saved !== null);
   const quote = useLiveQuote((q) => setPool((p) => (touched.current ? setPrice(p, q.price) : seedPool(q.price))));
 
+  // Conta na Solana (devnet): quando ativa, saldos e operações são reais na blockchain.
+  const { chain, activate, deactivate, run, record } = useChain();
+  const live = chain.status === "ready" && chain.state ? { ...chain, state: chain.state } : null;
+  const chainPrice = live ? Number(live.state.pool.price) / 1e6 : null;
+  const view: Wallet = live
+    ? {
+        balance: { BRL: fromUnits(live.state.balances[0]), USD: fromUnits(live.state.balances[1]) },
+        rende: {
+          BRL: fromUnits(live.state.positions.find((p) => p.side === 0)?.raw.amount ?? 0n),
+          USD: fromUnits(live.state.positions.find((p) => p.side === 1)?.raw.amount ?? 0n),
+        },
+        earned: {
+          BRL: fromUnits(live.state.positions.reduce((a, p) => a + p.pending[0], 0n)),
+          USD: fromUnits(live.state.positions.reduce((a, p) => a + p.pending[1], 0n)),
+        },
+        activity: live.activity,
+        recipients: wallet.recipients,
+      }
+    : wallet;
+  const viewPool = chainPrice ? { ...pool, price: chainPrice } : pool;
+
   useEffect(() => {
     if (!touched.current) return;
     try {
@@ -74,6 +100,76 @@ export default function App() {
 
   // Ao trocar de aba, volta ao topo, como num app nativo.
   useEffect(() => window.scrollTo({ top: 0 }), [tab]);
+
+  async function chainSwap(side: Side, amount: number): Promise<SwapResult> {
+    const res = await run((c, s, st) => c.swap(s, st, idx(side), toUnits(amount)));
+    const price = chainPrice ?? pool.price;
+    const q = res.q;
+    const feeTotal = fromUnits(q.fee);
+    const inBRL = side === "BRL" ? amount : amount * price;
+    const feeBRL = side === "BRL" ? feeTotal : feeTotal * price;
+    const comparison = BENCHMARKS.map((b) => ({ name: b.name, cost: inBRL * b.rate }));
+    const result: SwapResult = {
+      side,
+      amountIn: amount,
+      amountOut: fromUnits(q.amountOut),
+      feeRate: Number(q.feeBps) / 10_000,
+      feeTotal,
+      toRende: fromUnits(q.toRende),
+      toBaleia: fromUnits(q.toBaleia),
+      toPlatform: fromUnits(q.toPlatform),
+      toPartner: fromUnits(q.toPartner),
+      feeCurrency: side,
+      comparison,
+      state: { ...pool, price },
+      signature: res.sig,
+    };
+    record({ kind: "swap", side, amountIn: amount, amountOut: result.amountOut, fee: feeTotal, savedVsBank: comparison[0].cost - feeBRL, sig: res.sig });
+    return result;
+  }
+
+  function chainPreview(side: Side, amount: number) {
+    const st = live!.state;
+    const { q, blocker } = previewSwap(st, idx(side), toUnits(amount));
+    return { amountOut: fromUnits(q.amountOut), feeTotal: fromUnits(q.fee), feeRate: Number(q.feeBps) / 10_000, blocker, price: chainPrice! };
+  }
+
+  async function chainDeposit(side: Side, amount: number) {
+    const sig = await run((c, s) => c.depositRende(s, idx(side), toUnits(amount)));
+    record({ kind: "deposit", side, amountIn: amount, sig });
+  }
+
+  async function chainHarvest() {
+    const st = live!.state;
+    const withFees = st.positions.filter((p) => p.pending[0] > 0n || p.pending[1] > 0n);
+    if (withFees.length === 0) throw new Error("Ainda não há rendimento a receber. Ele chega a cada troca feita no pool.");
+    for (const p of withFees) {
+      const sig = await run((c, s) => c.withdrawRende(s, p.side, 0n));
+      const brl = fromUnits(p.pending[0]) + fromUnits(p.pending[1]) * (chainPrice ?? pool.price);
+      record({ kind: "harvest", side: "BRL", amountIn: brl, sig });
+    }
+  }
+
+  async function chainWithdraw() {
+    for (const p of live!.state.positions.filter((x) => x.raw.amount > 0n)) {
+      const sig = await run((c, s) => c.withdrawRende(s, p.side, p.raw.amount));
+      record({ kind: "withdraw", side: p.side === 0 ? "BRL" : "USD", amountIn: fromUnits(p.raw.amount), sig });
+    }
+  }
+
+  async function chainSend(side: Side, amount: number, fee: number, recipient: Recipient) {
+    const note =
+      recipient.route === "pix"
+        ? `Pix para ${recipient.detail.replace(/^Pix · /, "")}`
+        : recipient.route === "ach"
+          ? `ACH para ${recipient.name} (${recipient.detail})`
+          : `USDC para ${recipient.data.address}`;
+    const sig = await run((c, s) => c.sendOut(s, idx(side), toUnits(amount + fee), recipient.route, recipient.data.address ?? "", note));
+    const route = recipient.route === "pix" ? "Pix" : recipient.route === "ach" ? "ACH" : "USDC";
+    record({ kind: "send", side, amountIn: amount, fee, to: `${recipient.name} · ${recipient.detail}`, route, sig });
+    setWallet((w) => rememberRecipient(w, recipient));
+    return sig;
+  }
 
   function handleSwap(side: Side, amount: number) {
     touched.current = true;
@@ -99,6 +195,7 @@ export default function App() {
 
   function handleSend(side: Side, amount: number, fee: number, recipient: Recipient) {
     touched.current = true;
+    if (live) return chainSend(side, amount, fee, recipient);
     setWallet((w) => walletSend(w, side, amount, fee, recipient));
   }
 
@@ -129,13 +226,26 @@ export default function App() {
       <main key={tab} className="screen">
         {(tab === "inicio" || tab === "trocar") && <QuoteBadge quote={quote} price={pool.price} />}
         {tab === "inicio" && (
-          <Home pool={pool} wallet={wallet} go={setTab} onSend={() => setChooser(true)} onSimulateMarket={handleMarket} />
+          <ChainCard
+            chain={chain}
+            balanceBRL={view.balance.BRL}
+            onActivate={activate}
+            onDeactivate={deactivate}
+            onFaucet={async () => {
+              const sig = await run((c, s) => c.onboard(s.publicKey));
+              record({ kind: "faucet", side: "BRL", amountIn: 1_000, sig });
+            }}
+          />
+        )}
+        {tab === "inicio" && (
+          <Home pool={viewPool} wallet={view} go={setTab} onSend={() => setChooser(true)} onSimulateMarket={live ? undefined : handleMarket} />
         )}
         {tab === "trocar" && (
           <Exchange
-            pool={pool}
-            wallet={wallet}
-            onSwap={handleSwap}
+            pool={viewPool}
+            wallet={view}
+            onSwap={live ? chainSwap : handleSwap}
+            preview={live ? chainPreview : undefined}
             onDone={() => setTab("inicio")}
             onSendOut={(side, amount) => {
               setTab("inicio");
@@ -143,7 +253,13 @@ export default function App() {
             }}
           />
         )}
-        {tab === "rende" && <Rende wallet={wallet} onDeposit={handleDeposit} />}
+        {tab === "rende" && (
+          <Rende
+            wallet={view}
+            onDeposit={live ? chainDeposit : handleDeposit}
+            onchain={live ? { onHarvest: chainHarvest, onWithdraw: chainWithdraw } : undefined}
+          />
+        )}
         {tab === "pool" && (
           <>
             <OnchainCard />
@@ -151,8 +267,10 @@ export default function App() {
           </>
         )}
         <p className="footnote">
-          Demonstração com saldo fictício. Nenhum dinheiro real é movimentado. Em produção, Pix via parceiro autorizado
-          pelo Banco Central.{" "}
+          {live
+            ? "Conta na rede de testes da Solana: moedas de teste, sem valor real. "
+            : "Demonstração com saldo fictício. Nenhum dinheiro real é movimentado. "}
+          Em produção, Pix via parceiro autorizado pelo Banco Central.{" "}
           {touched.current && (
             <button className="link inline" onClick={reset}>
               Recomeçar a demo
@@ -178,7 +296,7 @@ export default function App() {
                 <span className="qa-icon"><KeyIcon /></span>
                 <span>
                   <strong>Pix em reais</strong>
-                  <small className="muted">Para qualquer chave, na hora · saldo {money("BRL", wallet.balance.BRL)}</small>
+                  <small className="muted">Para qualquer chave, na hora · saldo {money("BRL", view.balance.BRL)}</small>
                 </span>
                 <ChevronIcon />
               </button>
@@ -188,7 +306,7 @@ export default function App() {
                 <span className="qa-icon"><BankIcon /></span>
                 <span>
                   <strong>Dólar para fora</strong>
-                  <small className="muted">Conta nos EUA ou carteira USDC · saldo {money("USD", wallet.balance.USD)}</small>
+                  <small className="muted">Conta nos EUA ou carteira USDC · saldo {money("USD", view.balance.USD)}</small>
                 </span>
                 <ChevronIcon />
               </button>
@@ -201,7 +319,7 @@ export default function App() {
         <SendFlow
           key={`${flow.side}-${flow.cents ?? 0}`}
           side={flow.side}
-          wallet={wallet}
+          wallet={view}
           initialCents={flow.cents}
           onSend={handleSend}
           onClose={() => setFlow(null)}

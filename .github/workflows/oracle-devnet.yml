@@ -41,6 +41,16 @@ jobs:
 
       - run: npm ci
 
+      - run: npm ci
+        working-directory: app
+
+      - name: Manter o patrocinador do app (SOL e moedas de teste)
+        continue-on-error: true
+        env:
+          ANCHOR_PROVIDER_URL: https://api.devnet.solana.com
+          ANCHOR_WALLET: .devnet-keys/deployer.json
+        run: npm run devnet:sponsor
+
       - name: Gravar cotação ao vivo no pool
         env:
           ANCHOR_PROVIDER_URL: https://api.devnet.solana.com

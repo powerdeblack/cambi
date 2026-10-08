@@ -1,0 +1,47 @@
+name: Teste de ponta a ponta na devnet
+
+# Roda o mesmo cliente que o app usa contra o programa real na devnet: conta nova, troca, Rende, envio e resgate.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-devnet
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Restaurar chave do admin (devnet)
+        id: keys
+        uses: actions/cache/restore@v4
+        with:
+          path: .devnet-keys
+          key: devnet-keys-v1
+
+      - run: npm ci
+      - run: npm ci
+        working-directory: app
+
+      - name: Preparar o patrocinador do app
+        if: steps.keys.outputs.cache-hit == 'true'
+        env:
+          ANCHOR_PROVIDER_URL: https://api.devnet.solana.com
+          ANCHOR_WALLET: .devnet-keys/deployer.json
+        run: npm run devnet:sponsor
+
+      - name: Conta nova → troca → Rende → envio → resgate
+        run: npm run devnet:e2e

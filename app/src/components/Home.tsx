@@ -9,14 +9,17 @@ interface Props {
   wallet: Wallet;
   go: (tab: "trocar" | "rende") => void;
   onSend: () => void;
-  onSimulateMarket: () => void;
+  onSimulateMarket?: () => void;
 }
 
-const ACTIVITY_ICON = { swap: "⇄", deposit: "＋", send: "↗" } as const;
+const ACTIVITY_ICON = { swap: "⇄", deposit: "＋", send: "↗", harvest: "✦", withdraw: "↙", faucet: "🎁" } as const;
 
 function activityTitle(a: Wallet["activity"][number]) {
   if (a.kind === "swap") return `Troca ${a.side === "BRL" ? "real → dólar" : "dólar → real"}`;
   if (a.kind === "deposit") return "Depósito na Rende";
+  if (a.kind === "harvest") return "Rendimento recebido";
+  if (a.kind === "withdraw") return "Resgate da Rende";
+  if (a.kind === "faucet") return "Moedas de teste recebidas";
   return a.route === "Pix" ? "Pix enviado" : a.route === "ACH" ? "Envio para conta nos EUA" : "Envio para carteira USDC";
 }
 
@@ -76,9 +79,11 @@ export function Home({ pool, wallet, go, onSend, onSimulateMarket }: Props) {
           <p>
             Você é dono de um pedaço do câmbio. Quando outras pessoas trocam, parte da taxa vem para você.
           </p>
-          <button className="secondary" onClick={onSimulateMarket}>
-            Simular um dia de trocas no pool
-          </button>
+          {onSimulateMarket && (
+            <button className="secondary" onClick={onSimulateMarket}>
+              Simular um dia de trocas no pool
+            </button>
+          )}
         </section>
       ) : (
         <section className="card hint">
@@ -106,6 +111,11 @@ export function Home({ pool, wallet, go, onSend, onSimulateMarket }: Props) {
                   {a.kind === "send" && a.to && <small className="muted">{a.to}</small>}
                   {a.savedVsBank !== undefined && (
                     <small className="saved">economizou {reais(a.savedVsBank)} vs. banco</small>
+                  )}
+                  {a.sig && (
+                    <a className="chain-link" href={`https://explorer.solana.com/tx/${a.sig}?cluster=devnet`} target="_blank" rel="noreferrer">
+                      ver na blockchain ↗
+                    </a>
                   )}
                 </span>
                 <strong className={a.kind === "send" ? "neg" : undefined}>

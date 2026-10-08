@@ -5,33 +5,45 @@ import { money, pct } from "../format";
 import { Wallet } from "../wallet";
 import { Brand } from "./Brand";
 import { InfoIcon } from "./Icons";
+import { MoneyInput } from "./MoneyInput";
 
 const CDI = 0.1365;
 const TBILL = 0.0386;
 
 interface Props {
   wallet: Wallet;
-  onDeposit: (side: Side, amount: number) => void;
+  onDeposit: (side: Side, amount: number) => void | Promise<void>;
+  /** Modo blockchain: colher as taxas e resgatar a posição de verdade. */
+  onchain?: { onHarvest: () => Promise<void>; onWithdraw: () => Promise<void> };
 }
 
-export function Rende({ wallet, onDeposit }: Props) {
+export function Rende({ wallet, onDeposit, onchain }: Props) {
   const [tier, setTier] = useState<"rende" | "baleia">("rende");
   const [side, setSide] = useState<Side>("BRL");
-  const [amount, setAmount] = useState(100);
+  const [cents, setCents] = useState(10_000);
+  const amount = cents / 100;
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState<"" | "deposit" | "harvest" | "withdraw">("");
+  const [done, setDone] = useState("");
   const [giro, setGiro] = useState(0.05);
   const r = project({ poolBRL: 100e6, giro, cdi: CDI, tbill: TBILL });
   const yearly = amount * (side === "BRL" ? r.rendeBRL : r.rendeUSD);
   const common = amount * (side === "BRL" ? CDI : TBILL);
 
-  function submit() {
+  async function act(kind: "deposit" | "harvest" | "withdraw", fn: () => void | Promise<void>, ok: string) {
+    setBusy(kind);
+    setError("");
+    setDone("");
     try {
-      onDeposit(side, amount);
-      setError("");
+      await fn();
+      setDone(ok);
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setBusy("");
     }
   }
+  const over = amount > wallet.balance[side] + 1e-9;
 
   return (
     <>
@@ -81,27 +93,41 @@ export function Rende({ wallet, onDeposit }: Props) {
               </div>
             )}
 
+            {onchain && (wallet.rende.BRL > 0 || wallet.rende.USD > 0) && (
+              <div className="actions-row">
+                <button className="secondary" disabled={!!busy} onClick={() => act("harvest", onchain.onHarvest, "Rendimento enviado para sua carteira.")}>
+                  {busy === "harvest" ? "Recebendo…" : "Receber rendimento"}
+                </button>
+                <button className="secondary" disabled={!!busy} onClick={() => act("withdraw", onchain.onWithdraw, "Resgate concluído.")}>
+                  {busy === "withdraw" ? "Resgatando…" : "Resgatar tudo"}
+                </button>
+              </div>
+            )}
+
             <div className="field-box">
-              <span className="label">Quanto você quer deixar rendendo</span>
               <div className="amount-row">
-                <input
-                  inputMode="decimal"
-                  type="number"
-                  min={0}
-                  value={amount}
-                  aria-label="Valor a depositar"
-                  onChange={(e) => setAmount(Number(e.target.value))}
-                />
+                <MoneyInput side={side} cents={cents} onChange={setCents} label="Quanto você quer deixar rendendo" invalid={over} />
                 <select className="currency" value={side} onChange={(e) => setSide(e.target.value as Side)} aria-label="Moeda">
                   <option value="BRL">🇧🇷 BRL</option>
                   <option value="USD">🇺🇸 USD</option>
                 </select>
               </div>
-              <span className="muted">Disponível: {money(side, wallet.balance[side])} · mínimo R$ 10</span>
+              <span className={over ? "error" : "muted"}>Disponível: {money(side, wallet.balance[side])} · mínimo R$ 10</span>
             </div>
-            {error && <p className="error">{error}</p>}
-            <button className="primary" disabled={!(amount > 0)} onClick={submit}>
-              Depositar {amount > 0 ? money(side, amount) : ""}
+            {error && <p className="error" role="alert">{error}</p>}
+            {done && <p className="pos" role="status">{done}</p>}
+            <button
+              className="primary"
+              disabled={!(amount > 0) || over || !!busy}
+              onClick={() => act("deposit", () => onDeposit(side, amount), "Depósito feito. Agora você ganha com as trocas do pool.")}
+            >
+              {busy === "deposit" ? (
+                <>
+                  <span className="spinner tiny" aria-hidden /> Confirmando na Solana…
+                </>
+              ) : (
+                <>Depositar {amount > 0 ? money(side, amount) : ""}</>
+              )}
             </button>
             <p className="warn">
               <InfoIcon /> Não tem garantia do FGC, ao contrário de um CDB. Rendimentos dependem do movimento do pool e não são

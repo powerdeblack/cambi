@@ -3,7 +3,7 @@ import { PoolState, Side, SwapResult, UserKind, deposit, swap } from "./engine/p
 
 export interface Activity {
   id: number;
-  kind: "swap" | "deposit" | "send";
+  kind: "swap" | "deposit" | "send" | "harvest" | "withdraw" | "faucet";
   side: Side; // moeda que saiu da carteira
   amountIn: number;
   amountOut?: number;
@@ -12,6 +12,7 @@ export interface Activity {
   to?: string; // envio: destinatário mascarado (chave Pix, conta ou carteira)
   route?: string; // envio: "Pix", "ACH" ou "USDC"
   at?: number; // quando aconteceu (ms)
+  sig?: string; // assinatura da transação na Solana (modo blockchain)
 }
 
 /** Destinatário já usado, para repetir o envio em um toque. */
@@ -120,4 +121,9 @@ export function walletSend(w: Wallet, side: Side, amount: number, fee: number, r
     activity: [activity, ...w.activity],
     recipients: [recipient, ...w.recipients.filter((r) => r.id !== recipient.id)].slice(0, 6),
   };
+}
+
+/** Guarda o destinatário nos recentes sem mexer no saldo (modo blockchain: o saldo vem da Solana). */
+export function rememberRecipient(w: Wallet, recipient: Recipient): Wallet {
+  return { ...w, recipients: [recipient, ...w.recipients.filter((r) => r.id !== recipient.id)].slice(0, 6) };
 }
