@@ -17,10 +17,15 @@ runs:
     - name: Instalar Anchor CLI
       shell: bash
       run: |
+        # O wrapper anchor.js do pacote recusa rodar (e sai com código 0) quando a versão do binário
+        # difere da do pacote. Usamos o binário direto, para qualquer erro aparecer de verdade.
         npm install -g @coral-xyz/anchor-cli@0.31.1
         BIN="$(npm root -g)/@coral-xyz/anchor-cli/anchor"
         chmod +x "$BIN"
+        rm -f "$(npm prefix -g)/bin/anchor"
         sudo ln -sf "$BIN" /usr/local/bin/anchor
+        hash -r
+        test "$(command -v anchor)" = /usr/local/bin/anchor
     - name: Dependências npm
       shell: bash
       run: npm ci
