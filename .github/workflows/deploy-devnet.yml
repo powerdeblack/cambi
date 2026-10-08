@@ -62,6 +62,9 @@ jobs:
           test "$(node -p "require('./target/idl/cambi_pool.json').address")" = "$PROGRAM_ID"
           ls -la target/deploy/
 
+      - name: Recuperar SOL de buffers de deploys interrompidos
+        run: solana program close --buffers --bypass-warning || echo "Nenhum buffer para fechar"
+
       - name: Verificar saldo de SOL de devnet
         run: |
           for i in 1 2 3; do solana airdrop 2 || true; sleep 5; done
@@ -88,12 +91,41 @@ jobs:
           fi
 
       - name: Deploy do programa
+        timeout-minutes: 150
         run: |
-          solana program deploy target/deploy/cambi_pool.so \
+          # Já implantado com este mesmo binário? Então não gasta SOL de novo.
+          if solana program dump "$PROGRAM_ID" /tmp/onchain.so 2>/dev/null \
+             && cmp -s -n "$(stat -c%s target/deploy/cambi_pool.so)" target/deploy/cambi_pool.so /tmp/onchain.so; then
+            echo "Programa já está na devnet com este binário."
+            solana program show "$PROGRAM_ID"
+            exit 0
+          fi
+          # Escreve num buffer com chave fixa: se a RPC pública falhar, a próxima tentativa
+          # retoma o mesmo buffer e só reescreve os pedaços que faltam.
+          solana-keygen new --no-bip39-passphrase --silent --force -o /tmp/buffer.json
+          BUFFER=$(solana address -k /tmp/buffer.json)
+          ok=0
+          for i in 1 2 3 4 5 6; do
+            MODE=""; [ $((i % 2)) -eq 1 ] && MODE="--use-rpc"
+            echo "::group::Escrita do buffer $BUFFER, tentativa $i ${MODE:-(TPU)}"
+            if timeout 25m solana program write-buffer target/deploy/cambi_pool.so \
+                 --buffer /tmp/buffer.json \
+                 --with-compute-unit-price 100000 \
+                 --max-sign-attempts 100 $MODE; then ok=1; echo "::endgroup::"; break; fi
+            echo "::endgroup::"
+            sleep 20
+          done
+          if [ "$ok" != 1 ]; then
+            solana program close "$BUFFER" --bypass-warning || true
+            echo "::error::Não foi possível escrever o programa na devnet (RPC pública instável). Rode o workflow de novo."
+            exit 1
+          fi
+          solana program deploy \
+            --buffer /tmp/buffer.json \
             --program-id target/deploy/cambi_pool-keypair.json \
             --max-len "$MAX_LEN" \
             --with-compute-unit-price 100000 \
-            --max-sign-attempts 60 \
+            --max-sign-attempts 100 \
             --use-rpc
           solana program show "$PROGRAM_ID"
 
