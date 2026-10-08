@@ -3,7 +3,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { appendFileSync, mkdirSync, writeFileSync } from "fs";
 import { CambiPool } from "../target/types/cambi_pool";
 import idl from "../target/idl/cambi_pool.json";
@@ -25,9 +25,36 @@ import {
 const PRICE_RAW = new anchor.BN(5_400_000); // R$ 5,40 por dólar (cotação de demonstração)
 const MAX_PRICE_AGE = new anchor.BN(60 * 60 * 24 * 30); // 30 dias, para a demo continuar utilizável
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * A RPC pública da devnet limita requisições (HTTP 429). Este fetch espaça as chamadas e,
+ * quando recebe 429, espera e tenta de novo. Uma requisição recusada com 429 não foi
+ * processada, então repetir é seguro (inclusive para envio de transações).
+ */
+let lastCall = 0;
+const MIN_GAP_MS = 250;
+async function politeFetch(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) {
+  for (let attempt = 1; ; attempt++) {
+    const wait = lastCall + MIN_GAP_MS - Date.now();
+    lastCall = Math.max(Date.now(), lastCall + MIN_GAP_MS);
+    if (wait > 0) await sleep(wait);
+    const res = await fetch(input, init);
+    if (res.status !== 429 || attempt >= 12) return res;
+    const backoff = Math.min(2_000 * attempt, 15_000);
+    console.log(`RPC pediu calma (429). Nova tentativa em ${backoff / 1000}s…`);
+    await sleep(backoff);
+  }
+}
+
 async function main() {
   const env = anchor.AnchorProvider.env();
-  const provider = new anchor.AnchorProvider(env.connection, env.wallet, { commitment: "confirmed", preflightCommitment: "confirmed" });
+  const connection0 = new Connection(env.connection.rpcEndpoint, {
+    commitment: "confirmed",
+    disableRetryOnRateLimit: true,
+    fetch: politeFetch as typeof fetch,
+  });
+  const provider = new anchor.AnchorProvider(connection0, env.wallet, { commitment: "confirmed", preflightCommitment: "confirmed" });
   anchor.setProvider(provider);
   const program = new Program<CambiPool>(idl as CambiPool, provider);
   const connection = provider.connection;
