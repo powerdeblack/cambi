@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 80" role="img" aria-label="cambI">
+  <title>cambI</title>
+  <text x="0" y="60" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="64" font-weight="800" letter-spacing="-2" fill="#0B2545">camb</text>
+  <!-- "I" maiúsculo desenhado com serifas para não ser confundido com "l" -->
+  <g fill="#12A150">
+    <rect x="168" y="12" width="44" height="10" rx="3"/>
+    <rect x="183" y="12" width="14" height="56" rx="3"/>
+    <rect x="168" y="58" width="44" height="10" rx="3"/>
+  </g>
+</svg>

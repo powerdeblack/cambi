@@ -1,0 +1,103 @@
+:root {
+  --green: #12a150;
+  --green-soft: #e3f6ea;
+  --navy: #0b2545;
+  --ink: #13213a;
+  --muted: #5b6b82;
+  --bg: #f4f7fb;
+  --card: #ffffff;
+  --line: #dde4ee;
+  --whale: #2f6fdb;
+  --partner: #9aa7b8;
+  --warn: #9a5b00;
+  --warn-bg: #fff4e0;
+  --error: #b42318;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e8eef7;
+    --muted: #9fb0c6;
+    --bg: #0a1424;
+    --card: #12203a;
+    --line: #22345a;
+    --green-soft: #12382a;
+    --warn-bg: #3a2a10;
+    --warn: #f3c46b;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
+
+.app { max-width: 720px; margin: 0 auto; padding: 16px; }
+header { text-align: center; padding: 8px 0 4px; }
+.logo { height: 56px; }
+.tagline { margin: 4px 0 0; font-weight: 600; color: var(--green); }
+
+nav { display: flex; gap: 6px; margin: 16px 0; overflow-x: auto; }
+.tab {
+  flex: 1; padding: 10px 12px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--card); color: var(--ink); font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.tab.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+h2 { margin: 0 0 4px; }
+h3 { margin: 20px 0 8px; font-size: 1rem; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+
+label { display: block; margin: 12px 0; font-weight: 600; font-size: 0.9rem; }
+input, select {
+  display: block; width: 100%; margin-top: 6px; padding: 10px 12px; font-size: 1rem;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink);
+}
+input[type="range"] { padding: 0; }
+.row { display: flex; gap: 12px; align-items: flex-end; }
+.row label { flex: 1; }
+
+button.primary {
+  width: 100%; margin-top: 8px; padding: 14px; font-size: 1rem; font-weight: 700; border: 0;
+  border-radius: 12px; background: var(--green); color: #fff; cursor: pointer;
+}
+button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+button.ghost {
+  padding: 10px 12px; margin: 12px 0; border-radius: 10px; border: 1px solid var(--line);
+  background: transparent; color: var(--ink); font-weight: 700; cursor: pointer;
+}
+
+.quote { background: var(--green-soft); padding: 10px 12px; border-radius: 10px; }
+.error { color: var(--error); font-weight: 600; }
+.warn { background: var(--warn-bg); color: var(--warn); padding: 10px 12px; border-radius: 10px; font-size: 0.9rem; }
+.tip { background: var(--bg); padding: 10px 12px; border-radius: 10px; font-size: 0.9rem; }
+
+.explain { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 8px; }
+.bar { display: flex; height: 18px; border-radius: 999px; overflow: hidden; margin: 8px 0; }
+.bar span { min-width: 2px; }
+.rende { background: var(--green); }
+.baleia { background: var(--whale); }
+.partner { background: var(--partner); }
+.platform { background: var(--navy); }
+@media (prefers-color-scheme: dark) { .platform { background: #e8eef7; } }
+.legend, .compare { list-style: none; padding: 0; margin: 0; }
+.legend li, .compare li { padding: 4px 0; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+
+.split { display: flex; height: 36px; border-radius: 10px; overflow: hidden; margin: 12px 0 6px; font-weight: 700; font-size: 0.85rem; }
+.split span { display: flex; align-items: center; justify-content: center; color: #fff; white-space: nowrap; overflow: hidden; }
+.split .brl { background: var(--green); }
+.split .usd { background: var(--whale); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+.stat { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.stat strong { font-size: 1.1rem; }
+.stat.highlight { border-color: var(--green); background: var(--green-soft); }
+
+.tranches { display: flex; gap: 6px; margin: 12px 0; }
+footer { margin: 20px 0; text-align: center; }
+
+.brand { white-space: nowrap; }
+.brand-i { font-family: Georgia, "Times New Roman", serif; font-weight: 700; color: var(--green); }
