@@ -37,11 +37,23 @@ jobs:
       - name: Instalar Pillow (versão fixa)
         run: python3 -m pip install --user --break-system-packages pillow==11.0.0
 
-      - name: Restaurar chave do admin (devnet), depois de instalar tudo
+      - name: Restaurar chaves (devnet), depois de instalar tudo
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .devnet-keys
           key: devnet-keys-v2
+
+      - name: Manutenção (limites, SOL do oráculo, liquidez)
+        env:
+          ANCHOR_PROVIDER_URL: https://api.devnet.solana.com
+          ANCHOR_WALLET: .devnet-keys/deployer.json
+        run: npm run devnet:maintain
+
+      - name: Cotação atualizada no pool (chave do oráculo)
+        env:
+          ANCHOR_PROVIDER_URL: https://api.devnet.solana.com
+          ANCHOR_WALLET: .devnet-keys/oracle.json
+        run: npm run devnet:price
 
       - name: Percorrer o app na devnet e tirar os prints
         env:

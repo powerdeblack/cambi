@@ -1,5 +1,6 @@
 // Manutenção da demonstração na devnet, com a chave de admin (só no GitHub Actions):
 // - mantém SOL na chave do oráculo;
+// - mantém a validade da cotação em 24 h (o agendador do GitHub atrasa o oráculo por horas);
 // - repõe liquidez do pool como Baleia (via admin_mint, instrução que só existe na versão devnet do programa)
 //   quando um cofre fica com pouca liquidez livre.
 import * as anchor from "@coral-xyz/anchor";
@@ -13,6 +14,8 @@ import { BALEIA, politeConnection, positionPda, u } from "./common";
 const MIN_FREE = { brl: 20_000, usd: 4_000 };
 const REFILL = { brl: 50_000, usd: 10_000 };
 const ORACLE_MIN_SOL = 0.1;
+// Máximo aceito pelo programa (MAX_PRICE_AGE_LIMIT). O limite de variação por atualização (10%) continua valendo.
+const DEVNET_MAX_PRICE_AGE = 86_400;
 
 async function main() {
   const d = JSON.parse(readFileSync("deployments/devnet.json", "utf8"));
@@ -32,6 +35,16 @@ async function main() {
 
   const poolKey = new PublicKey(d.pool);
   const pool = await (program.account as any).pool.fetch(poolKey);
+
+  const maxAge = Number(pool.maxPriceAge.toString());
+  if (maxAge !== DEVNET_MAX_PRICE_AGE) {
+    const sig = await program.methods
+      .setLimits(new anchor.BN(DEVNET_MAX_PRICE_AGE), pool.maxPriceMoveBps, pool.lockupSecs)
+      .accountsPartial({ admin: admin.publicKey, pool: poolKey })
+      .rpc();
+    lines.push(`Validade da cotação: ${maxAge / 3600} h → ${DEVNET_MAX_PRICE_AGE / 3600} h (${sig})`);
+  } else lines.push(`Validade da cotação: ${maxAge / 3600} h (ok)`);
+
   const mints = [new PublicKey(d.brlMint), new PublicKey(d.usdMint)];
   const vaults = [new PublicKey(d.brlVault), new PublicKey(d.usdVault)];
   const mine = [
