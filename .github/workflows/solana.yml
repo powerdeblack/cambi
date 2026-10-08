@@ -23,10 +23,17 @@ jobs:
         run: solana-keygen new --no-bip39-passphrase --silent --force -o ~/.config/solana/id.json
       - name: Gerar a chave do programa e sincronizar o ID
         run: |
-          anchor build
+          anchor build -- --features devnet
           anchor keys sync
           sed -i "s/^cambi_pool = \".*\"/cambi_pool = \"$(solana address -k target/deploy/cambi_pool-keypair.json)\"/" Anchor.toml
-          anchor build
+          anchor build -- --features devnet
+          # O faucet de testes tem que estar nesta versão (devnet) e no IDL.
+          node -e 'const i=require("./target/idl/cambi_pool.json").instructions.map(x=>x.name); if(!i.includes("faucet_claim")) { console.error("IDL sem faucet_claim:", i); process.exit(1) } console.log(i.join(", "))'
+      - name: Versão de produção não tem faucet
+        run: |
+          cargo build-sbf --manifest-path programs/cambi_pool/Cargo.toml --sbf-out-dir /tmp/prod
+          ! grep -a -q "faucet_claim\|FaucetClaim" /tmp/prod/cambi_pool.so
+          echo "OK: binário de produção sem instruções de faucet"
       - name: Conferir IDs
         run: |
           echo "chave:    $(solana address -k target/deploy/cambi_pool-keypair.json)"

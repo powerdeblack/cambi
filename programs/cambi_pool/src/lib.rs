@@ -7,10 +7,24 @@
 //! - taxas divididas entre parceiro regulado, operação, Baleia e Rende;
 //! - cada camada recebe taxas nas DUAS moedas, proporcional ao VALOR depositado (shares);
 //! - a Rende é sênior: a Baleia só saca se o cofre continuar cobrindo todo o principal da Rende;
-//! - limite por troca e pausa de emergência (saques continuam liberados durante a pausa).
+//! - limite por troca e por minuto, e pausa de emergência (saques continuam liberados durante a pausa);
+//! - depósitos ficam travados por um período mínimo antes do resgate do principal (contra liquidez relâmpago);
+//! - o oráculo só move o preço dentro de um limite por atualização.
+//!
+//! Auditoria e correções: docs/AUDITORIA.md.
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
+
+#[cfg(not(feature = "no-entrypoint"))]
+solana_security_txt::security_txt! {
+    name: "cambI pool",
+    project_url: "https://github.com/powerdeblack/cambi",
+    contacts: "link:https://github.com/powerdeblack/cambi/security/advisories/new",
+    policy: "https://github.com/powerdeblack/cambi/blob/main/SECURITY.md",
+    source_code: "https://github.com/powerdeblack/cambi",
+    auditors: "Revisão interna: docs/AUDITORIA.md (sem auditoria externa ainda)"
+}
 
 declare_id!("AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ");
 
@@ -23,13 +37,25 @@ pub const USD: usize = 1;
 pub const RENDE: usize = 0;
 pub const BALEIA: usize = 1;
 
+/// Depósito mínimo e posição mínima para o desconto de depositante: R$ 10 (6 casas).
+pub const MIN_DEPOSIT_BRL: u128 = 10_000_000;
+/// Janela do limite de saída acumulada por moeda.
+pub const WINDOW_SECS: i64 = 60;
+pub const DEFAULT_LOCKUP_SECS: i64 = 600;
+pub const DEFAULT_MAX_PRICE_MOVE_BPS: u16 = 1_000;
+pub const MAX_PRICE_AGE_LIMIT: i64 = 86_400;
+pub const MAX_LOCKUP_SECS: i64 = 7 * 86_400;
+
 #[program]
 pub mod cambi_pool {
     use super::*;
 
+    /// Cria o pool de um par de moedas. Só a autoridade de upgrade do programa pode chamar (evita que alguém
+    /// "tome" o endereço do pool de um par antes do time).
     pub fn initialize(ctx: Context<Initialize>, price: u64, max_price_age: i64) -> Result<()> {
         require!(price > 0, CambiError::InvalidPrice);
-        require!(max_price_age > 0, CambiError::InvalidConfig);
+        require!(max_price_age > 0 && max_price_age <= MAX_PRICE_AGE_LIMIT, CambiError::InvalidConfig);
+        require!(ctx.accounts.brl_mint.decimals == ctx.accounts.usd_mint.decimals, CambiError::MintDecimalsMismatch);
         let pool = &mut ctx.accounts.pool;
         pool.admin = ctx.accounts.admin.key();
         pool.oracle = ctx.accounts.admin.key();
@@ -42,15 +68,47 @@ pub mod cambi_pool {
         pool.max_price_age = max_price_age;
         pool.fees = FeeConfig::default();
         pool.bump = ctx.bumps.pool;
+        pool.lockup_secs = DEFAULT_LOCKUP_SECS;
+        pool.max_price_move_bps = DEFAULT_MAX_PRICE_MOVE_BPS;
         Ok(())
     }
 
     /// Atualiza a cotação (reais por dólar, escala 1e6). Só a autoridade de oráculo.
+    /// A variação por atualização é limitada (`max_price_move_bps`): uma chave de oráculo comprometida não
+    /// consegue saltar o preço para drenar os cofres numa tacada.
     pub fn set_price(ctx: Context<SetPrice>, price: u64) -> Result<()> {
         require!(price > 0, CambiError::InvalidPrice);
         let pool = &mut ctx.accounts.pool;
+        require!(price_move_ok(pool.price, price, pool.max_price_move_bps), CambiError::PriceMoveTooLarge);
         pool.price = price;
         pool.price_updated_at = Clock::get()?.unix_timestamp;
+        Ok(())
+    }
+
+    /// Validade máxima da cotação, variação máxima por atualização do oráculo e trava mínima dos depósitos.
+    pub fn set_limits(ctx: Context<AdminOnly>, max_price_age: i64, max_price_move_bps: u16, lockup_secs: i64) -> Result<()> {
+        require!(max_price_age > 0 && max_price_age <= MAX_PRICE_AGE_LIMIT, CambiError::InvalidConfig);
+        require!((10..=5_000).contains(&max_price_move_bps), CambiError::InvalidConfig);
+        require!((0..=MAX_LOCKUP_SECS).contains(&lockup_secs), CambiError::InvalidConfig);
+        let pool = &mut ctx.accounts.pool;
+        pool.max_price_age = max_price_age;
+        pool.max_price_move_bps = max_price_move_bps;
+        pool.lockup_secs = lockup_secs;
+        Ok(())
+    }
+
+    /// Troca de admin em dois passos: o atual propõe, o novo aceita (evita entregar o pool para uma chave errada).
+    pub fn propose_admin(ctx: Context<AdminOnly>, new_admin: Pubkey) -> Result<()> {
+        ctx.accounts.pool.pending_admin = new_admin;
+        Ok(())
+    }
+
+    pub fn accept_admin(ctx: Context<AcceptAdmin>) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+        require_keys_eq!(pool.pending_admin, ctx.accounts.new_admin.key(), CambiError::NotPendingAdmin);
+        require_keys_neq!(pool.pending_admin, Pubkey::default(), CambiError::NotPendingAdmin);
+        pool.admin = pool.pending_admin;
+        pool.pending_admin = Pubkey::default();
         Ok(())
     }
 
@@ -84,6 +142,10 @@ pub mod cambi_pool {
         require!(!ctx.accounts.pool.paused, CambiError::Paused);
         let t = tranche_idx(tranche)?;
         let s = side_idx(side)?;
+        let now = Clock::get()?.unix_timestamp;
+        // Shares são calculadas pelo preço: não aceita depósito com cotação velha.
+        require!(price_fresh(&ctx.accounts.pool, now), CambiError::StalePrice);
+        require!(value_in_brl(ctx.accounts.pool.price, s, amount)? >= MIN_DEPOSIT_BRL, CambiError::DepositTooSmall);
 
         let pending = {
             let pool = &mut ctx.accounts.pool;
@@ -102,7 +164,8 @@ pub mod cambi_pool {
             pool.shares[t] = pool.shares[t].checked_add(added).ok_or(CambiError::MathOverflow)?;
             let i = idx(t, s);
             pool.principal[i] = pool.principal[i].checked_add(amount).ok_or(CambiError::MathOverflow)?;
-            sync_debt(pool, pos);
+            pos.last_deposit_at = now;
+            sync_debt(pool, pos)?;
             pending
         };
 
@@ -134,21 +197,28 @@ pub mod cambi_pool {
     }
 
     /// Saca principal da posição (na moeda depositada) e recebe as taxas acumuladas nas duas moedas.
+    /// `amount = 0` só colhe as taxas (permitido a qualquer momento, inclusive com o pool pausado).
     pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         let t = tranche_idx(ctx.accounts.position.tranche)?;
         let s = side_idx(ctx.accounts.position.side)?;
         require!(amount <= ctx.accounts.position.amount, CambiError::InsufficientPosition);
+        if amount > 0 {
+            let now = Clock::get()?.unix_timestamp;
+            let unlock = ctx.accounts.position.last_deposit_at.saturating_add(ctx.accounts.pool.lockup_secs);
+            require!(now >= unlock, CambiError::PositionLocked);
+        }
 
-        let vault_amount = match s {
-            BRL => ctx.accounts.brl_vault.amount,
-            _ => ctx.accounts.usd_vault.amount,
-        };
-        let avail = available(&ctx.accounts.pool, vault_amount, s);
+        let vaults = [ctx.accounts.brl_vault.amount, ctx.accounts.usd_vault.amount];
+        let avail = available(&ctx.accounts.pool, vaults[s], s);
         require!(amount <= avail, CambiError::InsufficientLiquidity);
-        if t == BALEIA {
-            // A Rende é sênior: depois do saque, o cofre ainda precisa cobrir todo o principal da Rende.
+        if t == BALEIA && amount > 0 {
+            // A Rende é sênior nas DUAS moedas: depois do saque da Baleia, cada cofre precisa continuar cobrindo
+            // o principal da Rende naquela moeda (trocas movem valor de um cofre para o outro).
+            let o = 1 - s;
+            let avail_o = available(&ctx.accounts.pool, vaults[o], o);
+            let p = ctx.accounts.pool.principal;
             require!(
-                baleia_can_withdraw(avail, amount, ctx.accounts.pool.principal[idx(RENDE, s)]),
+                baleia_can_withdraw(avail, amount, p[idx(RENDE, s)]) && avail_o >= p[idx(RENDE, o)],
                 CambiError::BaleiaJuniorLiquidity
             );
         }
@@ -160,13 +230,17 @@ pub mod cambi_pool {
             let removed = if pos.amount == 0 {
                 0
             } else {
-                pos.shares * (amount as u128) / (pos.amount as u128)
+                pos.shares
+                    .checked_mul(amount as u128)
+                    .ok_or(CambiError::MathOverflow)?
+                    / (pos.amount as u128)
             };
-            pos.amount -= amount;
-            pos.shares -= removed;
-            pool.shares[t] -= removed;
-            pool.principal[idx(t, s)] -= amount;
-            sync_debt(pool, pos);
+            pos.amount = pos.amount.checked_sub(amount).ok_or(CambiError::MathOverflow)?;
+            pos.shares = pos.shares.checked_sub(removed).ok_or(CambiError::MathOverflow)?;
+            pool.shares[t] = pool.shares[t].checked_sub(removed).ok_or(CambiError::MathOverflow)?;
+            let i = idx(t, s);
+            pool.principal[i] = pool.principal[i].checked_sub(amount).ok_or(CambiError::MathOverflow)?;
+            sync_debt(pool, pos)?;
             pending
         };
 
@@ -205,13 +279,18 @@ pub mod cambi_pool {
             let pool = &ctx.accounts.pool;
             require!(!pool.paused, CambiError::Paused);
             let now = Clock::get()?.unix_timestamp;
-            require!(now - pool.price_updated_at <= pool.max_price_age, CambiError::StalePrice);
+            require!(price_fresh(pool, now), CambiError::StalePrice);
 
             let kind = if let Some(p) = &ctx.accounts.partner {
                 require!(p.authority == user_key && p.pool == pool_key, CambiError::InvalidPartner);
                 UserKind::B2b
             } else if let Some(pos) = &ctx.accounts.depositor_position {
                 require!(pos.owner == user_key && pos.pool == pool_key && pos.amount > 0, CambiError::InvalidPosition);
+                // Desconto só para quem deixou pelo menos R$ 10 (não vale "depositar 1 centavo" para pagar metade).
+                require!(
+                    value_in_brl(pool.price, side_idx(pos.side)?, pos.amount)? >= MIN_DEPOSIT_BRL,
+                    CambiError::InvalidPosition
+                );
                 UserKind::Depositor
             } else {
                 UserKind::Retail
@@ -227,8 +306,23 @@ pub mod cambi_pool {
             require!(q.amount_out <= avail[s_out], CambiError::InsufficientLiquidity);
             let max_out = (avail[s_out] as u128) * (pool.fees.max_trade_bps as u128) / BPS;
             require!((q.amount_out as u128) <= max_out, CambiError::TradeTooLarge);
-            q
+            (q, avail, now)
         };
+        let (q, avail, now) = q;
+
+        // Limite de saída acumulado por minuto (várias trocas na mesma transação ou em sequência não drenam o cofre).
+        {
+            let pool = &mut ctx.accounts.pool;
+            if now.saturating_sub(pool.window_start) >= WINDOW_SECS {
+                pool.window_start = now;
+                pool.window_base = avail;
+                pool.window_out = [0, 0];
+            }
+            let out_total = pool.window_out[s_out].checked_add(q.amount_out).ok_or(CambiError::MathOverflow)?;
+            let cap = (pool.window_base[s_out] as u128) * (pool.fees.max_trade_bps as u128) / BPS;
+            require!((out_total as u128) <= cap, CambiError::OutflowLimit);
+            pool.window_out[s_out] = out_total;
+        }
 
         let (vault_in, vault_out, user_in, user_out) = match s_in {
             BRL => (&ctx.accounts.brl_vault, &ctx.accounts.usd_vault, &ctx.accounts.user_brl, &ctx.accounts.user_usd),
@@ -249,20 +343,22 @@ pub mod cambi_pool {
 
         // Contabiliza a divisão da taxa (os tokens da taxa ficam no cofre de entrada, reservados).
         let pool = &mut ctx.accounts.pool;
-        pool.partner_fees[s_in] += q.to_partner;
-        pool.platform_fees[s_in] += q.to_platform;
+        pool.partner_fees[s_in] = pool.partner_fees[s_in].checked_add(q.to_partner).ok_or(CambiError::MathOverflow)?;
+        pool.platform_fees[s_in] = pool.platform_fees[s_in].checked_add(q.to_platform).ok_or(CambiError::MathOverflow)?;
         for (t, share) in [(RENDE, q.to_rende), (BALEIA, q.to_baleia)] {
             if pool.shares[t] == 0 {
-                pool.platform_fees[s_in] += share; // camada vazia: vai para a operação
+                // camada vazia: vai para a operação
+                pool.platform_fees[s_in] = pool.platform_fees[s_in].checked_add(share).ok_or(CambiError::MathOverflow)?;
             } else {
-                pool.lp_fees_unclaimed[s_in] += share;
-                let inc = (share as u128) * ACC_SCALE / pool.shares[t];
+                pool.lp_fees_unclaimed[s_in] = pool.lp_fees_unclaimed[s_in].checked_add(share).ok_or(CambiError::MathOverflow)?;
+                let inc = (share as u128).checked_mul(ACC_SCALE).ok_or(CambiError::MathOverflow)? / pool.shares[t];
                 let i = idx(t, s_in);
                 pool.acc_fee_per_share[i] = pool.acc_fee_per_share[i].checked_add(inc).ok_or(CambiError::MathOverflow)?;
             }
         }
-        pool.swap_count += 1;
-        pool.volume_brl = pool.volume_brl.saturating_add(value_in_brl(pool.price, s_in, amount_in)? as u64);
+        pool.swap_count = pool.swap_count.saturating_add(1);
+        let vol = u64::try_from(value_in_brl(pool.price, s_in, amount_in)?).unwrap_or(u64::MAX);
+        pool.volume_brl = pool.volume_brl.saturating_add(vol);
 
         emit!(SwapEvent {
             user: user_key,
@@ -284,7 +380,9 @@ pub mod cambi_pool {
         let s = side_idx(side)?;
         let expected = if s == BRL { ctx.accounts.pool.brl_vault } else { ctx.accounts.pool.usd_vault };
         require_keys_eq!(ctx.accounts.vault.key(), expected, CambiError::WrongVault);
-        let amount = ctx.accounts.pool.platform_fees[s] + ctx.accounts.pool.partner_fees[s];
+        let amount = ctx.accounts.pool.platform_fees[s]
+            .checked_add(ctx.accounts.pool.partner_fees[s])
+            .ok_or(CambiError::MathOverflow)?;
         require!(amount > 0, CambiError::ZeroAmount);
         pay_from_vault(&ctx.accounts.pool, &ctx.accounts.vault, &ctx.accounts.destination, &ctx.accounts.token_program, amount)?;
         let pool = &mut ctx.accounts.pool;
@@ -292,7 +390,77 @@ pub mod cambi_pool {
         pool.partner_fees[s] = 0;
         Ok(())
     }
+
+    /// SÓ DEVNET (feature `devnet`): dá moedas de teste (cBRL) para quem pede, com regras on-chain:
+    /// uma vez por hora por carteira, só para quem tem pouco saldo, e um teto global por hora.
+    /// Substitui a carteira patrocinadora: nenhuma chave com poder de emissão fica no app.
+    #[cfg(feature = "devnet")]
+    pub fn faucet_claim(ctx: Context<FaucetClaim>) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
+        let claim = &mut ctx.accounts.claim;
+        if claim.last_claim_at != 0 {
+            require!(now.saturating_sub(claim.last_claim_at) >= FAUCET_COOLDOWN_SECS, CambiError::FaucetCooldown);
+        }
+        require!(ctx.accounts.user_brl.amount < FAUCET_MAX_BALANCE, CambiError::FaucetBalanceTooHigh);
+        let pool = &mut ctx.accounts.pool;
+        if now.saturating_sub(pool.faucet_window_start) >= 3_600 {
+            pool.faucet_window_start = now;
+            pool.faucet_window_minted = 0;
+        }
+        let minted = pool.faucet_window_minted.checked_add(FAUCET_AMOUNT).ok_or(CambiError::MathOverflow)?;
+        require!(minted <= FAUCET_HOURLY_CAP, CambiError::FaucetHourlyCap);
+        pool.faucet_window_minted = minted;
+        claim.last_claim_at = now;
+        claim.bump = ctx.bumps.claim;
+
+        let pool_key = ctx.accounts.pool.key();
+        let seeds: &[&[u8]] = &[b"mint-authority", pool_key.as_ref(), &[ctx.bumps.mint_authority]];
+        token::mint_to(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token::MintTo {
+                    mint: ctx.accounts.brl_mint.to_account_info(),
+                    to: ctx.accounts.user_brl.to_account_info(),
+                    authority: ctx.accounts.mint_authority.to_account_info(),
+                },
+                &[seeds],
+            ),
+            FAUCET_AMOUNT,
+        )
+    }
+
+    /// SÓ DEVNET (feature `devnet`): o admin emite moedas de teste para repor liquidez da demonstração.
+    #[cfg(feature = "devnet")]
+    pub fn admin_mint(ctx: Context<AdminMint>, side: u8, amount: u64) -> Result<()> {
+        let s = side_idx(side)?;
+        let expected = if s == BRL { ctx.accounts.pool.brl_mint } else { ctx.accounts.pool.usd_mint };
+        require_keys_eq!(ctx.accounts.mint.key(), expected, CambiError::InvalidSide);
+        require!(amount > 0, CambiError::ZeroAmount);
+        let pool_key = ctx.accounts.pool.key();
+        let seeds: &[&[u8]] = &[b"mint-authority", pool_key.as_ref(), &[ctx.bumps.mint_authority]];
+        token::mint_to(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token::MintTo {
+                    mint: ctx.accounts.mint.to_account_info(),
+                    to: ctx.accounts.destination.to_account_info(),
+                    authority: ctx.accounts.mint_authority.to_account_info(),
+                },
+                &[seeds],
+            ),
+            amount,
+        )
+    }
 }
+
+#[cfg(feature = "devnet")]
+pub const FAUCET_AMOUNT: u64 = 1_000_000_000; // R$ 1.000 de teste
+#[cfg(feature = "devnet")]
+pub const FAUCET_COOLDOWN_SECS: i64 = 3_600;
+#[cfg(feature = "devnet")]
+pub const FAUCET_MAX_BALANCE: u64 = 100_000_000; // só quem tem menos de R$ 100
+#[cfg(feature = "devnet")]
+pub const FAUCET_HOURLY_CAP: u64 = 50_000_000_000; // R$ 50 mil por hora no total
 
 // ---------- lógica pura (testável sem a Solana) ----------
 
@@ -334,6 +502,16 @@ pub fn value_in_brl(price: u64, s: usize, amount: u64) -> Result<u128> {
             .map(|v| v / PRICE_SCALE)
             .ok_or(error!(CambiError::MathOverflow))
     }
+}
+
+/// Cotação dentro da validade.
+pub fn price_fresh(pool: &Pool, now: i64) -> bool {
+    now.saturating_sub(pool.price_updated_at) <= pool.max_price_age
+}
+
+/// Nova cotação dentro do limite de variação em relação à atual.
+pub fn price_move_ok(old: u64, new: u64, max_move_bps: u16) -> bool {
+    (old.abs_diff(new) as u128) * BPS <= (old as u128) * (max_move_bps as u128)
 }
 
 /// A Baleia só pode sacar se, depois do saque, a liquidez continuar cobrindo o principal da Rende.
@@ -413,18 +591,25 @@ pub fn available(pool: &Pool, vault_amount: u64, s: usize) -> u64 {
 fn harvest(pool: &mut Pool, pos: &Position) -> Result<[u64; 2]> {
     let t = pos.tranche as usize;
     let acc = [pool.acc_fee_per_share[idx(t, BRL)], pool.acc_fee_per_share[idx(t, USD)]];
-    let pending = pending_fees(pos.shares, acc, pos.reward_debt)?;
+    let mut pending = pending_fees(pos.shares, acc, pos.reward_debt)?;
     for s in 0..2 {
-        pool.lp_fees_unclaimed[s] = pool.lp_fees_unclaimed[s].saturating_sub(pending[s]);
+        // Arredondamentos nunca pagam taxa com dinheiro do principal: no máximo o que está reservado.
+        pending[s] = pending[s].min(pool.lp_fees_unclaimed[s]);
+        pool.lp_fees_unclaimed[s] -= pending[s];
     }
     Ok(pending)
 }
 
-fn sync_debt(pool: &Pool, pos: &mut Position) {
+fn sync_debt(pool: &Pool, pos: &mut Position) -> Result<()> {
     let t = pos.tranche as usize;
     for s in 0..2 {
-        pos.reward_debt[s] = pos.shares * pool.acc_fee_per_share[idx(t, s)] / ACC_SCALE;
+        pos.reward_debt[s] = pos
+            .shares
+            .checked_mul(pool.acc_fee_per_share[idx(t, s)])
+            .ok_or(CambiError::MathOverflow)?
+            / ACC_SCALE;
     }
+    Ok(())
 }
 
 fn pay_from_vault<'info>(
@@ -547,6 +732,19 @@ pub struct Pool {
     pub swap_count: u64,
     pub volume_brl: u64,
     pub bump: u8,
+    /// Admin proposto (troca em dois passos); `default` quando não há proposta.
+    pub pending_admin: Pubkey,
+    /// Tempo mínimo entre o último depósito e o resgate do principal.
+    pub lockup_secs: i64,
+    /// Variação máxima da cotação por atualização do oráculo.
+    pub max_price_move_bps: u16,
+    /// Limite de saída acumulado: início da janela, liquidez livre no início e quanto já saiu, por moeda.
+    pub window_start: i64,
+    pub window_base: [u64; 2],
+    pub window_out: [u64; 2],
+    /// Faucet de devnet: teto global por hora.
+    pub faucet_window_start: i64,
+    pub faucet_window_minted: u64,
 }
 
 #[account]
@@ -562,6 +760,15 @@ pub struct Position {
     pub shares: u128,
     /// Taxas já contabilizadas, por moeda da taxa
     pub reward_debt: [u128; 2],
+    pub bump: u8,
+    /// Momento do último depósito (para a trava de resgate).
+    pub last_deposit_at: i64,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct FaucetClaimState {
+    pub last_claim_at: i64,
     pub bump: u8,
 }
 
@@ -625,6 +832,10 @@ pub struct Initialize<'info> {
         seeds = [b"vault", pool.key().as_ref(), usd_mint.key().as_ref()], bump
     )]
     pub usd_vault: Account<'info, TokenAccount>,
+    #[account(constraint = program.programdata_address()? == Some(program_data.key()) @ CambiError::Unauthorized)]
+    pub program: Program<'info, crate::program::CambiPool>,
+    #[account(constraint = program_data.upgrade_authority_address == Some(admin.key()) @ CambiError::Unauthorized)]
+    pub program_data: Account<'info, ProgramData>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
@@ -640,6 +851,13 @@ pub struct SetPrice<'info> {
 pub struct AdminOnly<'info> {
     pub admin: Signer<'info>,
     #[account(mut, has_one = admin)]
+    pub pool: Account<'info, Pool>,
+}
+
+#[derive(Accounts)]
+pub struct AcceptAdmin<'info> {
+    pub new_admin: Signer<'info>,
+    #[account(mut)]
     pub pool: Account<'info, Pool>,
 }
 
@@ -699,9 +917,9 @@ pub struct Withdraw<'info> {
     pub brl_vault: Account<'info, TokenAccount>,
     #[account(mut)]
     pub usd_vault: Account<'info, TokenAccount>,
-    #[account(mut, token::mint = pool.brl_mint)]
+    #[account(mut, token::mint = pool.brl_mint, token::authority = user)]
     pub user_brl: Account<'info, TokenAccount>,
-    #[account(mut, token::mint = pool.usd_mint)]
+    #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
     pub user_usd: Account<'info, TokenAccount>,
     pub token_program: Program<'info, Token>,
 }
@@ -733,6 +951,45 @@ pub struct CollectFees<'info> {
     pub vault: Account<'info, TokenAccount>,
     #[account(mut, token::mint = vault.mint)]
     pub destination: Account<'info, TokenAccount>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[cfg(feature = "devnet")]
+#[derive(Accounts)]
+pub struct FaucetClaim<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[account(mut, has_one = brl_mint)]
+    pub pool: Account<'info, Pool>,
+    #[account(
+        init_if_needed, payer = user, space = 8 + FaucetClaimState::INIT_SPACE,
+        seeds = [b"claim", pool.key().as_ref(), user.key().as_ref()], bump
+    )]
+    pub claim: Account<'info, FaucetClaimState>,
+    #[account(mut)]
+    pub brl_mint: Account<'info, Mint>,
+    #[account(mut, token::mint = brl_mint, token::authority = user)]
+    pub user_brl: Account<'info, TokenAccount>,
+    /// CHECK: PDA que é a autoridade de emissão das moedas de teste; só assina via seeds.
+    #[account(seeds = [b"mint-authority", pool.key().as_ref()], bump)]
+    pub mint_authority: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+#[cfg(feature = "devnet")]
+#[derive(Accounts)]
+pub struct AdminMint<'info> {
+    pub admin: Signer<'info>,
+    #[account(has_one = admin)]
+    pub pool: Account<'info, Pool>,
+    #[account(mut)]
+    pub mint: Account<'info, Mint>,
+    #[account(mut, token::mint = mint)]
+    pub destination: Account<'info, TokenAccount>,
+    /// CHECK: PDA autoridade de emissão; só assina via seeds.
+    #[account(seeds = [b"mint-authority", pool.key().as_ref()], bump)]
+    pub mint_authority: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -770,6 +1027,26 @@ pub enum CambiError {
     InvalidPosition,
     #[msg("Estouro numérico")]
     MathOverflow,
+    #[msg("Variação da cotação acima do limite por atualização")]
+    PriceMoveTooLarge,
+    #[msg("Depósito ainda no período mínimo antes do resgate")]
+    PositionLocked,
+    #[msg("Limite de saída do pool neste minuto atingido; tente em instantes")]
+    OutflowLimit,
+    #[msg("Depósito mínimo de R$ 10")]
+    DepositTooSmall,
+    #[msg("Esta carteira não é o admin proposto")]
+    NotPendingAdmin,
+    #[msg("As duas moedas precisam ter as mesmas casas decimais")]
+    MintDecimalsMismatch,
+    #[msg("Só a autoridade de upgrade do programa pode fazer isso")]
+    Unauthorized,
+    #[msg("Moedas de teste: aguarde 1 hora entre pedidos")]
+    FaucetCooldown,
+    #[msg("Moedas de teste só para quem tem menos de R$ 100")]
+    FaucetBalanceTooHigh,
+    #[msg("Limite de moedas de teste desta hora atingido; tente mais tarde")]
+    FaucetHourlyCap,
 }
 
 #[cfg(test)]
@@ -798,6 +1075,14 @@ mod tests {
             swap_count: 0,
             volume_brl: 0,
             bump: 0,
+            pending_admin: Pubkey::default(),
+            lockup_secs: DEFAULT_LOCKUP_SECS,
+            max_price_move_bps: DEFAULT_MAX_PRICE_MOVE_BPS,
+            window_start: 0,
+            window_base: [0; 2],
+            window_out: [0; 2],
+            faucet_window_start: 0,
+            faucet_window_minted: 0,
         }
     }
 
@@ -867,6 +1152,23 @@ mod tests {
         assert!(baleia_can_withdraw(1_000, 100, 900));
         assert!(!baleia_can_withdraw(1_000, 101, 900));
         assert!(!baleia_can_withdraw(50, 100, 0));
+    }
+
+    #[test]
+    fn oraculo_nao_salta_o_preco() {
+        assert!(price_move_ok(5_000_000, 5_500_000, 1_000)); // +10%
+        assert!(!price_move_ok(5_000_000, 5_500_001, 1_000));
+        assert!(price_move_ok(5_000_000, 4_500_000, 1_000)); // -10%
+        assert!(!price_move_ok(5_000_000, 1, 1_000));
+    }
+
+    #[test]
+    fn cotacao_fresca_e_velha() {
+        let mut p = pool(5_000_000);
+        p.price_updated_at = 1_000;
+        p.max_price_age = 60;
+        assert!(price_fresh(&p, 1_060));
+        assert!(!price_fresh(&p, 1_061));
     }
 
     #[test]

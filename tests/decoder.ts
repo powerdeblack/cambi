@@ -2,6 +2,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Keypair } from "@solana/web3.js";
 import { expect } from "chai";
+import { decodePositionRaw, decodePoolRaw } from "../app/src/chain/accounts";
 import { decodePool } from "../app/src/onchain";
 import idl from "../target/idl/cambi_pool.json";
 
@@ -44,6 +45,14 @@ describe("decodificador do pool da demo", () => {
       swap_count: BN(7),
       volume_brl: BN(3_080_000_000),
       bump: 254,
+      pending_admin: k(),
+      lockup_secs: BN(600),
+      max_price_move_bps: 1000,
+      window_start: BN(1_760_000_100),
+      window_base: [BN(11), BN(22)],
+      window_out: [BN(3), BN(4)],
+      faucet_window_start: BN(5),
+      faucet_window_minted: BN(6),
     };
     const data = await coder.encode("Pool", pool);
     const d = decodePool(new Uint8Array(data));
@@ -56,5 +65,39 @@ describe("decodificador do pool da demo", () => {
     expect(d.partnerFees).to.deep.equal([3, 0.4]);
     expect(d.swapCount).to.equal(7);
     expect(d.volumeBRL).to.equal(3_080);
+
+    // Leitor exato (bigint) usado pelo app para montar transações.
+    const r = decodePoolRaw(new Uint8Array(data));
+    expect(r.price).to.equal(5_400_000n);
+    expect(r.fees.maxTradeBps).to.equal(2000n);
+    expect(r.accFeePerShare).to.deep.equal([1n, 2n, 3n, 4n]);
+    expect(r.lockupSecs).to.equal(600);
+    expect(r.maxPriceMoveBps).to.equal(1000);
+    expect(r.windowBase).to.deep.equal([11n, 22n]);
+    expect(r.windowOut).to.deep.equal([3n, 4n]);
+  });
+
+  it("lê a posição exatamente como o Anchor grava", async () => {
+    const coder = new anchor.BorshAccountsCoder(idl as anchor.Idl);
+    const BN = (n: number | string) => new anchor.BN(n);
+    const owner = Keypair.generate().publicKey;
+    const data = await coder.encode("Position", {
+      owner,
+      pool: Keypair.generate().publicKey,
+      tranche: 0,
+      side: 1,
+      amount: BN(1_000_000_000),
+      shares: BN("5400000000"),
+      reward_debt: [BN(7), BN("340282366920938463463374607431768211455")],
+      bump: 253,
+      last_deposit_at: BN(1_760_000_000),
+    });
+    const p = decodePositionRaw(new Uint8Array(data));
+    expect(Buffer.from(p.owner).equals(owner.toBuffer())).to.equal(true);
+    expect([p.tranche, p.side]).to.deep.equal([0, 1]);
+    expect(p.amount).to.equal(1_000_000_000n);
+    expect(p.shares).to.equal(5_400_000_000n);
+    expect(p.rewardDebt).to.deep.equal([7n, 2n ** 128n - 1n]);
+    expect(p.lastDepositAt).to.equal(1_760_000_000);
   });
 });

@@ -34,6 +34,11 @@ const pool = (over: Partial<PoolRaw> = {}): PoolRaw => ({
   partnerFees: [0n, 0n],
   swapCount: 0n,
   volumeBrl: 0n,
+  lockupSecs: 600,
+  maxPriceMoveBps: 1000,
+  windowStart: 0,
+  windowBase: [0n, 0n],
+  windowOut: [0n, 0n],
   ...over,
 });
 
@@ -93,7 +98,7 @@ describe("cotação idêntica à do programa", () => {
 
   it("taxas pendentes de uma posição", () => {
     const p = pool({ accFeePerShare: [3_000_000_000n, 0n, 0n, 0n] }); // 0,003 por share
-    const pos = { owner: new Uint8Array(32), pool: new Uint8Array(32), tranche: 0, side: 0, amount: 100n * M, shares: 100n * M, rewardDebt: [100_000n, 0n] };
+    const pos = { owner: new Uint8Array(32), pool: new Uint8Array(32), tranche: 0, side: 0, amount: 100n * M, shares: 100n * M, rewardDebt: [100_000n, 0n], lastDepositAt: 0 };
     expect(pendingFees(p, pos)).toEqual([200_000n, 0n]); // 0,30 acumulado − 0,10 já contabilizado
   });
 });
@@ -117,7 +122,14 @@ describe("leitura das contas", () => {
     [11n, 12n, 13n, 14n, 15n, 16n].forEach((v) => push(v, 8));
     push(42n, 8);
     push(999n, 8);
-    push(255n, 1);
+    push(255n, 1); // bump
+    push(0n, 32); // pending_admin
+    push(600n, 8); // lockup
+    push(1000n, 2); // max move
+    push(77n, 8); // window start
+    [5n, 6n, 7n, 8n].forEach((v) => push(v, 8));
+    push(0n, 8);
+    push(0n, 8);
     const p = decodePoolRaw(Uint8Array.from(bytes));
     expect(p.price).toBe(5_123_400n);
     expect(p.fees).toEqual(FEES);
@@ -125,6 +137,9 @@ describe("leitura das contas", () => {
     expect(p.accFeePerShare[3]).toBe(2n ** 70n);
     expect(p.partnerFees).toEqual([15n, 16n]);
     expect(p.swapCount).toBe(42n);
+    expect(p.lockupSecs).toBe(600);
+    expect(p.windowBase).toEqual([5n, 6n]);
+    expect(p.windowOut).toEqual([7n, 8n]);
 
     const pos: number[] = [];
     const pp = (n: bigint, size: number) => {
@@ -139,9 +154,11 @@ describe("leitura das contas", () => {
     pp(7n, 16);
     pp(8n, 16);
     pos.push(254);
+    pp(123n, 8);
     const d = decodePositionRaw(Uint8Array.from(pos));
     expect([d.tranche, d.side, d.amount, d.shares]).toEqual([0, 1, 500n, 600n]);
     expect(d.rewardDebt).toEqual([7n, 8n]);
+    expect(d.lastDepositAt).toBe(123);
   });
 });
 

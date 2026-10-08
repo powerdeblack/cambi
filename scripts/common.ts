@@ -31,6 +31,20 @@ export function positionPda(programId: PublicKey, pool: PublicKey, owner: Public
   )[0];
 }
 
+/** Conta de dados do programa (BPF upgradeable): guarda quem é a autoridade de upgrade. */
+export function programDataPda(programId: PublicKey) {
+  return PublicKey.findProgramAddressSync([programId.toBuffer()], new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111"))[0];
+}
+
+/** Autoridade de emissão das moedas de teste (faucet de devnet), um PDA do programa. */
+export function mintAuthorityPda(programId: PublicKey, pool: PublicKey) {
+  return PublicKey.findProgramAddressSync([Buffer.from("mint-authority"), pool.toBuffer()], programId)[0];
+}
+
+export function claimPda(programId: PublicKey, pool: PublicKey, user: PublicKey) {
+  return PublicKey.findProgramAddressSync([Buffer.from("claim"), pool.toBuffer(), user.toBuffer()], programId)[0];
+}
+
 export function partnerPda(programId: PublicKey, pool: PublicKey, authority: PublicKey) {
   return PublicKey.findProgramAddressSync([Buffer.from("partner"), pool.toBuffer(), authority.toBuffer()], programId)[0];
 }

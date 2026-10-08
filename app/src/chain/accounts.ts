@@ -42,6 +42,11 @@ export interface PoolRaw {
   partnerFees: bigint[];
   swapCount: bigint;
   volumeBrl: bigint;
+  lockupSecs: number;
+  maxPriceMoveBps: number;
+  windowStart: number;
+  windowBase: bigint[];
+  windowOut: bigint[];
 }
 
 export interface PositionRaw {
@@ -52,6 +57,7 @@ export interface PositionRaw {
   amount: bigint;
   shares: bigint;
   rewardDebt: bigint[];
+  lastDepositAt: number;
 }
 
 class Reader {
@@ -123,7 +129,17 @@ export function decodePoolRaw(data: Uint8Array): PoolRaw {
   const partnerFees = [r.u64(), r.u64()];
   const swapCount = r.u64();
   const volumeBrl = r.u64();
-  return { price, priceUpdatedAt, maxPriceAge, fees, paused, principal, shares, accFeePerShare, lpFeesUnclaimed, platformFees, partnerFees, swapCount, volumeBrl };
+  r.u8(); // bump
+  r.skip(32); // pending_admin
+  const lockupSecs = r.i64();
+  const maxPriceMoveBps = Number(r.u16());
+  const windowStart = r.i64();
+  const windowBase = [r.u64(), r.u64()];
+  const windowOut = [r.u64(), r.u64()];
+  return {
+    price, priceUpdatedAt, maxPriceAge, fees, paused, principal, shares, accFeePerShare, lpFeesUnclaimed, platformFees,
+    partnerFees, swapCount, volumeBrl, lockupSecs, maxPriceMoveBps, windowStart, windowBase, windowOut,
+  };
 }
 
 export function decodePositionRaw(data: Uint8Array): PositionRaw {
@@ -135,7 +151,9 @@ export function decodePositionRaw(data: Uint8Array): PositionRaw {
   const amount = r.u64();
   const shares = r.u128();
   const rewardDebt = [r.u128(), r.u128()];
-  return { owner, pool, tranche, side, amount, shares, rewardDebt };
+  r.u8(); // bump
+  const lastDepositAt = r.i64();
+  return { owner, pool, tranche, side, amount, shares, rewardDebt, lastDepositAt };
 }
 
 /** Liquidez livre do cofre: saldo menos as taxas reservadas (igual a `available` no programa). */

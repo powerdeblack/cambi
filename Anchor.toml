@@ -17,5 +17,9 @@ url = "https://api.apr.dev"
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
+[test]
+# Implanta como programa atualizável: o initialize exige a autoridade de upgrade.
+upgradeable = true
+
 [scripts]
 test = "npm run test:anchor"
