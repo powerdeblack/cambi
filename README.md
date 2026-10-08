@@ -21,7 +21,7 @@ pessoas nunca soube quanto pagou, nem para quem.
 
 **cambI** = câmbio + **I** ("eu", em inglês).
 
-- **Troca instantânea** real ↔ dólar digital, a preço de oráculo, com a taxa mostrada antes de confirmar.
+- **Troca instantânea** real ↔ dólar digital, **na cotação real do dólar** (ao vivo no app; gravada no pool da devnet a cada 15 minutos), com a taxa mostrada antes de confirmar.
 - **"Para onde foi o seu dinheiro?"**: toda troca mostra a divisão da taxa e quanto custaria no banco ou na casa de câmbio.
 - **Pool com duas camadas:**
   - 🟢 **cambI Rende** (qualquer pessoa, a partir de R$ 10): quase tudo aplicado em renda fixa, mais parte das taxas. Protegida: perdas de desequilíbrio caem primeiro na Baleia.

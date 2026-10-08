@@ -72,8 +72,10 @@ trocas e depósitos (`Paused`), mas **saques continuam liberados** para ninguém
 
 ## Limitações desta versão (honestas)
 
-- **Oráculo:** o preço vem de uma autoridade definida pelo admin (com checagem de cotação velha). Produção: Pyth
-  (que tem feed USD/BRL) ou Switchboard, com limite de variação por atualização.
+- **Oráculo:** o preço vem de uma autoridade definida pelo admin (com checagem de cotação velha). Na devnet, o
+  workflow "Oráculo da devnet" grava a cotação real do dólar a cada 15 minutos (Coinbase, com AwesomeAPI e
+  ExchangeRate-API de reserva) e recusa variação acima de 10% entre leituras. Produção: Pyth (que tem feed USD/BRL)
+  lido direto pelo programa, com o mesmo disjuntor de variação dentro do programa.
 - **Risco de câmbio do principal:** cada posição saca o principal na moeda que depositou. A prioridade da Rende cobre
   a **liquidez**; a absorção completa de perdas de desequilíbrio pela Baleia (marcação a mercado das posições) é a
   próxima etapa.

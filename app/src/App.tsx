@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Exchange } from "./components/Exchange";
 import { Home } from "./components/Home";
 import { GrowIcon, HomeIcon, PoolIcon, SwapIcon } from "./components/Icons";
@@ -13,12 +13,14 @@ import { INITIAL_WALLET, Wallet, simulateMarket, walletDeposit, walletSwap } fro
 
 const PRICE = 5.4; // cotação de referência, usada só até chegar a cotação ao vivo (ou se as fontes estiverem fora do ar)
 
-function seedPool(): PoolState {
-  let p = createPool(PRICE);
+/** Pool de demonstração equilibrado em valor na cotação dada (mesmo valor em reais e em dólar). */
+function seedPool(price = PRICE): PoolState {
+  const usd = (brl: number) => Math.round(brl / price);
+  let p = createPool(price);
   p = deposit(p, "rende", "BRL", 540_000);
-  p = deposit(p, "rende", "USD", 100_000);
+  p = deposit(p, "rende", "USD", usd(540_000));
   p = deposit(p, "baleia", "BRL", 54_000);
-  p = deposit(p, "baleia", "USD", 10_000);
+  p = deposit(p, "baleia", "USD", usd(54_000));
   return p;
 }
 
@@ -35,10 +37,12 @@ export default function App() {
   const [pool, setPool] = useState<PoolState>(seedPool);
   const [wallet, setWallet] = useState<Wallet>(INITIAL_WALLET);
   const [tab, setTab] = useState<Tab>("inicio");
-  // O saldo do pool fica em cada moeda; a cotação real só muda quanto o dólar vale em reais.
-  const quote = useLiveQuote((q) => setPool((p) => setPrice(p, q.price)));
+  // Antes da primeira ação do usuário, o pool nasce equilibrado na cotação real; depois, só a cotação muda.
+  const touched = useRef(false);
+  const quote = useLiveQuote((q) => setPool((p) => (touched.current ? setPrice(p, q.price) : seedPool(q.price))));
 
   function handleSwap(side: Side, amount: number) {
+    touched.current = true;
     const r = walletSwap(pool, wallet, side, amount);
     setPool(r.pool);
     setWallet(r.wallet);
@@ -46,12 +50,14 @@ export default function App() {
   }
 
   function handleDeposit(side: Side, amount: number) {
+    touched.current = true;
     const r = walletDeposit(pool, wallet, side, amount);
     setPool(r.pool);
     setWallet(r.wallet);
   }
 
   function handleMarket() {
+    touched.current = true;
     const r = simulateMarket(pool, wallet);
     setPool(r.pool);
     setWallet(r.wallet);
