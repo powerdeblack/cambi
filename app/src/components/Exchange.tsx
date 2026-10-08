@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { PoolState, Side, SwapResult, quote } from "../engine/pool";
-import { money, pct, reais } from "../format";
+import { money, pct, rate, reais } from "../format";
 import { Wallet, isDepositor, kindFor } from "../wallet";
 import { Brand } from "./Brand";
 import { CheckIcon, SwapIcon } from "./Icons";
@@ -71,7 +71,7 @@ export function Exchange({ pool, wallet, onSwap, onDone }: Props) {
         <dl className="summary">
           <div>
             <dt>Cotação</dt>
-            <dd>1 US$ = {reais(pool.price)}</dd>
+            <dd>1 US$ = {rate(pool.price)}</dd>
           </div>
           <div>
             <dt>Taxa {isDepositor(wallet) ? "(depositante)" : ""}</dt>

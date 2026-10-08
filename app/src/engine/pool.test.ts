@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BASE_FEE, createPool, deposit, dynamicFeeRate, imbalance, swap } from "./pool";
+import { BASE_FEE, createPool, deposit, dynamicFeeRate, imbalance, setPrice, swap } from "./pool";
 import { project } from "./projection";
 
 const PRICE = 5.4;
@@ -47,6 +47,13 @@ describe("pool", () => {
 
   it("recusa troca maior que a liquidez disponível", () => {
     expect(() => swap(balancedPool(), "BRL", 10_000_000, "retail")).toThrow(/Liquidez/);
+  });
+
+  it("troca na cotação nova quando o oráculo atualiza", () => {
+    const p = setPrice(balancedPool(), 5.6);
+    const r = swap(p, "BRL", 5_600, "retail");
+    expect(r.amountOut).toBeCloseTo((5_600 - r.feeTotal) / 5.6);
+    expect(() => setPrice(p, 0)).toThrow(/inválida/);
   });
 
   it("não altera o estado original (imutável)", () => {

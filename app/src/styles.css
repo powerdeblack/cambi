@@ -199,3 +199,8 @@ button.link { background: none; border: 0; color: var(--green); font-weight: 700
 .proofs li { font-size: 0.9rem; }
 .proofs li > span:first-child { flex: 1; }
 .proofs a { color: var(--green); font-weight: 700; text-decoration: none; white-space: nowrap; }
+
+/* Cotação ao vivo */
+.quote-badge { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; margin: 12px 0; border-radius: 14px; background: var(--card); border: 1px solid var(--line); font-size: 0.95rem; }
+.quote-badge .muted { margin-left: auto; }
+.ref-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }

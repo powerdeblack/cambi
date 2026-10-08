@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import deployment from "../devnet.json";
-import { reais } from "../format";
+import { ago, rate, reais } from "../format";
 import { OnchainPool, fetchPool, fetchTokenBalance } from "../onchain";
 
 interface Deployment {
@@ -58,8 +58,8 @@ export function OnchainCard() {
       {state.status === "ok" && (
         <div className="stats">
           <div className="stat">
-            <span className="muted">Cotação do oráculo</span>
-            <strong>{reais(state.pool.price)}</strong>
+            <span className="muted">Cotação do oráculo · {ago(state.pool.priceUpdatedAt)}</span>
+            <strong>{rate(state.pool.price)}</strong>
           </div>
           <div className="stat">
             <span className="muted">Trocas registradas</span>
@@ -99,7 +99,10 @@ export function OnchainCard() {
           </li>
         ))}
       </ul>
-      <p className="muted small">Moedas de teste (cBRL e cUSD) sem valor real. Qualquer pessoa pode conferir no Solana Explorer.</p>
+      <p className="muted small">
+        A cotação do pool é atualizada a cada 15 minutos com o dólar real (Pyth). Moedas de teste (cBRL e cUSD) sem valor
+        real. Qualquer pessoa pode conferir no Solana Explorer.
+      </p>
     </section>
   );
 }

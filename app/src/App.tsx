@@ -6,10 +6,12 @@ import { Logo } from "./components/Logo";
 import { OnchainCard } from "./components/OnchainCard";
 import { PoolDashboard } from "./components/PoolDashboard";
 import { Rende } from "./components/Rende";
-import { PoolState, Side, createPool, deposit } from "./engine/pool";
+import { QuoteBadge } from "./components/QuoteBadge";
+import { PoolState, Side, createPool, deposit, setPrice } from "./engine/pool";
+import { useLiveQuote } from "./useLiveQuote";
 import { INITIAL_WALLET, Wallet, simulateMarket, walletDeposit, walletSwap } from "./wallet";
 
-const PRICE = 5.4; // cotação de demonstração; no programa on-chain vem do oráculo
+const PRICE = 5.4; // cotação de referência, usada só até chegar a cotação ao vivo (ou se as fontes estiverem fora do ar)
 
 function seedPool(): PoolState {
   let p = createPool(PRICE);
@@ -33,6 +35,8 @@ export default function App() {
   const [pool, setPool] = useState<PoolState>(seedPool);
   const [wallet, setWallet] = useState<Wallet>(INITIAL_WALLET);
   const [tab, setTab] = useState<Tab>("inicio");
+  // O saldo do pool fica em cada moeda; a cotação real só muda quanto o dólar vale em reais.
+  const quote = useLiveQuote((q) => setPool((p) => setPrice(p, q.price)));
 
   function handleSwap(side: Side, amount: number) {
     const r = walletSwap(pool, wallet, side, amount);
@@ -61,6 +65,7 @@ export default function App() {
       </header>
 
       <main>
+        {(tab === "inicio" || tab === "trocar") && <QuoteBadge quote={quote} price={pool.price} />}
         {tab === "inicio" && <Home pool={pool} wallet={wallet} go={setTab} onSimulateMarket={handleMarket} />}
         {tab === "trocar" && <Exchange pool={pool} wallet={wallet} onSwap={handleSwap} onDone={() => setTab("inicio")} />}
         {tab === "rende" && <Rende wallet={wallet} onDeposit={handleDeposit} />}

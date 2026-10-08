@@ -1,0 +1,48 @@
+name: Oráculo da devnet
+
+# Grava no pool da devnet a cotação real do dólar (Pyth, com fontes de reserva) a cada 15 minutos.
+# Na mainnet, este papel seria do Pyth lido direto pelo programa (ver docs/ARQUITETURA.md).
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oracle-devnet
+  cancel-in-progress: false
+
+jobs:
+  price:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Restaurar chave do oráculo (devnet)
+        id: keys
+        uses: actions/cache/restore@v4
+        with:
+          path: .devnet-keys
+          key: devnet-keys-v1
+
+      - name: Conferir chave
+        if: steps.keys.outputs.cache-hit != 'true'
+        run: |
+          echo "::error::Chave de devnet não encontrada no cache. Rode o workflow 'Deploy na devnet' antes."
+          exit 1
+
+      - run: npm ci
+
+      - name: Gravar cotação ao vivo no pool
+        env:
+          ANCHOR_PROVIDER_URL: https://api.devnet.solana.com
+          ANCHOR_WALLET: .devnet-keys/deployer.json
+        run: npm run devnet:price

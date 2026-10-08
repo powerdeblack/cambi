@@ -76,3 +76,30 @@ export async function tokenBalance(connection: Connection, account: PublicKey) {
   const b = await connection.getTokenAccountBalance(account, "confirmed");
   return Number(b.value.uiAmount ?? 0);
 }
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * A RPC pública da devnet limita requisições (HTTP 429). Este fetch espaça as chamadas e,
+ * quando recebe 429, espera e tenta de novo. Uma requisição recusada com 429 não foi
+ * processada, então repetir é seguro (inclusive para envio de transações).
+ */
+let lastCall = 0;
+const MIN_GAP_MS = 250;
+export async function politeFetch(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) {
+  for (let attempt = 1; ; attempt++) {
+    const wait = lastCall + MIN_GAP_MS - Date.now();
+    lastCall = Math.max(Date.now(), lastCall + MIN_GAP_MS);
+    if (wait > 0) await sleep(wait);
+    const res = await fetch(input, init);
+    if (res.status !== 429 || attempt >= 12) return res;
+    const backoff = Math.min(2_000 * attempt, 15_000);
+    console.log(`RPC pediu calma (429). Nova tentativa em ${backoff / 1000}s…`);
+    await sleep(backoff);
+  }
+}
+
+/** Conexão com a RPC pública que respeita o limite de requisições. */
+export function politeConnection(endpoint: string) {
+  return new Connection(endpoint, { commitment: "confirmed", disableRetryOnRateLimit: true, fetch: politeFetch as typeof fetch });
+}

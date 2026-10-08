@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "test:anchor": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts",
-    "devnet:setup": "ts-node -P ./tsconfig.json scripts/devnet-setup.ts"
+    "devnet:setup": "ts-node -P ./tsconfig.json scripts/devnet-setup.ts",
+    "devnet:price": "ts-node -P ./tsconfig.json scripts/update-price.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.31.1",

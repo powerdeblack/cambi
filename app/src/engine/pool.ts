@@ -78,6 +78,12 @@ export function createPool(price: number): PoolState {
 
 const clone = (s: PoolState): PoolState => structuredClone(s);
 
+/** Nova cotação do oráculo. Os saldos ficam em cada moeda; muda só quanto o dólar vale em reais. */
+export function setPrice(state: PoolState, price: number): PoolState {
+  if (!(price > 0)) throw new Error("Cotação inválida");
+  return { ...state, price };
+}
+
 export function toBRL(state: PoolState, side: Side, amount: number): number {
   return side === "BRL" ? amount : amount * state.price;
 }
