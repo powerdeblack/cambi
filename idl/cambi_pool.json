@@ -8,6 +8,30 @@
   },
   "instructions": [
     {
+      "name": "accept_admin",
+      "discriminator": [
+        112,
+        42,
+        45,
+        90,
+        116,
+        181,
+        13,
+        170
+      ],
+      "accounts": [
+        {
+          "name": "new_admin",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "add_partner",
       "discriminator": [
         180,
@@ -68,6 +92,86 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "admin_mint",
+      "docs": [
+        "SÓ DEVNET (feature `devnet`): o admin emite moedas de teste para repor liquidez da demonstração."
+      ],
+      "discriminator": [
+        137,
+        144,
+        88,
+        222,
+        36,
+        159,
+        250,
+        217
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "mint",
+          "writable": true
+        },
+        {
+          "name": "destination",
+          "writable": true
+        },
+        {
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "side",
+          "type": "u8"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "collect_fees",
@@ -189,7 +293,116 @@
       ]
     },
     {
+      "name": "faucet_claim",
+      "docs": [
+        "SÓ DEVNET (feature `devnet`): dá moedas de teste (cBRL) para quem pede, com regras on-chain:",
+        "uma vez por hora por carteira, só para quem tem pouco saldo, e um teto global por hora.",
+        "Substitui a carteira patrocinadora: nenhuma chave com poder de emissão fica no app."
+      ],
+      "discriminator": [
+        37,
+        228,
+        249,
+        8,
+        75,
+        106,
+        198,
+        114
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "brl_mint",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "user_brl",
+          "writable": true
+        },
+        {
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "initialize",
+      "docs": [
+        "Cria o pool de um par de moedas. Só a autoridade de upgrade do programa pode chamar (evita que alguém",
+        "\"tome\" o endereço do pool de um par antes do time)."
+      ],
       "discriminator": [
         175,
         175,
@@ -290,6 +503,13 @@
           }
         },
         {
+          "name": "program",
+          "address": "AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ"
+        },
+        {
+          "name": "program_data"
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -305,6 +525,84 @@
         },
         {
           "name": "max_price_age",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "propose_admin",
+      "docs": [
+        "Troca de admin em dois passos: o atual propõe, o novo aceita (evita entregar o pool para uma chave errada)."
+      ],
+      "discriminator": [
+        121,
+        214,
+        199,
+        212,
+        87,
+        39,
+        117,
+        234
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_admin",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "set_limits",
+      "docs": [
+        "Validade máxima da cotação, variação máxima por atualização do oráculo e trava mínima dos depósitos."
+      ],
+      "discriminator": [
+        207,
+        50,
+        250,
+        67,
+        211,
+        33,
+        70,
+        91
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "max_price_age",
+          "type": "i64"
+        },
+        {
+          "name": "max_price_move_bps",
+          "type": "u16"
+        },
+        {
+          "name": "lockup_secs",
           "type": "i64"
         }
       ]
@@ -379,7 +677,9 @@
     {
       "name": "set_price",
       "docs": [
-        "Atualiza a cotação (reais por dólar, escala 1e6). Só a autoridade de oráculo."
+        "Atualiza a cotação (reais por dólar, escala 1e6). Só a autoridade de oráculo.",
+        "A variação por atualização é limitada (`max_price_move_bps`): uma chave de oráculo comprometida não",
+        "consegue saltar o preço para drenar os cofres numa tacada."
       ],
       "discriminator": [
         16,
@@ -528,7 +828,8 @@
     {
       "name": "withdraw",
       "docs": [
-        "Saca principal da posição (na moeda depositada) e recebe as taxas acumuladas nas duas moedas."
+        "Saca principal da posição (na moeda depositada) e recebe as taxas acumuladas nas duas moedas.",
+        "`amount = 0` só colhe as taxas (permitido a qualquer momento, inclusive com o pool pausado)."
       ],
       "discriminator": [
         183,
@@ -592,6 +893,19 @@
     }
   ],
   "accounts": [
+    {
+      "name": "FaucetClaimState",
+      "discriminator": [
+        146,
+        14,
+        63,
+        173,
+        4,
+        56,
+        65,
+        183
+      ]
+    },
     {
       "name": "Partner",
       "discriminator": [
@@ -753,6 +1067,56 @@
       "code": 6015,
       "name": "MathOverflow",
       "msg": "Estouro numérico"
+    },
+    {
+      "code": 6016,
+      "name": "PriceMoveTooLarge",
+      "msg": "Variação da cotação acima do limite por atualização"
+    },
+    {
+      "code": 6017,
+      "name": "PositionLocked",
+      "msg": "Depósito ainda no período mínimo antes do resgate"
+    },
+    {
+      "code": 6018,
+      "name": "OutflowLimit",
+      "msg": "Limite de saída do pool neste minuto atingido; tente em instantes"
+    },
+    {
+      "code": 6019,
+      "name": "DepositTooSmall",
+      "msg": "Depósito mínimo de R$ 10"
+    },
+    {
+      "code": 6020,
+      "name": "NotPendingAdmin",
+      "msg": "Esta carteira não é o admin proposto"
+    },
+    {
+      "code": 6021,
+      "name": "MintDecimalsMismatch",
+      "msg": "As duas moedas precisam ter as mesmas casas decimais"
+    },
+    {
+      "code": 6022,
+      "name": "Unauthorized",
+      "msg": "Só a autoridade de upgrade do programa pode fazer isso"
+    },
+    {
+      "code": 6023,
+      "name": "FaucetCooldown",
+      "msg": "Moedas de teste: aguarde 1 hora entre pedidos"
+    },
+    {
+      "code": 6024,
+      "name": "FaucetBalanceTooHigh",
+      "msg": "Moedas de teste só para quem tem menos de R$ 100"
+    },
+    {
+      "code": 6025,
+      "name": "FaucetHourlyCap",
+      "msg": "Limite de moedas de teste desta hora atingido; tente mais tarde"
     }
   ],
   "types": [
@@ -776,6 +1140,22 @@
           {
             "name": "amount",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FaucetClaimState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "last_claim_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }
@@ -986,6 +1366,63 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "pending_admin",
+            "docs": [
+              "Admin proposto (troca em dois passos); `default` quando não há proposta."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "lockup_secs",
+            "docs": [
+              "Tempo mínimo entre o último depósito e o resgate do principal."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "max_price_move_bps",
+            "docs": [
+              "Variação máxima da cotação por atualização do oráculo."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "window_start",
+            "docs": [
+              "Limite de saída acumulado: início da janela, liquidez livre no início e quanto já saiu, por moeda."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "window_base",
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "window_out",
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "faucet_window_start",
+            "docs": [
+              "Faucet de devnet: teto global por hora."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "faucet_window_minted",
+            "type": "u64"
           }
         ]
       }
@@ -1040,6 +1477,13 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "last_deposit_at",
+            "docs": [
+              "Momento do último depósito (para a trava de resgate)."
+            ],
+            "type": "i64"
           }
         ]
       }

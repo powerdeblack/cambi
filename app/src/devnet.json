@@ -1,68 +1,82 @@
 {
   "cluster": "devnet",
+  "version": 2,
   "rpc": "https://api.devnet.solana.com",
-  "createdAt": "2026-10-08T05:28:25.266Z",
+  "createdAt": "2026-10-08T14:31:49.268Z",
   "programId": "AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ",
-  "pool": "8BdcLFvLUxu1DD1xJ3487kMdVgqg6ArMrVLfNasNJebL",
-  "brlMint": "8ynZ3QC3ciSgkwHGBNhwEEurmkLuQAc2smQo7QdeJHMm",
-  "usdMint": "75aYjK224rbr9kdr126iFhC24nihNjoiDzFYP42WQbSM",
-  "brlVault": "AX8TsdcxiRgcWfQuyPnddJLhgxrQmxhb8EVys4H9hkrR",
-  "usdVault": "GdMRSghLanxKBs9Lq7umJrZ9CijxiZhB6irg3dXWxvG3",
+  "pool": "BM342uKMYgDQ2hWmhuXnC4JdHtmWAN3kprptRgRxC3pg",
+  "brlMint": "4usKEPkGQkzF5KWCxbyauePJmD5ZaY3vmuRiKPCiGnXA",
+  "usdMint": "CKP5jr3A7Xt4pNwv9yMb9RvzeXK16Qme9QKD9DDcnGur",
+  "brlVault": "HgLbuQWcZuG6vezFnCQf2TecPvSXLS9Z7rfrVyXZ9oDF",
+  "usdVault": "8yvuktZCYNXm1oqQy3u8uevCihoCzoPrbvFLeVMUz7ef",
+  "mintAuthority": "4JiZoa1YwD3s2qGPF7M3vfuHNsWPoTy1URt5iBBNc29H",
   "admin": "2dkFwL55XBiMyrDQPJFetzcVtWabJncXzmXsaR4U4QCM",
+  "oracle": "HyU5mJweYbRU5wc8CCqXQ2VXBU5WGk1WYsyNFjCtzrwM",
+  "payout": "2dkFwL55XBiMyrDQPJFetzcVtWabJncXzmXsaR4U4QCM",
   "transactions": [
     {
-      "label": "Pool criado (R$ 5,40 por dólar)",
-      "signature": "2v9xmfq3Tvwu7wJJ1PNpR7BYACw4ecpgoRZbuzQhQ4mc3kxJNLyWCB1W6eS6WRkqf49qSdaCid3JN2kDCDXLmN8v",
-      "url": "https://explorer.solana.com/tx/2v9xmfq3Tvwu7wJJ1PNpR7BYACw4ecpgoRZbuzQhQ4mc3kxJNLyWCB1W6eS6WRkqf49qSdaCid3JN2kDCDXLmN8v?cluster=devnet"
+      "label": "Pool v2 criado (R$ 5.0090 por dólar), só pela autoridade de upgrade",
+      "signature": "5YPpYMHbND3mxSmcEreRXTLGB7AcFUUQj2wnXVFZE78rj7Qu4PXrRSKBkXpXEjGko4vviYpFVhfDupiCAkxsWx9o",
+      "url": "https://explorer.solana.com/tx/5YPpYMHbND3mxSmcEreRXTLGB7AcFUUQj2wnXVFZE78rj7Qu4PXrRSKBkXpXEjGko4vviYpFVhfDupiCAkxsWx9o?cluster=devnet"
+    },
+    {
+      "label": "Limites: cotação vale 1 h, oráculo move até 10% por vez, depósito travado 10 min",
+      "signature": "5umpEub3GQfQ3WrNwdRW42QuLkHGGyWykPRf3AhhdxXuw9QyTs9xA2GHAbcgsLBJWbag3yV7GNfv124HzBcdaNbX",
+      "url": "https://explorer.solana.com/tx/5umpEub3GQfQ3WrNwdRW42QuLkHGGyWykPRf3AhhdxXuw9QyTs9xA2GHAbcgsLBJWbag3yV7GNfv124HzBcdaNbX?cluster=devnet"
+    },
+    {
+      "label": "Oráculo com chave própria (separada do admin)",
+      "signature": "2oWCkWdCnmgxYpyF2gcR1GsPKfrWXRmmJQjLhqqUCScjaFLF9yipUJLN8TgQTcbC9Dx5NHCdWPeLdQHVVFfuursm",
+      "url": "https://explorer.solana.com/tx/2oWCkWdCnmgxYpyF2gcR1GsPKfrWXRmmJQjLhqqUCScjaFLF9yipUJLN8TgQTcbC9Dx5NHCdWPeLdQHVVFfuursm?cluster=devnet"
     },
     {
       "label": "Depósito Rende: R$ 50.000",
-      "signature": "4MJDtZ7n27frjaGd633amWax9qGrsVzoidF3JVGX3VYrj3uVMrF9uBP4MkZjB8KSYivXKZt9RneHHSdmN4wvkS33",
-      "url": "https://explorer.solana.com/tx/4MJDtZ7n27frjaGd633amWax9qGrsVzoidF3JVGX3VYrj3uVMrF9uBP4MkZjB8KSYivXKZt9RneHHSdmN4wvkS33?cluster=devnet"
+      "signature": "5NXVEY8MQrssHC3N6sYhpuVF8ZszUBjbf6yCKbq9cQ9XTdMFQXEXPmPyt5vHc33qTss43YaTvN4pUnwNRYoXHuDc",
+      "url": "https://explorer.solana.com/tx/5NXVEY8MQrssHC3N6sYhpuVF8ZszUBjbf6yCKbq9cQ9XTdMFQXEXPmPyt5vHc33qTss43YaTvN4pUnwNRYoXHuDc?cluster=devnet"
     },
     {
       "label": "Depósito Rende: US$ 10.000",
-      "signature": "2XRNt5LSBeM6q1oBBk5MpaGzXMGNzFX4PhNCQvQVMaeE7e9JpA4opCXCKiW8VBA9M6yB45VJ18U3bEscN8uRNg5Y",
-      "url": "https://explorer.solana.com/tx/2XRNt5LSBeM6q1oBBk5MpaGzXMGNzFX4PhNCQvQVMaeE7e9JpA4opCXCKiW8VBA9M6yB45VJ18U3bEscN8uRNg5Y?cluster=devnet"
+      "signature": "JfjXzvygnoWbFZ3ZnPyev6F6zWpwTQ3zfZ53Sf2uZrLa3JWA1Y5pmsBRQtuMaNAqWST7yzoJhvEpFNpuyrWDALX",
+      "url": "https://explorer.solana.com/tx/JfjXzvygnoWbFZ3ZnPyev6F6zWpwTQ3zfZ53Sf2uZrLa3JWA1Y5pmsBRQtuMaNAqWST7yzoJhvEpFNpuyrWDALX?cluster=devnet"
     },
     {
       "label": "Depósito Baleia: R$ 10.000",
-      "signature": "4DXstZx6Msx7jQCCXaMZN7e2KwWW5koV8fu6RVP2X3BKJCxrwJXBn15FtGUB7KALTQyzaJmejFnVdcRLsEvKmvUW",
-      "url": "https://explorer.solana.com/tx/4DXstZx6Msx7jQCCXaMZN7e2KwWW5koV8fu6RVP2X3BKJCxrwJXBn15FtGUB7KALTQyzaJmejFnVdcRLsEvKmvUW?cluster=devnet"
+      "signature": "YHB1JodEYje7AsCbUFqxaY2rdeEXG9Sa8uV9CxQSqkDBdM5mdK25JghhH1TuJUpT67nizPYZwKZRJGTx5ZwHsf5",
+      "url": "https://explorer.solana.com/tx/YHB1JodEYje7AsCbUFqxaY2rdeEXG9Sa8uV9CxQSqkDBdM5mdK25JghhH1TuJUpT67nizPYZwKZRJGTx5ZwHsf5?cluster=devnet"
     },
     {
       "label": "Depósito Baleia: US$ 2.000",
-      "signature": "4bJfGwAWwaajaNesT6wXkj91vjSXwqgRxc35qaap8qYW3jybj4eq75ftntvbsoDTgc2woggWUxMrXY4FRbjy4GYt",
-      "url": "https://explorer.solana.com/tx/4bJfGwAWwaajaNesT6wXkj91vjSXwqgRxc35qaap8qYW3jybj4eq75ftntvbsoDTgc2woggWUxMrXY4FRbjy4GYt?cluster=devnet"
+      "signature": "4SRzNa47ps2oJz1hCUt1Nmn1ho4To9ER2NVp25TEEzoTWnxRHZWU6824Xb2BAGGo1WHEbyTMZnHxT3xEYVDEojKB",
+      "url": "https://explorer.solana.com/tx/4SRzNa47ps2oJz1hCUt1Nmn1ho4To9ER2NVp25TEEzoTWnxRHZWU6824Xb2BAGGo1WHEbyTMZnHxT3xEYVDEojKB?cluster=devnet"
     },
     {
       "label": "Troca varejo: R$ 1.000 → dólar (taxa 1%)",
-      "signature": "28NR7xGDRV4ge9qZASKDZwzT9KsYCiUsbbyuNPvAdr8fMFvBuLxgNif1Pd7mbV69vs1oNESAdrSNQzG7iW7hBiHF",
-      "url": "https://explorer.solana.com/tx/28NR7xGDRV4ge9qZASKDZwzT9KsYCiUsbbyuNPvAdr8fMFvBuLxgNif1Pd7mbV69vs1oNESAdrSNQzG7iW7hBiHF?cluster=devnet"
+      "signature": "5Uv1y7AGCuvWgt3ur2MSUht2rWm3xDpdQWzXo7UsCtTuYUYwG13pZcnwGNpwQQdSdtXZy6j7Z98op2f7wtqP5eTt",
+      "url": "https://explorer.solana.com/tx/5Uv1y7AGCuvWgt3ur2MSUht2rWm3xDpdQWzXo7UsCtTuYUYwG13pZcnwGNpwQQdSdtXZy6j7Z98op2f7wtqP5eTt?cluster=devnet"
     },
     {
       "label": "Troca depositante: R$ 1.000 → dólar (taxa 0,5%)",
-      "signature": "4kSAZPPikBGf86XtjTztgaigqoH4Fk1F4rbmyLeQotp1ASmYa9PB8oEMdg2qPhRQbfcH3Z2cNRYZrESta7rEQvxN",
-      "url": "https://explorer.solana.com/tx/4kSAZPPikBGf86XtjTztgaigqoH4Fk1F4rbmyLeQotp1ASmYa9PB8oEMdg2qPhRQbfcH3Z2cNRYZrESta7rEQvxN?cluster=devnet"
+      "signature": "5Ajdt3f1UFP5BHjQJbhJiDQWZBp7VjUoYQ4g5vd3BZ2aU7XpW7xVFgzaY85dT5HmeQemXm92yBvEqtN6R9jcuHUW",
+      "url": "https://explorer.solana.com/tx/5Ajdt3f1UFP5BHjQJbhJiDQWZBp7VjUoYQ4g5vd3BZ2aU7XpW7xVFgzaY85dT5HmeQemXm92yBvEqtN6R9jcuHUW?cluster=devnet"
     },
     {
       "label": "App parceiro registrado",
-      "signature": "khe4AZ9tqUHgfzZhHgWsPyCtYLazDQcnZoPbCJZc9EeUDBR6dUxmKbtQoMRtjdZtN89ztSEMhdaBL7tQDzPBSBx",
-      "url": "https://explorer.solana.com/tx/khe4AZ9tqUHgfzZhHgWsPyCtYLazDQcnZoPbCJZc9EeUDBR6dUxmKbtQoMRtjdZtN89ztSEMhdaBL7tQDzPBSBx?cluster=devnet"
+      "signature": "Qb9whPf3LxnALJMmndT54nymcu8aunhGF6XzxtLtvLAro3dJ2XyjatqeG9BFuZsQSiUqQuxZyuG579LPWuw5swB",
+      "url": "https://explorer.solana.com/tx/Qb9whPf3LxnALJMmndT54nymcu8aunhGF6XzxtLtvLAro3dJ2XyjatqeG9BFuZsQSiUqQuxZyuG579LPWuw5swB?cluster=devnet"
     },
     {
       "label": "Troca B2B: US$ 200 → real (taxa 0,4%)",
-      "signature": "w7pX5eVXALoVtnipR96bDZx8WDbdm5DZEsz6jtj7es2Vne4CL5SeVsdm3Kp7VhjDUar6j5gR3rrqriJwL3Y9vnt",
-      "url": "https://explorer.solana.com/tx/w7pX5eVXALoVtnipR96bDZx8WDbdm5DZEsz6jtj7es2Vne4CL5SeVsdm3Kp7VhjDUar6j5gR3rrqriJwL3Y9vnt?cluster=devnet"
+      "signature": "5T7C894q7PnP4A3bXUJhDVz9HeJhsKK5gK8UekmHQHw8GVMJrCJfDh3Nxr2SeVnNr5oHfb5b71nTRLk1p7kBvyQc",
+      "url": "https://explorer.solana.com/tx/5T7C894q7PnP4A3bXUJhDVz9HeJhsKK5gK8UekmHQHw8GVMJrCJfDh3Nxr2SeVnNr5oHfb5b71nTRLk1p7kBvyQc?cluster=devnet"
     },
     {
       "label": "Depositante colhe as taxas (nas duas moedas)",
-      "signature": "3LmwU3boC6TbjhHuxopFZSGrgKRaxwP1EzUnavoWoDw2Drt8xUsRDe9Q82VBcyUaNjP7igNbcwAMzJqxoCdSNmMu",
-      "url": "https://explorer.solana.com/tx/3LmwU3boC6TbjhHuxopFZSGrgKRaxwP1EzUnavoWoDw2Drt8xUsRDe9Q82VBcyUaNjP7igNbcwAMzJqxoCdSNmMu?cluster=devnet"
+      "signature": "BAkh9ewTFJ76xNiVxbzBQ9daGusoupGB3arzHanwZJWKG2xB61s1RCK8gFjVghLoZAL7ENUG6uRutvk9Xqq1wuh",
+      "url": "https://explorer.solana.com/tx/BAkh9ewTFJ76xNiVxbzBQ9daGusoupGB3arzHanwZJWKG2xB61s1RCK8gFjVghLoZAL7ENUG6uRutvk9Xqq1wuh?cluster=devnet"
     }
   ],
   "links": {
     "program": "https://explorer.solana.com/address/AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ?cluster=devnet",
-    "pool": "https://explorer.solana.com/address/8BdcLFvLUxu1DD1xJ3487kMdVgqg6ArMrVLfNasNJebL?cluster=devnet"
+    "pool": "https://explorer.solana.com/address/BM342uKMYgDQ2hWmhuXnC4JdHtmWAN3kprptRgRxC3pg?cluster=devnet"
   }
 }
