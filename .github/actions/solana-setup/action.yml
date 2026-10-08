@@ -3,16 +3,20 @@ description: Instala Rust, Solana (Agave), Anchor CLI e as dependências npm da 
 runs:
   using: composite
   steps:
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: Swatinem/rust-cache@v2
-    - uses: actions/setup-node@v4
+    - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
         node-version: 22
         cache: npm
     - name: Instalar Solana (Agave)
       shell: bash
       run: |
-        sh -c "$(curl -sSfL https://release.anza.xyz/${SOLANA_VERSION:-stable}/install)"
+        # Versão fixa (nada de "stable" mutável); o hash do instalador é registrado no log de cada execução.
+        curl -sSfL "https://release.anza.xyz/v${AGAVE_VERSION:-4.3.0}/install" -o /tmp/agave-install.sh
+        sha256sum /tmp/agave-install.sh
+        if [ -n "${AGAVE_INSTALL_SHA256:-}" ]; then echo "${AGAVE_INSTALL_SHA256}  /tmp/agave-install.sh" | sha256sum -c -; fi
+        sh /tmp/agave-install.sh
         echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
     - name: Instalar Anchor CLI
       shell: bash
@@ -26,9 +30,9 @@ runs:
         sudo ln -sf "$BIN" /usr/local/bin/anchor
         hash -r
         test "$(command -v anchor)" = /usr/local/bin/anchor
-    - name: Dependências npm
+    - name: Dependências npm (sem scripts de instalação)
       shell: bash
-      run: npm ci
+      run: npm ci --ignore-scripts
     - name: Versões
       shell: bash
       run: |

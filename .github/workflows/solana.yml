@@ -1,19 +1,23 @@
 name: Programa Solana (testes de integração)
 
+# Sem gatilho de pull_request: código vindo de forks não roda neste repositório (protege as chaves de devnet).
 on:
   push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 env:
-  SOLANA_VERSION: stable
+  AGAVE_VERSION: "4.3.0"
+
+permissions:
+  contents: read
 
 jobs:
   anchor-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/solana-setup
       - name: Carteira local de teste
         run: solana-keygen new --no-bip39-passphrase --silent --force -o ~/.config/solana/id.json
@@ -33,7 +37,7 @@ jobs:
         run: anchor test --skip-build
       - name: Tamanho do programa
         run: ls -la target/deploy/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cambi_pool-build
           path: |

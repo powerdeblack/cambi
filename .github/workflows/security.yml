@@ -1,0 +1,39 @@
+name: Segurança (dependências)
+
+# Vulnerabilidades conhecidas nas dependências do programa (RustSec) e do app (npm), toda semana e a cada push.
+on:
+  push:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: cargo audit (RustSec)
+        run: |
+          cargo install cargo-audit --locked --version 0.22.1
+          # Vulnerabilidade quebra o build. Ficam como aviso (documentados em docs/AUDITORIA.md) 3 itens herdados
+          # do SDK da Solana/Anchor que não rodam dentro do programa: bincode e libsecp256k1 sem manutenção,
+          # e rand 0.7.3 (unsound só com logger customizado chamando rand::rng()).
+          cargo audit
+
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: npm audit do app publicado (só dependências de produção)
+        working-directory: app
+        run: npm audit --omit=dev --audit-level=high

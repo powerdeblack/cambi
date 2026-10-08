@@ -14,19 +14,21 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SOLANA_VERSION: stable
+  AGAVE_VERSION: "4.3.0"
   KEYS_DIR: .devnet-keys
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/solana-setup
 
       - name: Restaurar chaves de devnet
         id: keys
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ env.KEYS_DIR }}
           key: devnet-keys-v1
@@ -40,7 +42,7 @@ jobs:
 
       - name: Salvar chaves
         if: steps.keys.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ env.KEYS_DIR }}
           key: devnet-keys-v1
@@ -136,6 +138,8 @@ jobs:
         run: npm run devnet:setup
 
       - name: Publicar endereços no repositório
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p idl
           cp target/idl/cambi_pool.json idl/cambi_pool.json
@@ -143,7 +147,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add programs/cambi_pool/src/lib.rs Anchor.toml deployments/devnet.json app/src/devnet.json idl/cambi_pool.json
           git commit -m "Deploy na devnet: programa $PROGRAM_ID" || echo "nada para commitar"
-          git push
+          # Credencial usada só neste passo (o checkout não deixa o token salvo no disco).
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
 
       - name: Republicar a demo com os dados da devnet
         env:
