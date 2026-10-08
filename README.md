@@ -46,7 +46,7 @@ Premissas, fontes e riscos em [docs/ECONOMIA.md](docs/ECONOMIA.md). **Simulaçõ
 | [`programs/cambi_pool`](programs/cambi_pool) | Programa Solana em Rust/Anchor 0.31 | ✅ Compila para a Solana (SBF, 371 KB) · 9 testes unitários |
 | [`tests/`](tests) | Testes de integração numa Solana local | ✅ 15 testes passando no [GitHub Actions](../../actions/workflows/solana.yml) |
 | [`scripts/`](scripts) | Montagem do pool de demonstração na devnet | ✅ [Implantado na devnet](#na-devnet-ao-vivo) |
-| [`app/`](app) | Demo web (React + Vite + TypeScript) | ✅ [No ar](https://powerdeblack.github.io/cambi/) · 10 testes |
+| [`app/`](app) | App web (React + Vite + TypeScript), instalável no celular | ✅ [No ar](https://powerdeblack.github.io/cambi/) · 32 testes · transações reais na devnet |
 | [`sim/`](sim) | Simulação econômica (Python) | ✅ |
 | [`docs/`](docs) | [Arquitetura](docs/ARQUITETURA.md) · [Economia](docs/ECONOMIA.md) · [Marca](docs/MARCA.md) · [Validação](docs/VALIDACAO.md) · [Colosseum](docs/COLOSSEUM.md) | ✅ |
 
@@ -87,6 +87,30 @@ Qualquer pessoa pode conferir no Solana Explorer:
 
 Moedas de teste (cBRL e cUSD), sem valor real. Endereços completos em [`deployments/devnet.json`](deployments/devnet.json).
 A aba **Pool** da [demo](https://powerdeblack.github.io/cambi/) lê esse pool direto da blockchain.
+
+## O app usa a Solana de verdade (sem a pessoa perceber)
+
+Na [demo](https://powerdeblack.github.io/cambi/), **"Criar minha conta grátis"** liga o app ao programa na devnet:
+
+- **Conta invisível:** a conta na Solana é criada no próprio aparelho. Sem frase-semente, sem extensão, sem precisar
+  de cripto. Quem já usa cripto pode escolher **"Prefiro usar minha Phantom"**.
+- **A cambI paga a entrada:** uma carteira patrocinadora cria as contas de token, dá R$ 1.000 de teste (cBRL) e o SOL
+  das taxas. A pessoa nunca vê SOL.
+- **Tudo vira transação real:** troca, depósito na Rende, rendimento, resgate, Pix e envio em dólar. Cada comprovante
+  tem o link **"ver na blockchain"**.
+- **A prévia é a conta do programa:** o app calcula a troca com a mesma matemática do programa (porta fiel de
+  `quote`, em inteiros), então o valor mostrado antes de confirmar é o valor recebido, centavo por centavo.
+
+Comprovado automaticamente pelo workflow [Teste de ponta a ponta na devnet](../../actions/workflows/e2e-devnet.yml)
+(roda a cada 6 horas):
+
+1. **Cliente do app contra o programa real:** conta nova → troca (recebe exatamente a prévia) → depósito na Rende →
+   troca como depositante (0,5%) → colher taxas (recebe exatamente o pendente) → envio USDC → Pix → resgate.
+2. **As telas num navegador real:** cria a conta, troca, deposita e envia um Pix pela interface, esperando cada
+   comprovante da Solana.
+
+Em produção, a conta invisível vem de um provedor de carteira embutida (login com e-mail ou Google, confirmação por
+biometria) e o patrocinador vira um servidor que paga as taxas. A chave dele nunca vai para o app.
 
 ## Rodar localmente
 

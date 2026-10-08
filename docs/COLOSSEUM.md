@@ -17,7 +17,8 @@ Fonte dos requisitos: FAQ oficial ([colosseum.com/hackathon](https://colosseum.c
 | Logo ou imagem do produto | ✅ Pronto | [`brand/logo.svg`](../brand/logo.svg) e [`brand/icon.svg`](../brand/icon.svg) (exporte em PNG se o portal pedir) |
 | Link do GitHub | ✅ Pronto | https://github.com/powerdeblack/cambi (público) |
 | Programa na devnet | ✅ Pronto | `AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ` · provas no [README](../README.md#na-devnet-ao-vivo) |
-| Demo no ar | ✅ Pronto | https://powerdeblack.github.io/cambi/ (aba Pool lê a devnet ao vivo) |
+| Demo no ar | ✅ Pronto | https://powerdeblack.github.io/cambi/ ("Criar minha conta grátis" = transações reais na devnet) |
+| Prova automática de ponta a ponta | ✅ Pronto | Workflow "Teste de ponta a ponta na devnet": cliente do app + telas num navegador |
 | Vídeo de apresentação (2–3 min) | ⬜ Você grava | Estrutura abaixo |
 | Vídeo de demo (até 3 min) | ⬜ Você grava | Roteiro de telas abaixo |
 | Go-to-market, validação de demanda e distribuição | ⬜ Você escreve | Perguntas-guia abaixo + resultados de [VALIDACAO.md](VALIDACAO.md) |

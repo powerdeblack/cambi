@@ -4,23 +4,31 @@
 // - cria as contas de token dela, que fazem o papel do parceiro de Pix/ACH na devnet.
 // Idempotente: pode rodar a cada 15 minutos junto com o oráculo.
 import * as anchor from "@coral-xyz/anchor";
+import { Idl, Program } from "@coral-xyz/anchor";
 import {
   AuthorityType,
   createAssociatedTokenAccountIdempotentInstruction,
+  createMintToInstruction,
   createSetAuthorityInstruction,
+  TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
   getMint,
 } from "@solana/spl-token";
-import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { appendFileSync, readFileSync } from "fs";
-import { politeConnection } from "./common";
+import idl from "../idl/cambi_pool.json";
+import { BALEIA, politeConnection, positionPda, u } from "./common";
 
 const MIN_SOL = 0.5;
 const TARGET_SOL = 1.5;
+/** Liquidez mínima livre em cada cofre; abaixo disso o patrocinador entra como Baleia para a demo não travar. */
+const MIN_FREE = { brl: 20_000, usd: 4_000 };
+const REFILL = { brl: 50_000, usd: 10_000 };
 
 async function main() {
   const deployment = JSON.parse(readFileSync("deployments/devnet.json", "utf8"));
-  const sponsor = new PublicKey(JSON.parse(readFileSync("app/src/chain/sponsor.json", "utf8")).publicKey);
+  const sponsorKp = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync("app/src/chain/sponsor.json", "utf8")).secretKey));
+  const sponsor = sponsorKp.publicKey;
   const env = anchor.AnchorProvider.env();
   const connection = politeConnection(env.connection.rpcEndpoint);
   const provider = new anchor.AnchorProvider(connection, env.wallet, { commitment: "confirmed" });
@@ -56,6 +64,46 @@ async function main() {
 
   const sig = await provider.sendAndConfirm(tx);
   lines.push(`Admin: ${adminSol.toFixed(3)} SOL · transação ${sig}`);
+
+  // Liquidez do pool: se um cofre ficou com pouca liquidez livre, o patrocinador deposita como Baleia.
+  const program = new Program(idl as Idl, provider);
+  const poolKey = new PublicKey(deployment.pool);
+  const pool = await (program.account as any).pool.fetch(poolKey);
+  const free = async (side: 0 | 1) => {
+    const vault = new PublicKey(side === 0 ? deployment.brlVault : deployment.usdVault);
+    const bal = BigInt((await connection.getTokenAccountBalance(vault, "confirmed")).value.amount);
+    const reserved = BigInt(pool.platformFees[side].toString()) + BigInt(pool.partnerFees[side].toString()) + BigInt(pool.lpFeesUnclaimed[side].toString());
+    return Number(bal - reserved) / 1e6;
+  };
+  for (const [side, key, mintStr] of [[0, "brl", deployment.brlMint], [1, "usd", deployment.usdMint]] as const) {
+    const now = await free(side);
+    if (now >= MIN_FREE[key]) {
+      lines.push(`Liquidez livre ${key.toUpperCase()}: ${now.toLocaleString("pt-BR")} (ok)`);
+      continue;
+    }
+    const mint = new PublicKey(mintStr);
+    const amount = u(REFILL[key]);
+    const refill = new Transaction().add(
+      createMintToInstruction(mint, getAssociatedTokenAddressSync(mint, sponsor), sponsor, BigInt(amount.toString())),
+    );
+    await provider.sendAndConfirm(refill, [sponsorKp]);
+    const dep = await program.methods
+      .deposit(BALEIA, side, amount)
+      .accountsPartial({
+        user: sponsor,
+        pool: poolKey,
+        position: positionPda(program.programId, poolKey, sponsor, BALEIA, side),
+        brlVault: new PublicKey(deployment.brlVault),
+        usdVault: new PublicKey(deployment.usdVault),
+        userBrl: getAssociatedTokenAddressSync(new PublicKey(deployment.brlMint), sponsor),
+        userUsd: getAssociatedTokenAddressSync(new PublicKey(deployment.usdMint), sponsor),
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([sponsorKp])
+      .rpc();
+    lines.push(`Liquidez livre ${key.toUpperCase()} estava em ${now.toLocaleString("pt-BR")}: patrocinador depositou ${REFILL[key].toLocaleString("pt-BR")} como Baleia (${dep})`);
+  }
   console.log(lines.join("\n"));
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Patrocinador da devnet\n\n${lines.map((l) => `- ${l}`).join("\n")}\n`);
 }

@@ -83,6 +83,24 @@ trocas e depósitos (`Paused`), mas **saques continuam liberados** para ninguém
 - **Entrada e saída via Pix:** dependem do parceiro regulado; na devnet usamos moedas de teste (cBRL e cUSD).
 - O programa **não foi auditado**. Não use com dinheiro real.
 
+## App na blockchain (devnet)
+
+| Peça | Arquivo | O que faz |
+|---|---|---|
+| Cliente | `app/src/chain/client.ts` | Monta e envia as instruções `swap`, `deposit` e `withdraw`, além de transferências SPL com memo. Carregado sob demanda |
+| Matemática | `app/src/chain/accounts.ts` | Decodifica `Pool` e `Position` e porta `quote`, `available` e `pending_fees` em bigint, idênticos ao programa |
+| Estado | `app/src/chain/useChain.ts` | Conta no aparelho ou Phantom, saldos atualizados a cada 20 s, atividade com assinaturas |
+| Patrocinador | `app/src/chain/sponsor.json` | Paga a criação da conta, dá R$ 1.000 de teste e SOL para as taxas |
+| Manutenção | `scripts/sponsor-setup.ts` | A cada 15 min: repõe SOL do patrocinador e liquidez do pool (como Baleia) |
+| Prova | `scripts/e2e-devnet.ts`, `scripts/ui-e2e.cjs` | Fluxo completo contra o programa real e pelas telas, num navegador |
+
+**Saída do dinheiro na devnet:** USDC vai direto para a carteira de destino. Pix e conta nos EUA transferem as moedas
+de teste para a carteira que faz o papel do parceiro, com o destino num memo. O pagamento do outro lado é simulado.
+
+**Chave do patrocinador pública, de propósito, só na devnet.** Ela vale apenas moedas de teste. O pior caso é alguém
+emitir cBRL de teste e esvaziar o pool de teste, e a manutenção repõe a liquidez a cada 15 minutos. Em produção esse
+papel é de um servidor (relayer) com limites por conta, e a chave nunca sai dele.
+
 ## Segurança
 
 - PDAs: `pool = [b"pool", brl_mint, usd_mint]`, cofres `[b"vault", pool, mint]`,
