@@ -1,0 +1,147 @@
+import { useState } from "react";
+import { Side } from "../engine/pool";
+import { project } from "../engine/projection";
+import { money, pct } from "../format";
+import { Wallet } from "../wallet";
+import { Brand } from "./Brand";
+import { InfoIcon } from "./Icons";
+
+const CDI = 0.1365;
+const TBILL = 0.0386;
+
+interface Props {
+  wallet: Wallet;
+  onDeposit: (side: Side, amount: number) => void;
+}
+
+export function Rende({ wallet, onDeposit }: Props) {
+  const [tier, setTier] = useState<"rende" | "baleia">("rende");
+  const [side, setSide] = useState<Side>("BRL");
+  const [amount, setAmount] = useState(100);
+  const [error, setError] = useState("");
+  const [giro, setGiro] = useState(0.05);
+  const r = project({ poolBRL: 100e6, giro, cdi: CDI, tbill: TBILL });
+  const yearly = amount * (side === "BRL" ? r.rendeBRL : r.rendeUSD);
+  const common = amount * (side === "BRL" ? CDI : TBILL);
+
+  function submit() {
+    try {
+      onDeposit(side, amount);
+      setError("");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  return (
+    <>
+      <div className="segmented" role="tablist">
+        <button role="tab" aria-selected={tier === "rende"} className={tier === "rende" ? "on" : ""} onClick={() => setTier("rende")}>
+          🟢 Rende
+        </button>
+        <button role="tab" aria-selected={tier === "baleia"} className={tier === "baleia" ? "on" : ""} onClick={() => setTier("baleia")}>
+          🐋 Baleia
+        </button>
+      </div>
+
+      {tier === "baleia" ? (
+        <section className="card">
+          <h2>Baleia</h2>
+          <p>
+            Para investidores qualificados. O dinheiro fica líquido e é o motor das trocas: assume o risco de desequilíbrio
+            do pool e, por isso, fica com a maior parte das taxas.
+          </p>
+          <div className="stat-hero">
+            <span className="label">Retorno simulado (movimento de {pct(giro)}/dia)</span>
+            <strong className="big">{pct(r.baleia)} a.a.</strong>
+          </div>
+          <p className="warn">Pode ter retorno negativo em crises cambiais. Não disponível nesta demonstração.</p>
+        </section>
+      ) : (
+        <>
+          <section className="card">
+            <h2>
+              <Brand /> Rende
+            </h2>
+            <p className="muted">
+              Seu dinheiro fica aplicado em renda fixa e ainda recebe parte da taxa de cada troca do pool.
+            </p>
+            {(wallet.rende.BRL > 0 || wallet.rende.USD > 0) && (
+              <div className="position">
+                <div>
+                  <span className="label">Depositado</span>
+                  <strong>{money("BRL", wallet.rende.BRL)}</strong>
+                  {wallet.rende.USD > 0 && <strong>{money("USD", wallet.rende.USD)}</strong>}
+                </div>
+                <div>
+                  <span className="label">Ganho com câmbio</span>
+                  <strong className="pos">+{money("BRL", wallet.earned.BRL)}</strong>
+                  {wallet.earned.USD > 0 && <strong className="pos">+{money("USD", wallet.earned.USD)}</strong>}
+                </div>
+              </div>
+            )}
+
+            <div className="field-box">
+              <span className="label">Quanto você quer deixar rendendo</span>
+              <div className="amount-row">
+                <input
+                  inputMode="decimal"
+                  type="number"
+                  min={0}
+                  value={amount}
+                  aria-label="Valor a depositar"
+                  onChange={(e) => setAmount(Number(e.target.value))}
+                />
+                <select className="currency" value={side} onChange={(e) => setSide(e.target.value as Side)} aria-label="Moeda">
+                  <option value="BRL">🇧🇷 BRL</option>
+                  <option value="USD">🇺🇸 USD</option>
+                </select>
+              </div>
+              <span className="muted">Disponível: {money(side, wallet.balance[side])} · mínimo R$ 10</span>
+            </div>
+            {error && <p className="error">{error}</p>}
+            <button className="primary" disabled={!(amount > 0)} onClick={submit}>
+              Depositar {amount > 0 ? money(side, amount) : ""}
+            </button>
+            <p className="warn">
+              <InfoIcon /> Não tem garantia do FGC, ao contrário de um CDB. Rendimentos dependem do movimento do pool e não são
+              garantidos.
+            </p>
+          </section>
+
+          <section className="card">
+            <h3>Quanto você ganharia em 1 ano?</h3>
+            <div className="compare-hero">
+              <div>
+                <span className="label">Conta comum</span>
+                <strong>{money(side, common)}</strong>
+              </div>
+              <div className="ours">
+                <span className="label">
+                  <Brand /> Rende
+                </span>
+                <strong>{money(side, yearly)}</strong>
+                <span className="pos">+{money(side, yearly - common)}</span>
+              </div>
+            </div>
+            <label className="slider">
+              <span>
+                Movimento do pool: <strong>{pct(giro)} por dia</strong>
+              </span>
+              <input type="range" min={0.01} max={0.1} step={0.005} value={giro} onChange={(e) => setGiro(Number(e.target.value))} />
+              <span className="scale">
+                <span>pouco</span>
+                <span>muito</span>
+              </span>
+            </label>
+            <p className="muted small">
+              Simulação, não promessa. Premissas: pool de R$ 100 mi, CDI {pct(CDI)}, Tesouro americano {pct(TBILL)}, 60% do
+              volume de apps parceiros. A <Brand /> só cobra 20% do que passar de 100% do CDI. Antes de IR e IOF.
+            </p>
+          </section>
+        </>
+      )}
+    </>
+  );
+}
+
