@@ -43,7 +43,6 @@ jobs:
       - name: Percorrer o app na devnet e tirar os prints
         env:
           ANCHOR_WALLET: .devnet-keys/deployer.json
-          PRINTS: "1"
         run: |
           (cd app && npx vite preview --port 4173 --strictPort > /tmp/preview.log 2>&1 &)
           sleep 3
