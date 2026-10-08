@@ -1,4 +1,4 @@
-// Oráculo da devnet: lê o dólar ao vivo (Pyth, com fontes de reserva) e grava a cotação no pool.
+// Oráculo da devnet: lê o dólar ao vivo (Coinbase, com fontes de reserva) e grava a cotação no pool.
 // Roda no GitHub Actions a cada 15 minutos (workflow "Oráculo da devnet").
 // Uso: ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=... npm run devnet:price
 import * as anchor from "@coral-xyz/anchor";

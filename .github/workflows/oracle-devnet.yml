@@ -1,6 +1,6 @@
 name: Oráculo da devnet
 
-# Grava no pool da devnet a cotação real do dólar (Pyth, com fontes de reserva) a cada 15 minutos.
+# Grava no pool da devnet a cotação real do dólar (Coinbase, com fontes de reserva) a cada 15 minutos.
 # Na mainnet, este papel seria do Pyth lido direto pelo programa (ver docs/ARQUITETURA.md).
 on:
   schedule:

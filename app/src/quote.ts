@@ -1,4 +1,5 @@
-// Cotação real do dólar em reais, de fontes públicas, com reserva.
+// Cotação real do dólar em reais, de fontes públicas sem chave de API, com reserva.
+// Em produção, o programa leria o Pyth direto na Solana (a API pública do Pyth hoje pede chave).
 // Usado pelo app (no navegador) e pelo atualizador do oráculo na devnet (Node 22, no GitHub Actions).
 
 export interface LiveQuote {
@@ -6,9 +7,6 @@ export interface LiveQuote {
   source: string; // nome da fonte, para mostrar ao usuário
   publishedAt: number; // unix (segundos) da cotação na fonte
 }
-
-const PYTH = "https://hermes.pyth.network";
-const PYTH_SYMBOL = "FX.USD/BRL";
 
 /** Faixa de sanidade: fora dela a fonte está errada, não o câmbio. */
 export const isSanePrice = (p: number) => Number.isFinite(p) && p > 2 && p < 15;
@@ -25,23 +23,10 @@ async function getJson(url: string, timeoutMs: number): Promise<any> {
   }
 }
 
-let pythFeedId: string | null = null;
-
-/** Pyth: o mesmo oráculo usado por protocolos na Solana. */
-export async function fromPyth(timeoutMs = 6000): Promise<LiveQuote> {
-  if (!pythFeedId) {
-    const feeds: { id: string; attributes: { symbol?: string } }[] = await getJson(
-      `${PYTH}/v2/price_feeds?query=USD%2FBRL&asset_type=fx`,
-      timeoutMs,
-    );
-    const feed = feeds.find((f) => f.attributes.symbol === PYTH_SYMBOL);
-    if (!feed) throw new Error(`Pyth sem o par ${PYTH_SYMBOL}`);
-    pythFeedId = feed.id;
-  }
-  const data = await getJson(`${PYTH}/v2/updates/price/latest?ids[]=${pythFeedId}&parsed=true`, timeoutMs);
-  const p = data.parsed?.[0]?.price;
-  if (!p) throw new Error("Pyth sem preço");
-  return { price: Number(p.price) * 10 ** Number(p.expo), source: "Pyth", publishedAt: Number(p.publish_time) };
+/** Coinbase: cotação de mercado atualizada continuamente. */
+export async function fromCoinbase(timeoutMs = 6000): Promise<LiveQuote> {
+  const data = await getJson("https://api.coinbase.com/v2/exchange-rates?currency=USD", timeoutMs);
+  return { price: Number(data.data?.rates?.BRL), source: "Coinbase", publishedAt: Math.floor(Date.now() / 1000) };
 }
 
 /** AwesomeAPI: cotação comercial brasileira. */
@@ -58,7 +43,7 @@ export async function fromErApi(timeoutMs = 6000): Promise<LiveQuote> {
   return { price: Number(data.rates?.BRL), source: "ExchangeRate-API", publishedAt: Number(data.time_last_update_unix) };
 }
 
-export const SOURCES = [fromPyth, fromAwesome, fromErApi];
+export const SOURCES = [fromCoinbase, fromAwesome, fromErApi];
 
 /** Tenta as fontes em ordem e devolve a primeira cotação válida. */
 export async function fetchLiveQuote(sources = SOURCES, onSkip?: (reason: string) => void): Promise<LiveQuote> {

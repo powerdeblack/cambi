@@ -8,8 +8,8 @@ const fail = (msg: string) => async (): Promise<LiveQuote> => {
 
 describe("cotação ao vivo", () => {
   it("usa a primeira fonte que responde", async () => {
-    const q = await fetchLiveQuote([ok(5.43, "Pyth"), ok(5.5, "B")]);
-    expect(q).toMatchObject({ price: 5.43, source: "Pyth" });
+    const q = await fetchLiveQuote([ok(5.43, "Coinbase"), ok(5.5, "B")]);
+    expect(q).toMatchObject({ price: 5.43, source: "Coinbase" });
   });
 
   it("cai para a reserva quando a fonte principal falha", async () => {

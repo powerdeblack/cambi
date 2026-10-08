@@ -100,7 +100,7 @@ export function OnchainCard() {
         ))}
       </ul>
       <p className="muted small">
-        A cotação do pool é atualizada a cada 15 minutos com o dólar real (Pyth). Moedas de teste (cBRL e cUSD) sem valor
+        A cotação do pool é atualizada a cada 15 minutos com o dólar real. Moedas de teste (cBRL e cUSD) sem valor
         real. Qualquer pessoa pode conferir no Solana Explorer.
       </p>
     </section>
