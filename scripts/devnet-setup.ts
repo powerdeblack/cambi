@@ -26,7 +26,8 @@ const PRICE_RAW = new anchor.BN(5_400_000); // R$ 5,40 por dólar (cotação de 
 const MAX_PRICE_AGE = new anchor.BN(60 * 60 * 24 * 30); // 30 dias, para a demo continuar utilizável
 
 async function main() {
-  const provider = anchor.AnchorProvider.env();
+  const env = anchor.AnchorProvider.env();
+  const provider = new anchor.AnchorProvider(env.connection, env.wallet, { commitment: "confirmed", preflightCommitment: "confirmed" });
   anchor.setProvider(provider);
   const program = new Program<CambiPool>(idl as CambiPool, provider);
   const connection = provider.connection;

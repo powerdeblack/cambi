@@ -37,7 +37,9 @@ async function expectError(p: Promise<unknown>, code: string) {
 }
 
 describe("cambi_pool", () => {
-  const provider = anchor.AnchorProvider.env();
+  // Tudo em "confirmed": a leitura de saldos logo após cada transação precisa enxergar o resultado dela.
+  const env = anchor.AnchorProvider.env();
+  const provider = new anchor.AnchorProvider(env.connection, env.wallet, { commitment: "confirmed", preflightCommitment: "confirmed" });
   anchor.setProvider(provider);
   const program = anchor.workspace.CambiPool as Program<CambiPool>;
   const connection = provider.connection;
@@ -226,8 +228,9 @@ describe("cambi_pool", () => {
   });
 
   it("mantém a Rende sênior: a Baleia não saca se deixar a Rende descoberta", async () => {
-    // Tira reais do pool com trocas de dólar por real até sobrar pouco além do principal da Rende.
-    for (let i = 0; i < 3; i++) await swap(carol, USD, 2_500);
+    // Tira ~R$ 13.500 do cofre: sobra liquidez acima dos R$ 90.000 de principal da Rende,
+    // mas não o suficiente para a Baleia sacar R$ 20.000.
+    await swap(carol, USD, 2_500);
     await expectError(withdraw(whale, BALEIA, BRL, 20_000), "BaleiaJuniorLiquidity");
     // Um saque pequeno, que mantém a Rende coberta, passa.
     await withdraw(whale, BALEIA, BRL, 100);
