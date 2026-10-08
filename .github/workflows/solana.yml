@@ -21,8 +21,15 @@ jobs:
         run: |
           anchor build
           anchor keys sync
-      - name: Compilar e testar numa Solana local
-        run: anchor test
+          anchor build
+      - name: Conferir IDs
+        run: |
+          echo "chave:    $(solana address -k target/deploy/cambi_pool-keypair.json)"
+          echo "código:   $(grep -o 'declare_id!("[^"]*")' programs/cambi_pool/src/lib.rs)"
+          echo "IDL:      $(node -e 'console.log(require("./target/idl/cambi_pool.json").address)')"
+          grep -A1 "programs.localnet" Anchor.toml
+      - name: Testar numa Solana local
+        run: anchor test --skip-build
       - name: Tamanho do programa
         run: ls -la target/deploy/
       - uses: actions/upload-artifact@v4
