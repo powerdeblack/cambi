@@ -4,7 +4,7 @@
   "scripts": {
     "test:anchor": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts",
     "devnet:setup": "ts-node -P ./tsconfig.json scripts/devnet-setup.ts",
-    "devnet:price": "ts-node -P ./tsconfig.json scripts/update-price.ts"
+    "devnet:price": "tsx scripts/update-price.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.31.1",
@@ -20,6 +20,7 @@
     "mocha": "^10.8.2",
     "ts-mocha": "^10.0.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
 }
