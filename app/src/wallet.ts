@@ -3,12 +3,25 @@ import { PoolState, Side, SwapResult, UserKind, deposit, swap } from "./engine/p
 
 export interface Activity {
   id: number;
-  kind: "swap" | "deposit";
+  kind: "swap" | "deposit" | "send";
   side: Side; // moeda que saiu da carteira
   amountIn: number;
   amountOut?: number;
   fee?: number;
   savedVsBank?: number; // em reais
+  to?: string; // envio: destinatário mascarado (chave Pix, conta ou carteira)
+  route?: string; // envio: "Pix", "ACH" ou "USDC"
+  at?: number; // quando aconteceu (ms)
+}
+
+/** Destinatário já usado, para repetir o envio em um toque. */
+export interface Recipient {
+  id: string; // chave única (tipo + valor)
+  side: Side;
+  route: "pix" | "ach" | "usdc";
+  name: string;
+  detail: string; // mascarado, para mostrar
+  data: Record<string, string>; // dados para preencher de novo
 }
 
 export interface Wallet {
@@ -16,6 +29,7 @@ export interface Wallet {
   rende: Record<Side, number>; // quanto o usuário tem depositado na Rende
   earned: Record<Side, number>; // taxas de câmbio recebidas como depositante
   activity: Activity[];
+  recipients: Recipient[];
 }
 
 export const INITIAL_WALLET: Wallet = {
@@ -23,9 +37,12 @@ export const INITIAL_WALLET: Wallet = {
   rende: { BRL: 0, USD: 0 },
   earned: { BRL: 0, USD: 0 },
   activity: [],
+  recipients: [],
 };
 
-let nextId = 1;
+let lastId = 0;
+/** Id crescente e único, mesmo depois de recarregar a carteira salva. */
+const nextId = () => (lastId = Math.max(lastId + 1, Date.now()));
 
 export const isDepositor = (w: Wallet) => w.rende.BRL > 0 || w.rende.USD > 0;
 export const kindFor = (w: Wallet): UserKind => (isDepositor(w) ? "depositor" : "retail");
@@ -39,12 +56,12 @@ export function walletSwap(pool: PoolState, w: Wallet, side: Side, amount: numbe
   const share = pool.deposits.rende[side] > 0 ? w.rende[side] / pool.deposits.rende[side] : 0;
 
   const wallet: Wallet = {
+    ...w,
     balance: { ...w.balance, [side]: w.balance[side] - amount, [out]: w.balance[out] + r.amountOut },
-    rende: w.rende,
     // A própria troca também rende para quem é depositante: parte da taxa volta para ele.
     earned: { ...w.earned, [side]: w.earned[side] + r.toRende * share },
     activity: [
-      { id: nextId++, kind: "swap", side, amountIn: amount, amountOut: r.amountOut, fee: r.feeTotal, savedVsBank: bank - feeBRL },
+      { id: nextId(), kind: "swap", side, amountIn: amount, amountOut: r.amountOut, fee: r.feeTotal, savedVsBank: bank - feeBRL, at: Date.now() },
       ...w.activity,
     ],
   };
@@ -58,7 +75,7 @@ export function walletDeposit(pool: PoolState, w: Wallet, side: Side, amount: nu
     ...w,
     balance: { ...w.balance, [side]: w.balance[side] - amount },
     rende: { ...w.rende, [side]: w.rende[side] + amount },
-    activity: [{ id: nextId++, kind: "deposit", side, amountIn: amount }, ...w.activity],
+    activity: [{ id: nextId(), kind: "deposit", side, amountIn: amount, at: Date.now() }, ...w.activity],
   };
   return { pool: p, wallet };
 }
@@ -80,4 +97,27 @@ export function simulateMarket(pool: PoolState, w: Wallet, trades = 20) {
     }
   }
   return { pool: p, wallet: { ...w, earned } };
+}
+
+/** Envio para fora da cambI (Pix ou conta em dólar). Debita valor + tarifa e guarda o destinatário. */
+export function walletSend(w: Wallet, side: Side, amount: number, fee: number, recipient: Recipient) {
+  if (!(amount > 0)) throw new Error("Informe um valor");
+  if (amount + fee > w.balance[side] + 1e-9) throw new Error("Saldo insuficiente na sua carteira");
+  const route = recipient.route === "pix" ? "Pix" : recipient.route === "ach" ? "ACH" : "USDC";
+  const activity: Activity = {
+    id: nextId(),
+    kind: "send",
+    side,
+    amountIn: amount,
+    fee,
+    to: `${recipient.name} · ${recipient.detail}`,
+    route,
+    at: Date.now(),
+  };
+  return {
+    ...w,
+    balance: { ...w.balance, [side]: w.balance[side] - amount - fee },
+    activity: [activity, ...w.activity],
+    recipients: [recipient, ...w.recipients.filter((r) => r.id !== recipient.id)].slice(0, 6),
+  };
 }

@@ -3,25 +3,30 @@ import { PoolState, Side, SwapResult, quote } from "../engine/pool";
 import { money, pct, rate, reais } from "../format";
 import { Wallet, isDepositor, kindFor } from "../wallet";
 import { Brand } from "./Brand";
-import { CheckIcon, SwapIcon } from "./Icons";
+import { CheckIcon, SendIcon, SwapIcon } from "./Icons";
+import { MoneyInput } from "./MoneyInput";
 
 interface Props {
   pool: PoolState;
   wallet: Wallet;
   onSwap: (side: Side, amount: number) => SwapResult;
   onDone: () => void;
+  /** Depois da troca, levar o valor recebido para fora (Pix ou conta em dólar). */
+  onSendOut: (side: Side, amount: number) => void;
 }
 
 const FLAG: Record<Side, string> = { BRL: "🇧🇷 BRL", USD: "🇺🇸 USD" };
 
-export function Exchange({ pool, wallet, onSwap, onDone }: Props) {
+export function Exchange({ pool, wallet, onSwap, onDone, onSendOut }: Props) {
   const [side, setSide] = useState<Side>("BRL");
-  const [amount, setAmount] = useState(500);
+  const [cents, setCents] = useState(50_000);
+  const amount = cents / 100;
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<SwapResult | null>(null);
 
   const out: Side = side === "BRL" ? "USD" : "BRL";
-  const valid = amount > 0;
+  const over = amount > wallet.balance[side] + 1e-9;
+  const valid = amount > 0 && !over;
   const q = valid ? quote(pool, side, amount, kindFor(wallet)) : null;
 
   function confirm() {
@@ -33,29 +38,32 @@ export function Exchange({ pool, wallet, onSwap, onDone }: Props) {
     }
   }
 
-  if (receipt) return <Receipt r={receipt} onClose={() => { setReceipt(null); onDone(); }} />;
+  if (receipt)
+    return (
+      <Receipt
+        r={receipt}
+        onClose={() => { setReceipt(null); onDone(); }}
+        onSendOut={() => { setReceipt(null); onSendOut(receipt.side === "BRL" ? "USD" : "BRL", receipt.amountOut); }}
+      />
+    );
 
   return (
     <section className="card exchange">
       <h2>Trocar</h2>
 
       <div className="field-box">
-        <span className="label">Você envia</span>
-        <div className="amount-row">
-          <input
-            inputMode="decimal"
-            type="number"
-            min={0}
-            value={amount}
-            aria-label="Valor a enviar"
-            onChange={(e) => setAmount(Number(e.target.value))}
-          />
-          <span className="currency">{FLAG[side]}</span>
+        <MoneyInput side={side} cents={cents} onChange={setCents} label="Você envia" invalid={over} />
+        <div className="field-foot">
+          <span className={over ? "error" : "muted"}>
+            {over ? "Saldo insuficiente · " : ""}Disponível: {money(side, wallet.balance[side])}
+          </span>
+          <button className="chip" onClick={() => setCents(Math.floor(wallet.balance[side] * 100))} disabled={wallet.balance[side] <= 0}>
+            Tudo
+          </button>
         </div>
-        <span className="muted">Disponível: {money(side, wallet.balance[side])}</span>
       </div>
 
-      <button className="flip" aria-label="Inverter moedas" onClick={() => setSide(out)}>
+      <button className="flip" aria-label="Inverter moedas" onClick={() => { setSide(out); setCents(0); }}>
         <SwapIcon />
       </button>
 
@@ -94,7 +102,7 @@ export function Exchange({ pool, wallet, onSwap, onDone }: Props) {
   );
 }
 
-function Receipt({ r, onClose }: { r: SwapResult; onClose: () => void }) {
+function Receipt({ r, onClose, onSendOut }: { r: SwapResult; onClose: () => void; onSendOut: () => void }) {
   const [details, setDetails] = useState(false);
   const c = r.feeCurrency;
   const out: Side = r.side === "BRL" ? "USD" : "BRL";
@@ -157,7 +165,10 @@ function Receipt({ r, onClose }: { r: SwapResult; onClose: () => void }) {
         💡 <strong>Spread</strong> é a diferença entre o preço justo do dólar e o que cobram de você. No banco ele fica com o
         banco. Aqui, a maior parte volta para quem deposita.
       </p>
-      <button className="primary" onClick={onClose}>Concluir</button>
+      <button className="primary" onClick={onSendOut}>
+        <SendIcon /> {out === "BRL" ? `Enviar ${money(out, r.amountOut)} por Pix` : `Enviar ${money(out, r.amountOut)} para fora`}
+      </button>
+      <button className="secondary gap-top" onClick={onClose}>Deixar na carteira</button>
     </section>
   );
 }

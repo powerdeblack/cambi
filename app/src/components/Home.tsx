@@ -2,16 +2,25 @@ import { PoolState } from "../engine/pool";
 import { money, reais } from "../format";
 import { Wallet, isDepositor } from "../wallet";
 import { Brand } from "./Brand";
-import { GrowIcon, SwapIcon } from "./Icons";
+import { GrowIcon, SendIcon, SwapIcon } from "./Icons";
 
 interface Props {
   pool: PoolState;
   wallet: Wallet;
   go: (tab: "trocar" | "rende") => void;
+  onSend: () => void;
   onSimulateMarket: () => void;
 }
 
-export function Home({ pool, wallet, go, onSimulateMarket }: Props) {
+const ACTIVITY_ICON = { swap: "⇄", deposit: "＋", send: "↗" } as const;
+
+function activityTitle(a: Wallet["activity"][number]) {
+  if (a.kind === "swap") return `Troca ${a.side === "BRL" ? "real → dólar" : "dólar → real"}`;
+  if (a.kind === "deposit") return "Depósito na Rende";
+  return a.route === "Pix" ? "Pix enviado" : a.route === "ACH" ? "Envio para conta nos EUA" : "Envio para carteira USDC";
+}
+
+export function Home({ pool, wallet, go, onSend, onSimulateMarket }: Props) {
   const p = pool.price;
   const free = wallet.balance.BRL + wallet.balance.USD * p;
   const invested = wallet.rende.BRL + wallet.rende.USD * p;
@@ -35,6 +44,10 @@ export function Home({ pool, wallet, go, onSimulateMarket }: Props) {
         <button onClick={() => go("trocar")}>
           <span className="qa-icon"><SwapIcon /></span>
           Trocar
+        </button>
+        <button onClick={onSend}>
+          <span className="qa-icon"><SendIcon /></span>
+          Enviar
         </button>
         <button onClick={() => go("rende")}>
           <span className="qa-icon"><GrowIcon /></span>
@@ -87,14 +100,18 @@ export function Home({ pool, wallet, go, onSimulateMarket }: Props) {
           <ul className="list activity">
             {wallet.activity.slice(0, 6).map((a) => (
               <li key={a.id}>
-                <span className="flag">{a.kind === "swap" ? "⇄" : "＋"}</span>
+                <span className={`flag act-${a.kind}`}>{ACTIVITY_ICON[a.kind]}</span>
                 <span>
-                  {a.kind === "swap" ? `Troca ${a.side === "BRL" ? "real → dólar" : "dólar → real"}` : "Depósito na Rende"}
+                  {activityTitle(a)}
+                  {a.kind === "send" && a.to && <small className="muted">{a.to}</small>}
                   {a.savedVsBank !== undefined && (
                     <small className="saved">economizou {reais(a.savedVsBank)} vs. banco</small>
                   )}
                 </span>
-                <strong>{money(a.side, a.amountIn)}</strong>
+                <strong className={a.kind === "send" ? "neg" : undefined}>
+                  {a.kind === "send" ? "− " : ""}
+                  {money(a.side, a.amountIn)}
+                </strong>
               </li>
             ))}
           </ul>
