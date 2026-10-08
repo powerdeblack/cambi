@@ -1,12 +1,17 @@
+[toolchain]
+
 [features]
 resolution = true
 skip-lint = false
 
-[programs.localnet]
-cambi_pool = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
-
 [programs.devnet]
-cambi_pool = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+cambi_pool = "AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ"
+
+[programs.localnet]
+cambi_pool = "AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ"
+
+[registry]
+url = "https://api.apr.dev"
 
 [provider]
 cluster = "localnet"

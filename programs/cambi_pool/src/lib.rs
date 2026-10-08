@@ -12,7 +12,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ");
 
 pub const PRICE_SCALE: u128 = 1_000_000; // preço = reais por dólar * 1e6
 pub const ACC_SCALE: u128 = 1_000_000_000_000; // escala do acumulador de taxas por share
