@@ -87,7 +87,7 @@ Premissas, fontes e riscos em [docs/ECONOMIA.md](docs/ECONOMIA.md). **Simulaçõ
 | [`scripts/`](scripts) | Montagem do pool de demonstração na devnet | ✅ [Implantado na devnet](#na-devnet-ao-vivo) |
 | [`app/`](app) | App web (React + Vite + TypeScript), instalável no celular | ✅ [No ar](https://powerdeblack.github.io/cambi/) · 39 testes · transações reais na devnet |
 | [`sim/`](sim) | Simulação econômica (Python) | ✅ |
-| [`docs/`](docs) | [Arquitetura](docs/ARQUITETURA.md) · [Economia](docs/ECONOMIA.md) · [Marca](docs/MARCA.md) · [Validação](docs/VALIDACAO.md) · [Colosseum](docs/COLOSSEUM.md) | ✅ |
+| [`docs/`](docs) | [Arquitetura](docs/ARQUITETURA.md) · [Economia](docs/ECONOMIA.md) · [Mercado](docs/MERCADO.md) · [Marca](docs/MARCA.md) · [Validação](docs/VALIDACAO.md) · [Colosseum](docs/COLOSSEUM.md) | ✅ |
 
 ### O que os testes de integração comprovam
 

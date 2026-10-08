@@ -64,7 +64,7 @@ submitted Github repo?" e "Are Colosseum hackathons only for new products?".
 | Fit fundador–mercado | Missão de tornar o câmbio compreensível ([MARCA.md](MARCA.md)) | Sua história e o porquê, em primeira pessoa |
 | Insight | Spread invisível; o cliente vira dono; regra de 2026 do BC (stablecoin = câmbio) | Dizer isso de forma explícita nos textos e no vídeo |
 | Produto e execução | Programa na devnet, app com transações reais, revisão de segurança | Mostrar no vídeo de demo |
-| Tamanho de mercado | — | Número oficial com fonte (ver abaixo) |
+| Tamanho de mercado | [MERCADO.md](MERCADO.md): dados com fonte e conta transparente | Escolher 2 ou 3 números e dizer com suas palavras |
 | Comunicação | README em português e resumo em inglês | Os vídeos (com legenda em inglês) |
 | Viabilidade | [ECONOMIA.md](ECONOMIA.md) | Preencher a monetização com suas palavras |
 | Tração | Roteiro em [VALIDACAO.md](VALIDACAO.md) | Conversas reais e números: o maior buraco hoje |
@@ -95,10 +95,11 @@ submitted Github repo?" e "Are Colosseum hackathons only for new products?".
 - De onde vem a receita: 25% da taxa líquida e 20% do que a Rende render acima do CDI?
 - Qual giro diário mínimo faz a conta fechar? Ver a simulação em [ECONOMIA.md](ECONOMIA.md).
 
-**Tamanho de mercado** (use número oficial e cite a fonte)
-- Estatísticas do mercado de câmbio do Banco Central (volume de pessoa física).
-- Remessas Brasil–EUA.
-- Volume de stablecoins no Brasil, em relatórios públicos.
+**Tamanho de mercado:** os dados com fonte estão em [MERCADO.md](MERCADO.md).
+- Gastos de brasileiros no exterior: US$ 21,7 bi em 2025.
+- Cerca de 80% do volume cripto declarado é stablecoin.
+- Regra de câmbio para stablecoins em vigor desde fev/2026.
+- Use a conta transparente da seção 5 e cite a fonte de cada número.
 
 **Por que agora**
 - Resoluções do BC de fevereiro de 2026, Pix universal e stablecoins em dólar ganhando escala.
