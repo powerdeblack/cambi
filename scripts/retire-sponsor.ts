@@ -29,17 +29,22 @@ async function main() {
       lines.push(`Moeda de teste antiga ${m}: emissão revogada (sem autoridade)`);
     }
   }
+  // Esvazia a conta inteira (saldo zero é permitido; saldo pequeno acima de zero não, por causa do aluguel mínimo).
   const lamports = await connection.getBalance(old.publicKey, "confirmed");
-  const fee = 10_000;
-  if (tx.instructions.length > 0 || lamports > fee) {
-    tx.feePayer = old.publicKey;
-    if (lamports > fee * 2) tx.add(SystemProgram.transfer({ fromPubkey: old.publicKey, toPubkey: admin, lamports: lamports - fee * 2 }));
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-    tx.recentBlockhash = blockhash;
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  tx.feePayer = old.publicKey;
+  tx.recentBlockhash = blockhash;
+  const probe = Transaction.from(tx.serialize({ requireAllSignatures: false, verifySignatures: false }));
+  probe.add(SystemProgram.transfer({ fromPubkey: old.publicKey, toPubkey: admin, lamports: 1 }));
+  const fee = (await probe.getEstimatedFee(connection)) ?? 5_000;
+  if (lamports > fee) tx.add(SystemProgram.transfer({ fromPubkey: old.publicKey, toPubkey: admin, lamports: lamports - fee }));
+  if (tx.instructions.length > 0 && lamports >= fee) {
     tx.sign(old);
     const sig = await connection.sendRawTransaction(tx.serialize());
     await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
-    lines.push(`SOL devolvido ao admin: ${(lamports / 1e9).toFixed(4)} · transação ${sig}`);
+    lines.push(`SOL devolvido ao admin: ${((lamports - fee) / 1e9).toFixed(4)} · transação ${sig}`);
+  } else {
+    lines.push("Nada a fazer (já desativada).");
   }
   console.log(lines.join("\n"));
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Carteira patrocinadora antiga desativada\n\n${lines.map((l) => `- ${l}`).join("\n")}\n`);
