@@ -1,7 +1,10 @@
 // Utilitários compartilhados entre os testes de integração e o script de devnet.
 import * as anchor from "@coral-xyz/anchor";
 import { createAssociatedTokenAccount, createMint, mintTo } from "@solana/spl-token";
-import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { ConfirmOptions, Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+
+/** Espera confirmação antes de seguir: a próxima transação precisa enxergar a conta criada. */
+const CONFIRMED: ConfirmOptions = { commitment: "confirmed", preflightCommitment: "confirmed" };
 
 export const DECIMALS = 6;
 export const BRL = 0;
@@ -38,8 +41,8 @@ export interface Mints {
 }
 
 export async function createMints(connection: Connection, authority: Keypair): Promise<Mints> {
-  const brl = await createMint(connection, authority, authority.publicKey, null, DECIMALS);
-  const usd = await createMint(connection, authority, authority.publicKey, null, DECIMALS);
+  const brl = await createMint(connection, authority, authority.publicKey, null, DECIMALS, undefined, CONFIRMED);
+  const usd = await createMint(connection, authority, authority.publicKey, null, DECIMALS, undefined, CONFIRMED);
   return { brl, usd };
 }
 
@@ -62,10 +65,10 @@ export async function setupUser(
     const sig = await connection.requestAirdrop(kp.publicKey, opts.airdropSol * LAMPORTS_PER_SOL);
     await connection.confirmTransaction(sig, "confirmed");
   }
-  const brl = await createAssociatedTokenAccount(connection, mintAuthority, mints.brl, kp.publicKey);
-  const usd = await createAssociatedTokenAccount(connection, mintAuthority, mints.usd, kp.publicKey);
-  if (balances.brl > 0) await mintTo(connection, mintAuthority, mints.brl, brl, mintAuthority, BigInt(u(balances.brl).toString()));
-  if (balances.usd > 0) await mintTo(connection, mintAuthority, mints.usd, usd, mintAuthority, BigInt(u(balances.usd).toString()));
+  const brl = await createAssociatedTokenAccount(connection, mintAuthority, mints.brl, kp.publicKey, CONFIRMED);
+  const usd = await createAssociatedTokenAccount(connection, mintAuthority, mints.usd, kp.publicKey, CONFIRMED);
+  if (balances.brl > 0) await mintTo(connection, mintAuthority, mints.brl, brl, mintAuthority, BigInt(u(balances.brl).toString()), [], CONFIRMED);
+  if (balances.usd > 0) await mintTo(connection, mintAuthority, mints.usd, usd, mintAuthority, BigInt(u(balances.usd).toString()), [], CONFIRMED);
   return { kp, brl, usd };
 }
 
