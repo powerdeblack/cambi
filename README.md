@@ -42,23 +42,39 @@ Premissas, fontes e riscos em [docs/ECONOMIA.md](docs/ECONOMIA.md). **Simulaçõ
 
 | Pasta | Conteúdo | Estado |
 |---|---|---|
-| [`app/`](app) | Demo web (React + Vite + TypeScript) com o motor do pool | ✅ Funcional · 10 testes |
-| [`programs/cambi_pool`](programs/cambi_pool) | Programa Solana em Rust/Anchor 0.31 | ✅ Compila · 6 testes da lógica · ⏳ deploy em devnet |
+| [`programs/cambi_pool`](programs/cambi_pool) | Programa Solana em Rust/Anchor 0.31 | ✅ Compila para a Solana (SBF, 371 KB) · 9 testes unitários |
+| [`tests/`](tests) | Testes de integração numa Solana local | ✅ 15 testes passando no [GitHub Actions](../../actions/workflows/solana.yml) |
+| [`scripts/`](scripts) | Montagem do pool de demonstração na devnet | ✅ Pronto · ⏳ aguardando SOL de devnet para o deploy |
+| [`app/`](app) | Demo web (React + Vite + TypeScript) | ✅ [No ar](https://powerdeblack.github.io/cambi/) · 10 testes |
 | [`sim/`](sim) | Simulação econômica (Python) | ✅ |
 | [`docs/`](docs) | [Arquitetura](docs/ARQUITETURA.md) · [Economia](docs/ECONOMIA.md) · [Marca](docs/MARCA.md) · [Validação](docs/VALIDACAO.md) · [Colosseum](docs/COLOSSEUM.md) | ✅ |
-| [`brand/`](brand) | Logo e ícone (SVG) | ✅ |
+
+### O que os testes de integração comprovam
+
+Rodando o programa de verdade numa Solana local:
+
+- Depósitos nas duas camadas, com participação nas taxas pelo **valor em reais** (quem deposita dólar também recebe as taxas pagas em reais)
+- Taxa de varejo (1%), **desconto de depositante (0,5%)** e **taxa B2B (0,4%)** provados por contas on-chain
+- Posição de outra pessoa não vale como desconto
+- Saque devolve principal **e** taxas acumuladas
+- **Rende sênior:** a Baleia não consegue sacar se deixar a Rende descoberta
+- Limite de 20% da liquidez por troca, proteção de slippage
+- **Pausa de emergência** bloqueia trocas e depósitos, mas **saques continuam liberados**
+- Só o oráculo muda o preço; só o admin muda taxas, e dentro de limites
+- Troca recusada com cotação desatualizada
 
 ## Rodar localmente
 
 ```bash
 # Demo web
-cd app
-npm install
-npm run dev      # abre em http://localhost:5173
-npm test         # testes do motor do pool
+cd app && npm install && npm run dev      # http://localhost:5173
+npm test                                  # testes do motor do pool
 
-# Programa on-chain (testes da lógica, sem precisar da Solana CLI)
+# Testes unitários do programa (sem Solana CLI)
 cargo test -p cambi_pool
+
+# Testes de integração (requer Solana CLI + Anchor 0.31)
+npm install && anchor build && anchor keys sync && anchor test
 
 # Simulação econômica
 python3 sim/cambi_sim.py
@@ -66,7 +82,7 @@ python3 sim/cambi_sim.py
 
 ## Stack
 
-Solana · Anchor 0.31 · SPL Token · React 18 · Vite · TypeScript · Vitest · Python
+Solana · Anchor 0.31 · SPL Token · React 18 · Vite · TypeScript · Mocha/Chai · Vitest · GitHub Actions · Python
 
 ## Regulação e riscos
 
@@ -77,7 +93,7 @@ Solana · Anchor 0.31 · SPL Token · React 18 · Vite · TypeScript · Vitest �
   para investidores qualificados.
 - **O dinheiro no pool não tem garantia do FGC.**
 - O programa **não foi auditado**. Esta é uma versão de hackathon: não use com dinheiro real.
-- Simplificações conhecidas da versão on-chain estão listadas em [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
+- Limitações conhecidas (oráculo, marcação a mercado da Baleia, renda fixa tokenizada) em [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 
 ## Hackathon
 
