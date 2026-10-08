@@ -95,9 +95,12 @@ fs.mkdirSync(out, { recursive: true });
 
   // Opcional (PRINTS=1): print da troca no Solana Explorer, para divulgação.
   if (process.env.PRINTS && swapTx && swapTx.startsWith("https://explorer.solana.com/tx/")) {
-    await page.goto(swapTx);
-    await page.getByText(/Success|Finalized|Confirmed/i).first().waitFor({ timeout: CHAIN });
-    await page.waitForTimeout(3000);
+    try {
+      await page.goto(swapTx, { waitUntil: "networkidle", timeout: CHAIN });
+    } catch {
+      // O Explorer mantém conexões abertas; o print sai mesmo assim.
+    }
+    await page.waitForTimeout(8000);
     await shot("explorer");
     step("transação da troca aberta no Solana Explorer");
   }
