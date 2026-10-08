@@ -1,0 +1,10 @@
+{
+  "cluster": "devnet",
+  "rpc": "https://api.devnet.solana.com",
+  "programId": null,
+  "pool": null,
+  "brlVault": null,
+  "usdVault": null,
+  "transactions": [],
+  "links": null
+}

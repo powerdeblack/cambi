@@ -9,8 +9,8 @@ export function PoolDashboard({ pool }: { pool: PoolState }) {
 
   return (
     <section className="card">
-      <h2>Pool ao vivo</h2>
-      <p className="muted">Tudo aqui é público. No programa on-chain, qualquer pessoa pode conferir estes números.</p>
+      <h2>Simulação do pool</h2>
+      <p className="muted">Este pool roda no seu navegador e reage às suas trocas. As mesmas regras estão no programa on-chain.</p>
 
       <div className="split" role="img" aria-label={`Real ${pct(brlShare)}, dólar ${pct(1 - brlShare)}`}>
         <span className="brl" style={{ width: `${brlShare * 100}%` }}>

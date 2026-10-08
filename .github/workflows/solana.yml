@@ -1,0 +1,31 @@
+name: Programa Solana (testes de integração)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  SOLANA_VERSION: stable
+
+jobs:
+  anchor-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/solana-setup
+      - name: Carteira local de teste
+        run: solana-keygen new --no-bip39-passphrase --silent --force -o ~/.config/solana/id.json
+      - name: Sincronizar ID do programa
+        run: anchor keys sync
+      - name: Compilar e testar numa Solana local
+        run: anchor test
+      - name: Tamanho do programa
+        run: ls -la target/deploy/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cambi_pool-build
+          path: |
+            target/deploy/cambi_pool.so
+            target/idl/cambi_pool.json

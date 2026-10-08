@@ -1,0 +1,32 @@
+name: Ferramentas Solana
+description: Instala Rust, Solana (Agave), Anchor CLI e as dependências npm da raiz
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+    - name: Instalar Solana (Agave)
+      shell: bash
+      run: |
+        sh -c "$(curl -sSfL https://release.anza.xyz/${SOLANA_VERSION:-stable}/install)"
+        echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+    - name: Instalar Anchor CLI
+      shell: bash
+      run: |
+        npm install -g @coral-xyz/anchor-cli@0.31.1
+        BIN="$(npm root -g)/@coral-xyz/anchor-cli/anchor"
+        chmod +x "$BIN"
+        sudo ln -sf "$BIN" /usr/local/bin/anchor
+    - name: Dependências npm
+      shell: bash
+      run: npm ci
+    - name: Versões
+      shell: bash
+      run: |
+        solana --version
+        anchor --version
+        cargo build-sbf --version || true

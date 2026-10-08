@@ -1,13 +1,16 @@
-[toolchain]
-anchor_version = "0.31.1"
-
 [features]
 resolution = true
 skip-lint = false
+
+[programs.localnet]
+cambi_pool = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 
 [programs.devnet]
 cambi_pool = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "npm run test:anchor"

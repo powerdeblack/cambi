@@ -3,6 +3,7 @@ import { Exchange } from "./components/Exchange";
 import { Home } from "./components/Home";
 import { GrowIcon, HomeIcon, PoolIcon, SwapIcon } from "./components/Icons";
 import { Logo } from "./components/Logo";
+import { OnchainCard } from "./components/OnchainCard";
 import { PoolDashboard } from "./components/PoolDashboard";
 import { Rende } from "./components/Rende";
 import { PoolState, Side, createPool, deposit } from "./engine/pool";
@@ -63,7 +64,12 @@ export default function App() {
         {tab === "inicio" && <Home pool={pool} wallet={wallet} go={setTab} onSimulateMarket={handleMarket} />}
         {tab === "trocar" && <Exchange pool={pool} wallet={wallet} onSwap={handleSwap} onDone={() => setTab("inicio")} />}
         {tab === "rende" && <Rende wallet={wallet} onDeposit={handleDeposit} />}
-        {tab === "pool" && <PoolDashboard pool={pool} />}
+        {tab === "pool" && (
+          <>
+            <OnchainCard />
+            <PoolDashboard pool={pool} />
+          </>
+        )}
         <p className="footnote">
           Demonstração com saldo fictício. Nenhum dinheiro real é movimentado. Em produção, Pix via parceiro autorizado
           pelo Banco Central.
