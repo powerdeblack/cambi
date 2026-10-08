@@ -11,6 +11,45 @@
 
 ---
 
+> **For judges (English summary)** · the app and docs are in Portuguese because the first market is Brazil.
+>
+> **What it is:** an on-chain FX house (Brazilian real ↔ US dollar) where the customers are the owners. Anyone swaps at
+> the oracle price with the fee shown upfront. Depositors in **Rende** (retail, senior tranche) earn a share of every
+> swap fee; **Baleia** (qualified LPs, junior tranche) absorb imbalance risk for a larger share. Fiat in/out via Pix
+> through a licensed partner: since Feb 2026, Brazilian Central Bank rules (Res. 519/520/521) treat stablecoin FX as
+> foreign exchange.
+>
+> **Try it in 2 minutes:** open the [live app](https://powerdeblack.github.io/cambi/) → **"Criar minha conta grátis"**
+> (create free account: a devnet account is created in your browser; R$ 1,000 in test tokens come from the program's
+> own on-chain faucet) → **Trocar** (swap) → tap **"ver transação"** to open the real transaction in Solana Explorer.
+> Other tabs: **Enviar** (send via Pix / to a US account / USDC wallet), **Rende** (deposit and earn), **Pool**.
+>
+> **On-chain (devnet):** program [`AgZt…35XJ`](https://explorer.solana.com/address/AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ?cluster=devnet) · pool
+> [`BM34…C3pg`](https://explorer.solana.com/address/BM342uKMYgDQ2hWmhuXnC4JdHtmWAN3kprptRgRxC3pg?cluster=devnet). The app builds swaps, deposits, fee harvests, withdrawals and
+> transfers itself and sends them as real transactions. Its preview uses the program's exact integer math, so the
+> amount shown is the amount received.
+>
+> **Evidence:**
+> - 23 integration tests on a local validator, 12 program unit tests and 39 app tests.
+> - An end-to-end test against devnet every 6 hours, through the app's client and through the UI in a real browser.
+> - An oracle that writes the median of agreeing price sources every 15 minutes, with its own key and an on-chain
+>   cap on how far each update can move the price.
+>
+> **Security:** an internal review found 1 high and 4 medium issues; all are fixed and each has a regression test
+> ([report, in Portuguese](docs/AUDITORIA.md)). No external audit yet.
+>
+> **Business model:** swap fee of 1% (retail), 0.5% (depositors) or 0.4% (B2B apps). The platform keeps 25% of net
+> fees plus 20% of Rende returns above 100% of CDI (the Brazilian interbank rate).
+>
+> **Team and disclosure:** solo founder ([@powerdeblack](https://github.com/powerdeblack)), São Paulo, Brazil. All
+> code was written during the hackathon. AI-assisted: Claude Code for coding and Colosseum Copilot for research,
+> both declared in the submission. Product decisions are the founder's. Early commits show "Claude" as the author
+> (the coding agent's default git identity); later commits are authored by the founder's account.
+>
+> **Limits:** devnet only. The Pix and US-bank legs are simulated, and the program is not externally audited.
+
+---
+
 ## O problema
 
 Quando um brasileiro troca real por dólar, o spread é invisível e fica todo com o intermediário: mais de 5% no banco
@@ -162,6 +201,11 @@ Revisão de segurança completa do programa, do app e da infraestrutura, com cad
 
 Projeto criado para o **Colosseum Crypto World's Fair** (inscrições até 13/10/2026). Todo o código foi escrito
 durante o hackathon; não há trabalho pré-existente. Checklist da submissão em [docs/COLOSSEUM.md](docs/COLOSSEUM.md).
+
+**Autoria:** fundador solo, [@powerdeblack](https://github.com/powerdeblack), de São Paulo. Desenvolvido com apoio de
+IA: Claude Code no código e Colosseum Copilot na pesquisa, os dois declarados na submissão. As decisões de produto
+são do fundador. Os primeiros commits aparecem com o autor "Claude" (a identidade padrão do agente de código); os
+seguintes saem pela conta do fundador.
 
 ## Licença
 
