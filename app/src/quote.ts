@@ -61,15 +61,19 @@ export async function fromErApi(timeoutMs = 6000): Promise<LiveQuote> {
 export const SOURCES = [fromPyth, fromAwesome, fromErApi];
 
 /** Tenta as fontes em ordem e devolve a primeira cotação válida. */
-export async function fetchLiveQuote(sources = SOURCES): Promise<LiveQuote> {
+export async function fetchLiveQuote(sources = SOURCES, onSkip?: (reason: string) => void): Promise<LiveQuote> {
   const errors: string[] = [];
+  const skip = (reason: string) => {
+    errors.push(reason);
+    onSkip?.(reason);
+  };
   for (const source of sources) {
     try {
       const q = await source();
       if (isSanePrice(q.price)) return q;
-      errors.push(`${q.source}: preço fora da faixa (${q.price})`);
+      skip(`${q.source}: preço fora da faixa (${q.price})`);
     } catch (e) {
-      errors.push((e as Error).message);
+      skip(`${source.name}: ${(e as Error).message}`);
     }
   }
   throw new Error(`Nenhuma fonte de cotação respondeu: ${errors.join("; ")}`);

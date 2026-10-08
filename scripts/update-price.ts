@@ -25,7 +25,7 @@ async function main() {
 
   const before = await (program.account as any).pool.fetch(pool);
   const oldPrice = Number(before.price.toString()) / PRICE_SCALE;
-  const quote = await fetchLiveQuote();
+  const quote = await fetchLiveQuote(undefined, (reason) => console.log(`Fonte pulada: ${reason}`));
 
   const jump = Math.abs(quote.price / oldPrice - 1);
   if (jump > MAX_JUMP) {
