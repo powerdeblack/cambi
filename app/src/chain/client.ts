@@ -2,13 +2,12 @@
 // Carregado sob demanda (import dinâmico), para não pesar a primeira abertura do app.
 import "./polyfill";
 import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
-  createAssociatedTokenAccountIdempotentInstruction,
-  createMintToInstruction,
-  createTransferInstruction,
-  getAssociatedTokenAddressSync,
-} from "@solana/spl-token";
+  associatedTokenAddress,
+  createAtaIdempotentIx,
+  mintToIx,
+  transferIx,
+} from "./token";
 import {
   Connection,
   Keypair,
@@ -67,7 +66,7 @@ const ids = () => {
 
 const sponsor = () => Keypair.fromSecretKey(Uint8Array.from(sponsorFile.secretKey));
 
-export const ata = (owner: PublicKey, side: number) => getAssociatedTokenAddressSync(ids().mint[side], owner, true);
+export const ata = (owner: PublicKey, side: number) => associatedTokenAddress(ids().mint[side], owner);
 
 export function positionPda(owner: PublicKey, tranche: number, side: number) {
   const { program, pool } = ids();
@@ -249,9 +248,9 @@ export async function onboard(owner: PublicKey) {
   const sp = sponsor();
   const { mint } = ids();
   const ixs = [
-    createAssociatedTokenAccountIdempotentInstruction(sp.publicKey, ata(owner, BRL), owner, mint[BRL], TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID),
-    createAssociatedTokenAccountIdempotentInstruction(sp.publicKey, ata(owner, USD), owner, mint[USD], TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID),
-    createMintToInstruction(mint[BRL], ata(owner, BRL), sp.publicKey, BigInt(FAUCET_BRL) * 1_000_000n),
+    createAtaIdempotentIx(sp.publicKey, ata(owner, BRL), owner, mint[BRL]),
+    createAtaIdempotentIx(sp.publicKey, ata(owner, USD), owner, mint[USD]),
+    mintToIx(mint[BRL], ata(owner, BRL), sp.publicKey, BigInt(FAUCET_BRL) * 1_000_000n),
     SystemProgram.transfer({ fromPubkey: sp.publicKey, toPubkey: owner, lamports: Math.round(FAUCET_SOL * LAMPORTS_PER_SOL) }),
     memo("cambI: conta de teste criada (devnet)", sp.publicKey),
   ];
@@ -327,8 +326,8 @@ export async function sendOut(signer: ChainSigner, side: number, amount: bigint,
   const to = route === "usdc" ? new PublicKey(destination) : sponsor().publicKey;
   const toAta = ata(to, side);
   const ixs = [
-    createAssociatedTokenAccountIdempotentInstruction(owner, toAta, to, mint[side], TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID),
-    createTransferInstruction(ata(owner, side), toAta, owner, amount),
+    createAtaIdempotentIx(owner, toAta, to, mint[side]),
+    transferIx(ata(owner, side), toAta, owner, amount),
     memo(`cambI: ${note}`.slice(0, 180), owner),
   ];
   return sendTx(ixs, owner, signer.signTransaction);

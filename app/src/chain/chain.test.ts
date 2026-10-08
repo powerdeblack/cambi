@@ -144,3 +144,26 @@ describe("leitura das contas", () => {
     expect(d.rewardDebt).toEqual([7n, 8n]);
   });
 });
+
+describe("instruções de token montadas à mão (iguais à spl-token)", async () => {
+  const { PublicKey } = await import("@solana/web3.js");
+  const t = await import("./token");
+  const owner = new PublicKey("BXSuVRwnb1SiiVZ9JYSjQCGzvpcRRcNgkAF47P4Ke7BT");
+  const mint = new PublicKey("8ynZ3QC3ciSgkwHGBNhwEEurmkLuQAc2smQo7QdeJHMm");
+
+  it("endereço da ATA", () => {
+    expect(t.associatedTokenAddress(mint, owner).toBase58()).toBe("876f1EpiSDg9wzDQYq6dzntFTVvaoSUsn5dAG7oyVuDk");
+  });
+
+  it("criar ATA (idempotente), emitir e transferir", () => {
+    const ata = t.associatedTokenAddress(mint, owner);
+    const a = t.createAtaIdempotentIx(owner, ata, owner, mint);
+    expect(Array.from(a.data)).toEqual([1]);
+    expect(a.keys.map((k) => [k.isSigner, k.isWritable])).toEqual([[true, true], [false, true], [false, false], [false, false], [false, false], [false, false]]);
+    expect(Array.from(t.mintToIx(mint, ata, owner, 1234567890123n).data)).toEqual([7, 203, 4, 251, 113, 31, 1, 0, 0]);
+    const x = t.transferIx(ata, ata, owner, 42n);
+    expect(Array.from(x.data)).toEqual([3, 42, 0, 0, 0, 0, 0, 0, 0]);
+    expect(x.keys.map((k) => [k.isSigner, k.isWritable])).toEqual([[false, true], [false, true], [true, false]]);
+    expect(() => t.transferIx(ata, ata, owner, -1n)).toThrow();
+  });
+});
