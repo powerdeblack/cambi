@@ -220,7 +220,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <Logo height={28} />
-        <span className="demo-badge">Demo</span>
+        <span className="demo-badge">{live ? "Devnet" : "Demo"}</span>
       </header>
 
       <main key={tab} className="screen">

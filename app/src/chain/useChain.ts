@@ -29,6 +29,16 @@ export type Chain =
   | { status: "error"; kind: ChainKind; message: string };
 
 const MODE_KEY = "cambi-chain-mode-v1";
+
+/** Erros de rede e da carteira em linguagem de gente. */
+export function humanize(e: unknown): Error {
+  const msg = (e as Error)?.message ?? String(e);
+  if (/Failed to fetch|NetworkError|fetch failed|Load failed|ERR_/i.test(msg))
+    return new Error("Sem conexão com a rede de testes da Solana agora. Confira a internet e tente de novo.");
+  if (/429|Too many requests/i.test(msg)) return new Error("A rede de testes está ocupada. Tente de novo em alguns segundos.");
+  if (/User rejected|rejected the request/i.test(msg)) return new Error("Você cancelou na carteira.");
+  return e instanceof Error ? e : new Error(msg);
+}
 const activityKey = (owner: string) => `cambi-chain-activity-v1-${owner}`;
 
 const store = {
@@ -97,7 +107,7 @@ export function useChain() {
     } catch (e) {
       signer.current = null;
       if (opts.silent) setChain({ status: "off" });
-      else setChain({ status: "error", kind, message: (e as Error).message });
+      else setChain({ status: "error", kind, message: humanize(e).message });
     }
   }, []);
 
@@ -139,11 +149,15 @@ export function useChain() {
     async <T,>(fn: (c: Client, s: ChainSigner, state: ChainState) => Promise<T>): Promise<T> => {
       const s = signer.current;
       if (!s) throw new Error("Ative sua conta na Solana primeiro.");
-      const c = await loadClient();
-      const state = (await c.fetchState(s.publicKey));
-      const out = await fn(c, s, state);
-      await refresh().catch(() => {});
-      return out;
+      try {
+        const c = await loadClient();
+        const state = await c.fetchState(s.publicKey);
+        const out = await fn(c, s, state);
+        await refresh().catch(() => {});
+        return out;
+      } catch (e) {
+        throw humanize(e);
+      }
     },
     [refresh],
   );

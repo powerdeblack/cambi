@@ -45,3 +45,40 @@ jobs:
 
       - name: Conta nova → troca → Rende → envio → resgate
         run: npm run devnet:e2e
+
+  ui:
+    needs: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+        working-directory: app
+
+      - run: npm run build
+        working-directory: app
+
+      - name: Instalar navegador
+        run: |
+          npm install --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+
+      - name: Telas do app contra a devnet (conta, troca, Rende, Pix)
+        run: |
+          (cd app && npx vite preview --port 4173 --strictPort > /tmp/preview.log 2>&1 &)
+          sleep 3
+          node scripts/ui-e2e.cjs http://localhost:4173/ ui-e2e
+
+      - name: Guardar prints
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-e2e-prints
+          path: ui-e2e/
+          if-no-files-found: ignore
