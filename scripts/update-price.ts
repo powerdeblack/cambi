@@ -1,11 +1,11 @@
-// Oráculo da devnet: lê o dólar ao vivo (Coinbase, com fontes de reserva) e grava a cotação no pool.
+// Oráculo da devnet: lê o dólar ao vivo em várias fontes, usa a mediana das que concordam e grava no pool.
 // Roda no GitHub Actions a cada 15 minutos (workflow "Oráculo da devnet").
 // Uso: ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=... npm run devnet:price
 import * as anchor from "@coral-xyz/anchor";
 import { Idl, Program } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { appendFileSync, readFileSync } from "fs";
-import { fetchLiveQuote } from "../app/src/quote";
+import { fetchConsensusQuote } from "../app/src/quote";
 import { politeConnection } from "./common";
 import idl from "../idl/cambi_pool.json";
 
@@ -25,7 +25,13 @@ async function main() {
 
   const before = await (program.account as any).pool.fetch(pool);
   const oldPrice = Number(before.price.toString()) / PRICE_SCALE;
-  const quote = await fetchLiveQuote(undefined, (reason) => console.log(`Fonte pulada: ${reason}`));
+  const consensus = await fetchConsensusQuote();
+  for (const r of consensus.rejected) console.log(`Fonte descartada: ${r}`);
+  const quote = {
+    price: consensus.price,
+    source: consensus.used.map((q) => `${q.source} ${q.price.toFixed(4)}`).join(", "),
+    publishedAt: Math.min(...consensus.used.map((q) => q.publishedAt)),
+  };
 
   const jump = Math.abs(quote.price / oldPrice - 1);
   if (jump > MAX_JUMP) {

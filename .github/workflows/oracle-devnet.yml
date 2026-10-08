@@ -1,6 +1,7 @@
 name: Oráculo da devnet
 
-# Grava no pool da devnet a cotação real do dólar (Coinbase, com fontes de reserva) a cada 15 minutos.
+# Grava no pool a cotação do dólar por consenso de fontes (mediana das que concordam) a cada 15 minutos.
+# Usa SÓ a chave do oráculo (a de admin é apagada do disco logo após restaurar o cache).
 # Na mainnet, este papel seria do Pyth lido direto pelo programa (ver docs/ARQUITETURA.md).
 on:
   schedule:
@@ -28,7 +29,6 @@ jobs:
           cache: npm
 
       - run: npm ci --ignore-scripts
-
       - run: npm ci --ignore-scripts
         working-directory: app
 
@@ -37,22 +37,14 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .devnet-keys
-          key: devnet-keys-v1
-      - name: Conferir chave
-        if: steps.keys.outputs.cache-hit != 'true'
+          key: devnet-keys-v2
+      - name: Manter só a chave do oráculo
         run: |
-          echo "::error::Chave de devnet não encontrada no cache. Rode o workflow 'Deploy na devnet' antes."
-          exit 1
+          test -f .devnet-keys/oracle.json || { echo "::error::Chave do oráculo não encontrada. Rode o workflow 'Deploy na devnet'."; exit 1; }
+          rm -f .devnet-keys/deployer.json .devnet-keys/program.json
 
-      - name: Manter o patrocinador do app (SOL e moedas de teste)
-        continue-on-error: true
+      - name: Gravar cotação por consenso no pool
         env:
           ANCHOR_PROVIDER_URL: https://api.devnet.solana.com
-          ANCHOR_WALLET: .devnet-keys/deployer.json
-        run: npm run devnet:sponsor
-
-      - name: Gravar cotação ao vivo no pool
-        env:
-          ANCHOR_PROVIDER_URL: https://api.devnet.solana.com
-          ANCHOR_WALLET: .devnet-keys/deployer.json
+          ANCHOR_WALLET: .devnet-keys/oracle.json
         run: npm run devnet:price

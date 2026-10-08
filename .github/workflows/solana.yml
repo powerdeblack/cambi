@@ -7,6 +7,7 @@ on:
 
 env:
   AGAVE_VERSION: "4.3.0"
+  AGAVE_INSTALL_SHA256: de7be8bb4fdf52751680c967d05bac435affadbdbfb0efd0d6e33c365bd84fff
 
 permissions:
   contents: read

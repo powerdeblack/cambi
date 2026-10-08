@@ -46,6 +46,23 @@ export function mintToIx(mint: PublicKey, destination: PublicKey, authority: Pub
   });
 }
 
+/** TransferChecked: o programa de token confere a moeda e as casas decimais (mais seguro que Transfer). */
+export function transferCheckedIx(source: PublicKey, mint: PublicKey, destination: PublicKey, owner: PublicKey, amount: bigint, decimals: number) {
+  const data = new Uint8Array(10);
+  data.set(u64ix(12, amount));
+  data[9] = decimals;
+  return new TransactionInstruction({
+    programId: TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: source, isSigner: false, isWritable: true },
+      { pubkey: mint, isSigner: false, isWritable: false },
+      { pubkey: destination, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: false },
+    ],
+    data: data as Buffer,
+  });
+}
+
 export function transferIx(source: PublicKey, destination: PublicKey, owner: PublicKey, amount: bigint) {
   return new TransactionInstruction({
     programId: TOKEN_PROGRAM_ID,

@@ -100,6 +100,30 @@ export function simulateMarket(pool: PoolState, w: Wallet, trades = 20) {
   return { pool: p, wallet: { ...w, earned } };
 }
 
+/** Para os "recentes" guarda só o que é público: o endereço de carteira (USDC). Chave Pix e conta bancária, nunca. */
+export function storableRecipient(r: Recipient): Recipient {
+  return { ...r, data: r.route === "usdc" ? { address: r.data.address ?? "" } : {} };
+}
+
+const ROUTES = new Set(["pix", "ach", "usdc"]);
+/** Dados vindos do armazenamento do aparelho são conferidos antes de usar. */
+export function sanitizeWallet(w: Wallet): Wallet {
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0);
+  const pair = (p: Record<Side, number> | undefined) => ({ BRL: num(p?.BRL), USD: num(p?.USD) });
+  return {
+    balance: pair(w.balance),
+    rende: pair(w.rende),
+    earned: pair(w.earned),
+    activity: Array.isArray(w.activity) ? w.activity.filter((a) => a && typeof a.id === "number" && typeof a.kind === "string").slice(0, 50) : [],
+    recipients: Array.isArray(w.recipients)
+      ? w.recipients
+          .filter((r) => r && ROUTES.has(r.route) && (r.side === "BRL" || r.side === "USD") && typeof r.name === "string")
+          .map(storableRecipient)
+          .slice(0, 6)
+      : [],
+  };
+}
+
 /** Envio para fora da cambI (Pix ou conta em dólar). Debita valor + tarifa e guarda o destinatário. */
 export function walletSend(w: Wallet, side: Side, amount: number, fee: number, recipient: Recipient) {
   if (!(amount > 0)) throw new Error("Informe um valor");
@@ -119,11 +143,11 @@ export function walletSend(w: Wallet, side: Side, amount: number, fee: number, r
     ...w,
     balance: { ...w.balance, [side]: w.balance[side] - amount - fee },
     activity: [activity, ...w.activity],
-    recipients: [recipient, ...w.recipients.filter((r) => r.id !== recipient.id)].slice(0, 6),
+    recipients: [storableRecipient(recipient), ...w.recipients.filter((r) => r.id !== recipient.id)].slice(0, 6),
   };
 }
 
 /** Guarda o destinatário nos recentes sem mexer no saldo (modo blockchain: o saldo vem da Solana). */
 export function rememberRecipient(w: Wallet, recipient: Recipient): Wallet {
-  return { ...w, recipients: [recipient, ...w.recipients.filter((r) => r.id !== recipient.id)].slice(0, 6) };
+  return { ...w, recipients: [storableRecipient(recipient), ...w.recipients.filter((r) => r.id !== recipient.id)].slice(0, 6) };
 }

@@ -113,7 +113,7 @@ export function Home({ pool, wallet, go, onSend, onSimulateMarket }: Props) {
                     <small className="saved">economizou {reais(a.savedVsBank)} vs. banco</small>
                   )}
                   {a.sig && (
-                    <a className="chain-link" href={`https://explorer.solana.com/tx/${a.sig}?cluster=devnet`} target="_blank" rel="noreferrer">
+                    <a className="chain-link" href={`https://explorer.solana.com/tx/${encodeURIComponent(a.sig)}?cluster=devnet`} target="_blank" rel="noreferrer">
                       ver na blockchain ↗
                     </a>
                   )}

@@ -43,7 +43,60 @@ export async function fromErApi(timeoutMs = 6000): Promise<LiveQuote> {
   return { price: Number(data.rates?.BRL), source: "ExchangeRate-API", publishedAt: Number(data.time_last_update_unix) };
 }
 
+/** Mercado Bitcoin: dólar digital (USDT) em reais negociado no Brasil, ao vivo. Usado pelo oráculo. */
+export async function fromMercadoBitcoin(timeoutMs = 6000): Promise<LiveQuote> {
+  const data = await getJson("https://api.mercadobitcoin.net/api/v4/tickers?symbols=USDT-BRL", timeoutMs);
+  const t = Array.isArray(data) ? data[0] : null;
+  if (!t) throw new Error("Mercado Bitcoin sem USDT-BRL");
+  return { price: Number(t.last), source: "Mercado Bitcoin", publishedAt: Number(t.date) || Math.floor(Date.now() / 1000) };
+}
+
+/** Fontes do app (só exibição). */
 export const SOURCES = [fromCoinbase, fromAwesome, fromErApi];
+/** Fontes do oráculo que grava na blockchain: precisam concordar entre si. */
+export const ORACLE_SOURCES = [fromCoinbase, fromMercadoBitcoin, fromAwesome, fromErApi];
+
+export interface Consensus {
+  price: number;
+  used: LiveQuote[];
+  rejected: string[];
+}
+
+/**
+ * Cotação por consenso, para o oráculo: busca todas as fontes, descarta as velhas e as fora da faixa, e usa a
+ * mediana das que ficam a até `maxSpread` da mediana geral. Exige pelo menos `minSources` concordando; senão,
+ * não grava nada (o pool para de trocar sozinho quando a cotação vence, em vez de usar um preço duvidoso).
+ */
+export async function fetchConsensusQuote(
+  sources = ORACLE_SOURCES,
+  opts: { minSources?: number; maxSpread?: number; maxAgeSec?: number; now?: number } = {},
+): Promise<Consensus> {
+  const { minSources = 2, maxSpread = 0.02, maxAgeSec = 36 * 3600, now = Math.floor(Date.now() / 1000) } = opts;
+  const rejected: string[] = [];
+  const results = await Promise.allSettled(sources.map((s) => s()));
+  const ok: LiveQuote[] = [];
+  results.forEach((r, i) => {
+    if (r.status === "rejected") return rejected.push(`${sources[i].name}: ${(r.reason as Error).message}`);
+    const q = r.value;
+    if (!isSanePrice(q.price)) return rejected.push(`${q.source}: fora da faixa (${q.price})`);
+    if (now - q.publishedAt > maxAgeSec) return rejected.push(`${q.source}: cotação velha`);
+    ok.push(q);
+  });
+  const median = (xs: number[]) => {
+    const v = [...xs].sort((a, b) => a - b);
+    const m = Math.floor(v.length / 2);
+    return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+  };
+  if (ok.length < minSources) throw new Error(`Fontes insuficientes (${ok.length}/${minSources}). ${rejected.join("; ")}`);
+  const m0 = median(ok.map((q) => q.price));
+  const used = ok.filter((q) => {
+    const fine = Math.abs(q.price / m0 - 1) <= maxSpread;
+    if (!fine) rejected.push(`${q.source}: discorda da mediana (${q.price} vs ${m0.toFixed(4)})`);
+    return fine;
+  });
+  if (used.length < minSources) throw new Error(`Fontes não concordam (${used.length}/${minSources}). ${rejected.join("; ")}`);
+  return { price: median(used.map((q) => q.price)), used, rejected };
+}
 
 /** Tenta as fontes em ordem e devolve a primeira cotação válida. */
 export async function fetchLiveQuote(sources = SOURCES, onSkip?: (reason: string) => void): Promise<LiveQuote> {

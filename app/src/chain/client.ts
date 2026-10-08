@@ -1,24 +1,9 @@
 // Cliente da cambI na Solana devnet: monta, assina e envia transações reais para o programa cambi_pool.
 // Carregado sob demanda (import dinâmico), para não pesar a primeira abertura do app.
 import "./polyfill";
-import {
-  TOKEN_PROGRAM_ID,
-  associatedTokenAddress,
-  createAtaIdempotentIx,
-  mintToIx,
-  transferIx,
-} from "./token";
-import {
-  Connection,
-  Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SystemProgram,
-  Transaction,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
 import deployment from "../devnet.json";
-import sponsorFile from "./sponsor.json";
+import { TOKEN_PROGRAM_ID, associatedTokenAddress, createAtaIdempotentIx, transferCheckedIx } from "./token";
 import {
   BRL,
   PoolRaw,
@@ -33,8 +18,12 @@ import {
 } from "./accounts";
 import { DISCRIMINATOR, PROGRAM_ERRORS } from "./idl";
 
+export { Keypair };
+
 const d = deployment as unknown as {
+  cluster: string;
   rpc: string;
+  payout?: string | null;
   programId: string | null;
   pool: string | null;
   brlMint: string | null;
@@ -43,13 +32,17 @@ const d = deployment as unknown as {
   usdVault: string | null;
 };
 
-export const isDeployed = () => Boolean(d.programId && d.pool && d.brlMint && d.usdMint && d.brlVault && d.usdVault);
+export const isDeployed = () =>
+  Boolean(d.cluster === "devnet" && d.programId && d.pool && d.brlMint && d.usdMint && d.brlVault && d.usdVault && d.payout);
 
 const MEMO_PROGRAM_ID = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
-/** Moedas de teste dadas a cada conta nova. */
+/** Hash do bloco gênese da devnet: o app só assina se a RPC for mesmo a devnet. */
+const DEVNET_GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+const DECIMALS = 6;
+/** Moedas de teste por pedido ao faucet do programa (regras on-chain: 1x por hora, só com saldo baixo). */
 export const FAUCET_BRL = 1_000;
-/** SOL de devnet para a conta pagar as próprias taxas e o aluguel das contas que cria. */
-const FAUCET_SOL = 0.02;
+/** SOL mínimo para pagar as taxas e o aluguel das contas que a pessoa cria. */
+export const MIN_SOL = 0.01;
 
 let _conn: Connection | null = null;
 const conn = () => (_conn ??= new Connection(d.rpc, "confirmed"));
@@ -64,7 +57,18 @@ const ids = () => {
   };
 };
 
-const sponsor = () => Keypair.fromSecretKey(Uint8Array.from(sponsorFile.secretKey));
+let genesisOk: Promise<void> | null = null;
+/** Recusa assinar qualquer coisa se a rede não for a devnet (proteção contra RPC trocada). */
+const assertDevnet = () =>
+  (genesisOk ??= conn()
+    .getGenesisHash()
+    .then((h) => {
+      if (h !== DEVNET_GENESIS) throw new Error("A rede conectada não é a devnet da Solana. Por segurança, nada foi assinado.");
+    })
+    .catch((e) => {
+      genesisOk = null;
+      throw e;
+    }));
 
 export const ata = (owner: PublicKey, side: number) => associatedTokenAddress(ids().mint[side], owner);
 
@@ -125,9 +129,10 @@ interface PhantomProvider {
   signTransaction(tx: Transaction): Promise<Transaction>;
 }
 
+/** Só o objeto injetado pela própria Phantom (window.phantom.solana); não confia em window.solana genérico. */
 export const phantomProvider = (): PhantomProvider | null => {
-  const w = window as unknown as { phantom?: { solana?: PhantomProvider }; solana?: PhantomProvider };
-  const p = w.phantom?.solana ?? w.solana;
+  const w = window as unknown as { phantom?: { solana?: PhantomProvider } };
+  const p = w.phantom?.solana;
   return p?.isPhantom ? p : null;
 };
 
@@ -135,10 +140,11 @@ export const phantomProvider = (): PhantomProvider | null => {
 export const phantomBrowseLink = () =>
   `https://phantom.app/ul/browse/${encodeURIComponent(location.href)}?ref=${encodeURIComponent(location.origin)}`;
 
-export async function phantomSigner(): Promise<ChainSigner> {
+/** `silent`: reconecta só se a pessoa já autorizou antes (não abre janela da carteira sozinho). */
+export async function phantomSigner(silent = false): Promise<ChainSigner> {
   const p = phantomProvider();
   if (!p) throw new Error("Phantom não encontrada neste navegador");
-  const { publicKey } = await p.connect();
+  const { publicKey } = await p.connect(silent ? { onlyIfTrusted: true } : undefined);
   const pk = new PublicKey(publicKey.toString());
   return { kind: "phantom", publicKey: pk, signTransaction: (tx) => p.signTransaction(tx) };
 }
@@ -203,7 +209,7 @@ function friendly(e: unknown): Error {
   }
   if (/User rejected|rejected the request/i.test(text)) return new Error("Você cancelou na carteira.");
   if (/insufficient lamports|insufficient funds for fee|Attempt to debit an account but found no record/i.test(text))
-    return new Error("A conta está sem SOL de devnet para a taxa de rede. Toque em “Receber moedas de teste”.");
+    return new Error("A conta está sem SOL de devnet para a taxa de rede. Use “Receber moedas de teste”.");
   if (/429|Too many requests/i.test(text)) return new Error("A rede de testes está ocupada. Tente de novo em alguns segundos.");
   if (/blockhash|expired|timeout/i.test(text)) return new Error("A rede demorou para confirmar. Confira a atividade e tente de novo.");
   return new Error(err.message?.split("\n")[0] || "Não foi possível concluir na blockchain.");
@@ -211,6 +217,7 @@ function friendly(e: unknown): Error {
 
 async function sendTx(ixs: TransactionInstruction[], feePayer: PublicKey, sign: (tx: Transaction) => Promise<Transaction>) {
   try {
+    await assertDevnet();
     const { blockhash, lastValidBlockHeight } = await conn().getLatestBlockhash("confirmed");
     const tx = new Transaction({ feePayer, blockhash, lastValidBlockHeight }).add(...ixs);
     const signed = await sign(tx);
@@ -240,33 +247,80 @@ function programIx(name: keyof typeof DISCRIMINATOR, args: Uint8Array[], keys: {
 const w = (pubkey: PublicKey) => ({ pubkey, isSigner: false, isWritable: true });
 const r = (pubkey: PublicKey) => ({ pubkey, isSigner: false, isWritable: false });
 
-/**
- * Conta nova: o patrocinador da devnet cria as contas de token, dá R$ 1.000 de teste (cBRL) e um pouco de SOL
- * para as próximas taxas. A pessoa não assina nada aqui.
- */
-export async function onboard(owner: PublicKey) {
-  const sp = sponsor();
-  const { mint } = ids();
-  const ixs = [
-    createAtaIdempotentIx(sp.publicKey, ata(owner, BRL), owner, mint[BRL]),
-    createAtaIdempotentIx(sp.publicKey, ata(owner, USD), owner, mint[USD]),
-    mintToIx(mint[BRL], ata(owner, BRL), sp.publicKey, BigInt(FAUCET_BRL) * 1_000_000n),
-    SystemProgram.transfer({ fromPubkey: sp.publicKey, toPubkey: owner, lamports: Math.round(FAUCET_SOL * LAMPORTS_PER_SOL) }),
-    memo("cambI: conta de teste criada (devnet)", sp.publicKey),
-  ];
-  return sendTx(ixs, sp.publicKey, async (tx) => {
-    tx.partialSign(sp);
-    return tx;
-  });
+export function mintAuthorityPda() {
+  const { program, pool } = ids();
+  return PublicKey.findProgramAddressSync([new TextEncoder().encode("mint-authority"), pool.toBytes()], program)[0];
 }
 
-export async function swap(signer: ChainSigner, s: ChainState, sideIn: number, amountIn: bigint) {
+export function claimPda(owner: PublicKey) {
+  const { program, pool } = ids();
+  return PublicKey.findProgramAddressSync([new TextEncoder().encode("claim"), pool.toBytes(), owner.toBytes()], program)[0];
+}
+
+/** Erro especial: a conta precisa de SOL de devnet e o faucet público da Solana não respondeu. */
+export class NeedSolError extends Error {
+  constructor(public address: string) {
+    super("Sua conta precisa de um pouco de SOL de teste para as taxas da rede.");
+  }
+}
+
+/**
+ * Garante SOL de devnet para as taxas: tenta o faucet público da Solana (airdrop). Se ele estiver limitado,
+ * lança NeedSolError para a tela mostrar o endereço e o link do faucet. Nenhuma chave da cambI paga nada.
+ */
+export async function ensureSol(owner: PublicKey) {
+  await assertDevnet();
+  const bal = (await conn().getBalance(owner, "confirmed")) / LAMPORTS_PER_SOL;
+  if (bal >= MIN_SOL) return bal;
+  try {
+    const sig = await conn().requestAirdrop(owner, 0.5 * LAMPORTS_PER_SOL);
+    const { blockhash, lastValidBlockHeight } = await conn().getLatestBlockhash("confirmed");
+    await conn().confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+  } catch {
+    throw new NeedSolError(owner.toBase58());
+  }
+  const after = (await conn().getBalance(owner, "confirmed")) / LAMPORTS_PER_SOL;
+  if (after < MIN_SOL) throw new NeedSolError(owner.toBase58());
+  return after;
+}
+
+/**
+ * Moedas de teste pelo faucet DO PROGRAMA (regras na blockchain: 1 vez por hora, só para quem tem menos de
+ * R$ 100, teto global por hora). Cria as contas de token da pessoa, se ainda não existirem. Ela assina e paga
+ * a taxa (centavos de SOL de teste).
+ */
+export async function faucetClaim(signer: ChainSigner) {
+  const { pool, mint } = ids();
+  const owner = signer.publicKey;
+  const ixs = [
+    createAtaIdempotentIx(owner, ata(owner, BRL), owner, mint[BRL]),
+    createAtaIdempotentIx(owner, ata(owner, USD), owner, mint[USD]),
+    programIx("faucet_claim", [], [
+      { pubkey: owner, isSigner: true, isWritable: true },
+      w(pool),
+      w(claimPda(owner)),
+      w(mint[BRL]),
+      w(ata(owner, BRL)),
+      r(mintAuthorityPda()),
+      r(TOKEN_PROGRAM_ID),
+      r(SystemProgram.programId),
+    ]),
+  ];
+  return sendTx(ixs, owner, signer.signTransaction);
+}
+
+/**
+ * Troca. `confirmedOut` é o valor que a pessoa VIU e confirmou: o mínimo aceito (slippage) é 99,5% dele,
+ * não da cotação recalculada na hora (que poderia ter piorado sem ela ver).
+ */
+export async function swap(signer: ChainSigner, s: ChainState, sideIn: number, amountIn: bigint, confirmedOut: bigint) {
   const { pool, vault, program } = ids();
   const { q, blocker, kind } = previewSwap(s, sideIn, amountIn);
   if (blocker) throw new Error(blocker);
+  const minOut = (confirmedOut * 995n) / 1000n;
+  if (q.amountOut < minOut) throw new Error("A cotação mudou desde a prévia. Confira o novo valor e confirme de novo.");
   const owner = signer.publicKey;
   const pos = kind === "depositor" ? positionPda(owner, RENDE, s.positions.find((p) => p.raw.amount > 0n)!.side) : program;
-  const minOut = (q.amountOut * 995n) / 1000n; // aceita até 0,5% de variação entre a prévia e a execução
   const ix = programIx("swap", [Uint8Array.of(sideIn), u64le(amountIn), u64le(minOut)], [
     { pubkey: owner, isSigner: true, isWritable: false },
     w(pool),
@@ -317,18 +371,26 @@ export async function withdrawRende(signer: ChainSigner, side: number, amount: b
 }
 
 /**
- * Saída do dinheiro. USDC: vai direto para a carteira de destino. Pix e conta nos EUA: vai para o parceiro
- * (na devnet, a carteira patrocinadora faz esse papel) com um memo do destino, e o parceiro paga a outra ponta.
+ * Saída do dinheiro. USDC: vai direto para a carteira de destino (só carteiras de verdade, não endereços de
+ * programa). Pix e conta nos EUA: vai para a carteira do parceiro, com um memo que tem SÓ um código de
+ * referência (nenhum dado pessoal na blockchain); o parceiro paga a outra ponta.
  */
-export async function sendOut(signer: ChainSigner, side: number, amount: bigint, route: "pix" | "ach" | "usdc", destination: string, note: string) {
+export async function sendOut(signer: ChainSigner, side: number, amount: bigint, route: "pix" | "ach" | "usdc", destination: string, reference: string) {
   const owner = signer.publicKey;
   const { mint } = ids();
-  const to = route === "usdc" ? new PublicKey(destination) : sponsor().publicKey;
+  let to: PublicKey;
+  if (route === "usdc") {
+    to = new PublicKey(destination);
+    if (!PublicKey.isOnCurve(to.toBytes())) throw new Error("Esse endereço não é uma carteira (é de programa ou conta de token). Confira o destino.");
+    if (to.equals(owner)) throw new Error("O destino é a sua própria conta.");
+  } else {
+    to = new PublicKey(d.payout!);
+  }
   const toAta = ata(to, side);
   const ixs = [
     createAtaIdempotentIx(owner, toAta, to, mint[side]),
-    transferIx(ata(owner, side), toAta, owner, amount),
-    memo(`cambI: ${note}`.slice(0, 180), owner),
+    transferCheckedIx(ata(owner, side), mint[side], toAta, owner, amount, DECIMALS),
+    memo(`cambI ref ${reference.replace(/[^A-Za-z0-9-]/g, "").slice(0, 24)}`, owner),
   ];
   return sendTx(ixs, owner, signer.signTransaction);
 }

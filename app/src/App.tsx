@@ -15,7 +15,7 @@ import { Sheet } from "./components/Sheet";
 import { BENCHMARKS, PoolState, Side, SwapResult, createPool, deposit, setPrice } from "./engine/pool";
 import { money } from "./format";
 import { useLiveQuote } from "./useLiveQuote";
-import { INITIAL_WALLET, Recipient, Wallet, rememberRecipient, simulateMarket, walletDeposit, walletSend, walletSwap } from "./wallet";
+import { INITIAL_WALLET, Recipient, Wallet, rememberRecipient, sanitizeWallet, simulateMarket, walletDeposit, walletSend, walletSwap } from "./wallet";
 
 const PRICE = 5.4; // cotação de referência, usada só até chegar a cotação ao vivo (ou se as fontes estiverem fora do ar)
 const STORAGE_KEY = "cambi-demo-v1";
@@ -38,7 +38,7 @@ function loadSaved(): { pool: PoolState; wallet: Wallet } | null {
     if (!raw) return null;
     const saved = JSON.parse(raw);
     if (!saved?.pool?.liquid || !saved?.wallet?.balance) return null;
-    return { pool: saved.pool, wallet: { ...INITIAL_WALLET, ...saved.wallet } };
+    return { pool: saved.pool, wallet: sanitizeWallet({ ...INITIAL_WALLET, ...saved.wallet }) };
   } catch {
     return null;
   }
@@ -69,7 +69,7 @@ export default function App() {
   const quote = useLiveQuote((q) => setPool((p) => (touched.current ? setPrice(p, q.price) : seedPool(q.price))));
 
   // Conta na Solana (devnet): quando ativa, saldos e operações são reais na blockchain.
-  const { chain, activate, deactivate, run, record } = useChain();
+  const { chain, activate, deactivate, run, record, claim } = useChain();
   const live = chain.status === "ready" && chain.state ? { ...chain, state: chain.state } : null;
   const chainPrice = live ? Number(live.state.pool.price) / 1e6 : null;
   const view: Wallet = live
@@ -102,7 +102,9 @@ export default function App() {
   useEffect(() => window.scrollTo({ top: 0 }), [tab]);
 
   async function chainSwap(side: Side, amount: number): Promise<SwapResult> {
-    const res = await run((c, s, st) => c.swap(s, st, idx(side), toUnits(amount)));
+    // O mínimo aceito vem do valor que a pessoa viu na tela (prévia do mesmo estado exibido).
+    const shown = previewSwap(live!.state, idx(side), toUnits(amount)).q.amountOut;
+    const res = await run((c, s, st) => c.swap(s, st, idx(side), toUnits(amount), shown));
     const price = chainPrice ?? pool.price;
     const q = res.q;
     const feeTotal = fromUnits(q.fee);
@@ -158,13 +160,10 @@ export default function App() {
   }
 
   async function chainSend(side: Side, amount: number, fee: number, recipient: Recipient) {
-    const note =
-      recipient.route === "pix"
-        ? `Pix para ${recipient.detail.replace(/^Pix · /, "")}`
-        : recipient.route === "ach"
-          ? `ACH para ${recipient.name} (${recipient.detail})`
-          : `USDC para ${recipient.data.address}`;
-    const sig = await run((c, s) => c.sendOut(s, idx(side), toUnits(amount + fee), recipient.route, recipient.data.address ?? "", note));
+    // Na blockchain vai só um código de referência; chave Pix, nome e conta ficam fora dela.
+    const reference = `${recipient.route}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const destination = recipient.route === "usdc" ? recipient.data.address ?? "" : "";
+    const sig = await run((c, s) => c.sendOut(s, idx(side), toUnits(amount + fee), recipient.route, destination, reference));
     const route = recipient.route === "pix" ? "Pix" : recipient.route === "ach" ? "ACH" : "USDC";
     record({ kind: "send", side, amountIn: amount, fee, to: `${recipient.name} · ${recipient.detail}`, route, sig });
     setWallet((w) => rememberRecipient(w, recipient));
@@ -232,7 +231,7 @@ export default function App() {
             onActivate={activate}
             onDeactivate={deactivate}
             onFaucet={async () => {
-              const sig = await run((c, s) => c.onboard(s.publicKey));
+              const sig = await claim();
               record({ kind: "faucet", side: "BRL", amountIn: 1_000, sig });
             }}
           />
@@ -257,7 +256,15 @@ export default function App() {
           <Rende
             wallet={view}
             onDeposit={live ? chainDeposit : handleDeposit}
-            onchain={live ? { onHarvest: chainHarvest, onWithdraw: chainWithdraw } : undefined}
+            onchain={
+              live
+                ? {
+                    onHarvest: chainHarvest,
+                    onWithdraw: chainWithdraw,
+                    unlockAt: Math.max(0, ...live.state.positions.filter((p) => p.raw.amount > 0n).map((p) => p.raw.lastDepositAt + live.state.pool.lockupSecs)),
+                  }
+                : undefined
+            }
           />
         )}
         {tab === "pool" && (

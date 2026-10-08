@@ -136,7 +136,7 @@ function Receipt({ r, onClose, onSendOut }: { r: SwapResult; onClose: () => void
       <div className="done-icon"><CheckIcon /></div>
       <h2>Troca concluída</h2>
       {r.signature && (
-        <a className="chain-badge" href={`https://explorer.solana.com/tx/${r.signature}?cluster=devnet`} target="_blank" rel="noreferrer">
+        <a className="chain-badge" href={`https://explorer.solana.com/tx/${encodeURIComponent(r.signature)}?cluster=devnet`} target="_blank" rel="noreferrer">
           <span className="live-dot" aria-hidden /> Registrada na Solana · ver transação ↗
         </a>
       )}

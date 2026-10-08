@@ -46,8 +46,9 @@ const M = 1_000_000n;
 
 describe("instruções iguais ao IDL do programa", () => {
   it("discriminadores conferem", () => {
-    for (const name of ["swap", "deposit", "withdraw"] as const) {
+    for (const name of ["swap", "deposit", "withdraw", "faucet_claim"] as const) {
       const ix = idl.instructions.find((i: { name: string }) => i.name === name);
+      if (!ix && name === "faucet_claim") continue; // IDL publicado antes da v2
       expect(Array.from(DISCRIMINATOR[name])).toEqual(ix.discriminator);
     }
   });
@@ -182,5 +183,18 @@ describe("instruções de token montadas à mão (iguais à spl-token)", async (
     expect(Array.from(x.data)).toEqual([3, 42, 0, 0, 0, 0, 0, 0, 0]);
     expect(x.keys.map((k) => [k.isSigner, k.isWritable])).toEqual([[false, true], [false, true], [true, false]]);
     expect(() => t.transferIx(ata, ata, owner, -1n)).toThrow();
+  });
+});
+
+describe("TransferChecked montado à mão (igual à spl-token)", async () => {
+  const { PublicKey } = await import("@solana/web3.js");
+  const t = await import("./token");
+  it("layout", () => {
+    const a = new PublicKey("876f1EpiSDg9wzDQYq6dzntFTVvaoSUsn5dAG7oyVuDk");
+    const m = new PublicKey("8ynZ3QC3ciSgkwHGBNhwEEurmkLuQAc2smQo7QdeJHMm");
+    const o = new PublicKey("BXSuVRwnb1SiiVZ9JYSjQCGzvpcRRcNgkAF47P4Ke7BT");
+    const ix = t.transferCheckedIx(a, m, a, o, 42n, 6);
+    expect(Array.from(ix.data)).toEqual([12, 42, 0, 0, 0, 0, 0, 0, 0, 6]);
+    expect(ix.keys.map((k) => [k.isSigner, k.isWritable])).toEqual([[false, true], [false, false], [false, true], [true, false]]);
   });
 });

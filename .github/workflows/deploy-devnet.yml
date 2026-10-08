@@ -1,7 +1,8 @@
 name: Deploy na devnet
 
-# Rodado manualmente. As chaves de devnet (sem valor real) ficam no cache do GitHub Actions
-# do próprio repositório, para os próximos deploys atualizarem o mesmo programa.
+# Rodado manualmente. As chaves de devnet (sem valor real) ficam no cache do GitHub Actions do repositório.
+# Nenhum workflow roda código de pull request de forks, então ninguém de fora consegue ler esse cache.
+# Chaves separadas: deployer (admin + autoridade de upgrade) e oráculo (só grava a cotação).
 on:
   workflow_dispatch:
 
@@ -15,6 +16,7 @@ concurrency:
 
 env:
   AGAVE_VERSION: "4.3.0"
+  AGAVE_INSTALL_SHA256: de7be8bb4fdf52751680c967d05bac435affadbdbfb0efd0d6e33c365bd84fff
   KEYS_DIR: .devnet-keys
 
 jobs:
@@ -24,28 +26,32 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
+          fetch-depth: 0 # para recuperar a chave da carteira patrocinadora antiga e desativá-la
       - uses: ./.github/actions/solana-setup
+      - run: npm ci --ignore-scripts
+        working-directory: app
 
       - name: Restaurar chaves de devnet
         id: keys
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ env.KEYS_DIR }}
-          key: devnet-keys-v1
+          key: devnet-keys-v2
+          restore-keys: devnet-keys-v
 
-      - name: Gerar chaves (primeira vez)
-        if: steps.keys.outputs.cache-hit != 'true'
+      - name: Gerar chaves que faltam
         run: |
           mkdir -p "$KEYS_DIR"
-          solana-keygen new --no-bip39-passphrase --silent -o "$KEYS_DIR/deployer.json"
-          solana-keygen new --no-bip39-passphrase --silent -o "$KEYS_DIR/program.json"
+          for k in deployer program oracle; do
+            [ -f "$KEYS_DIR/$k.json" ] || solana-keygen new --no-bip39-passphrase --silent -o "$KEYS_DIR/$k.json"
+          done
 
       - name: Salvar chaves
         if: steps.keys.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ env.KEYS_DIR }}
-          key: devnet-keys-v1
+          key: devnet-keys-v2
 
       - name: Configurar carteira e programa
         run: |
@@ -56,43 +62,61 @@ jobs:
           echo "DEPLOYER=$(solana address)" >> "$GITHUB_ENV"
           echo "PROGRAM_ID=$(solana address -k target/deploy/cambi_pool-keypair.json)" >> "$GITHUB_ENV"
 
-      - name: Compilar
+      - name: Compilar (versão devnet, com o faucet de testes)
         run: |
           anchor keys sync
           sed -i "s/^cambi_pool = \".*\"/cambi_pool = \"$(solana address -k target/deploy/cambi_pool-keypair.json)\"/" Anchor.toml
-          anchor build
+          anchor build -- --features devnet
           test "$(node -p "require('./target/idl/cambi_pool.json').address")" = "$PROGRAM_ID"
+          node -e 'const i=require("./target/idl/cambi_pool.json").instructions.map(x=>x.name); if(!i.includes("faucet_claim")) process.exit(1)'
           ls -la target/deploy/
+
+      - name: Desativar a carteira patrocinadora antiga (chave que ficou pública na v1)
+        env:
+          ANCHOR_PROVIDER_URL: https://api.devnet.solana.com
+          ANCHOR_WALLET: /home/runner/.config/solana/id.json
+        run: |
+          cp deployments/devnet.json /tmp/old-deployment.json
+          if git show a189b37:app/src/chain/sponsor.json > /tmp/old-sponsor.json 2>/dev/null; then
+            OLD_SPONSOR=/tmp/old-sponsor.json OLD_DEPLOYMENT=/tmp/old-deployment.json npm run devnet:retire-sponsor
+          fi
+          rm -f /tmp/old-sponsor.json
 
       - name: Recuperar SOL de buffers de deploys interrompidos
         run: solana program close --buffers --bypass-warning || echo "Nenhum buffer para fechar"
 
       - name: Verificar saldo de SOL de devnet
         run: |
-          for i in 1 2 3; do solana airdrop 2 || true; sleep 5; done
+          rent() { solana rent "$1" | awk '/Rent-exempt minimum/ {print $3}'; }
           BAL=$(solana balance | awk '{print $1}')
           SIZE=$(stat -c%s target/deploy/cambi_pool.so)
-          MAX_LEN=$((SIZE * 5 / 4))
-          echo "MAX_LEN=$MAX_LEN" >> "$GITHUB_ENV"
-          # Pico durante o deploy: buffer (tamanho do programa) + conta do programa (com 25% de folga)
-          NEED=$(awk -v a="$(solana rent $SIZE | awk '/Rent-exempt minimum/ {print $3}')" \
-                     -v b="$(solana rent $MAX_LEN | awk '/Rent-exempt minimum/ {print $3}')" 'BEGIN {printf "%.2f", a + b}')
-          echo "Saldo: $BAL SOL | programa: $SIZE bytes | necessário (aprox.): $NEED SOL + taxas"
-          if awk "BEGIN {exit !($BAL < $NEED + 0.5)}"; then
+          TARGET=$((SIZE * 5 / 4))
+          CUR=$(solana program show "$PROGRAM_ID" --output json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).dataLen||0)}catch{console.log(0)}})')
+          CUR=${CUR:-0}
+          if [ "$CUR" -gt 0 ]; then
+            EXTRA=$(( TARGET > CUR ? TARGET - CUR : 0 ))
+            echo "Programa existe: $CUR bytes; novo binário $SIZE; ampliar $EXTRA bytes"
+            NEED=$(awk -v a="$(rent $SIZE)" -v b="$(rent $EXTRA)" 'BEGIN {printf "%.2f", a + b + 1.0}')
+          else
+            EXTRA=0
+            NEED=$(awk -v a="$(rent $SIZE)" -v b="$(rent $TARGET)" 'BEGIN {printf "%.2f", a + b + 1.0}')
+          fi
+          echo "PROGRAM_EXISTS=$([ "$CUR" -gt 0 ] && echo 1 || echo 0)" >> "$GITHUB_ENV"
+          echo "EXTRA=$EXTRA" >> "$GITHUB_ENV"
+          echo "MAX_LEN=$TARGET" >> "$GITHUB_ENV"
+          echo "Saldo: $BAL SOL | necessário (aprox.): $NEED SOL"
+          if awk "BEGIN {exit !($BAL < $NEED)}"; then
             {
               echo "## Falta SOL de devnet"
               echo ""
-              echo "A carteira de deploy precisa de pelo menos **$NEED + 0,5 SOL** de devnet e tem **$BAL SOL**."
-              echo ""
-              echo "1. Abra https://faucet.solana.com"
-              echo "2. Cole o endereço: \`$DEPLOYER\`"
-              echo "3. Peça 5 SOL (pode precisar repetir) e rode este workflow de novo."
+              echo "A carteira de deploy precisa de **$NEED SOL** de devnet e tem **$BAL SOL**."
+              echo "Envie SOL de devnet para \`$DEPLOYER\` em https://faucet.solana.com e rode de novo."
             } >> "$GITHUB_STEP_SUMMARY"
             echo "::error::Saldo insuficiente. Envie SOL de devnet para $DEPLOYER (faucet.solana.com)"
             exit 1
           fi
 
-      - name: Deploy do programa
+      - name: Deploy do programa (novo ou atualização)
         timeout-minutes: 150
         run: |
           # Já implantado com este mesmo binário? Então não gasta SOL de novo.
@@ -101,6 +125,9 @@ jobs:
             echo "Programa já está na devnet com este binário."
             solana program show "$PROGRAM_ID"
             exit 0
+          fi
+          if [ "$PROGRAM_EXISTS" = 1 ] && [ "$EXTRA" -gt 0 ]; then
+            solana program extend "$PROGRAM_ID" "$EXTRA"
           fi
           # Escreve num buffer com chave fixa: se a RPC pública falhar, a próxima tentativa
           # retoma o mesmo buffer e só reescreve os pedaços que faltam.
@@ -122,19 +149,20 @@ jobs:
             echo "::error::Não foi possível escrever o programa na devnet (RPC pública instável). Rode o workflow de novo."
             exit 1
           fi
-          solana program deploy \
-            --buffer /tmp/buffer.json \
-            --program-id target/deploy/cambi_pool-keypair.json \
-            --max-len "$MAX_LEN" \
-            --with-compute-unit-price 100000 \
-            --max-sign-attempts 100 \
-            --use-rpc
+          if [ "$PROGRAM_EXISTS" = 1 ]; then
+            solana program deploy --buffer /tmp/buffer.json --program-id target/deploy/cambi_pool-keypair.json \
+              --with-compute-unit-price 100000 --max-sign-attempts 100 --use-rpc
+          else
+            solana program deploy --buffer /tmp/buffer.json --program-id target/deploy/cambi_pool-keypair.json \
+              --max-len "$MAX_LEN" --with-compute-unit-price 100000 --max-sign-attempts 100 --use-rpc
+          fi
           solana program show "$PROGRAM_ID"
 
-      - name: Montar o pool de demonstração e registrar as provas
+      - name: Montar o pool v2 e registrar as provas
         env:
           ANCHOR_PROVIDER_URL: https://api.devnet.solana.com
           ANCHOR_WALLET: /home/runner/.config/solana/id.json
+          ORACLE_KEYPAIR: .devnet-keys/oracle.json
         run: npm run devnet:setup
 
       - name: Publicar endereços no repositório
@@ -146,7 +174,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add programs/cambi_pool/src/lib.rs Anchor.toml deployments/devnet.json app/src/devnet.json idl/cambi_pool.json
-          git commit -m "Deploy na devnet: programa $PROGRAM_ID" || echo "nada para commitar"
+          git commit -m "Deploy na devnet (v2): programa $PROGRAM_ID" || echo "nada para commitar"
           # Credencial usada só neste passo (o checkout não deixa o token salvo no disco).
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
 

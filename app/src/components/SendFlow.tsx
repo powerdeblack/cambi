@@ -498,7 +498,7 @@ function SendReceipt(props: { side: Side; amount: number; fee: number; recipient
       <strong className="receipt-big">{money(side, amount)}</strong>
       <p className="muted center">{when}</p>
       {sig && (
-        <a className="chain-badge" href={`https://explorer.solana.com/tx/${sig}?cluster=devnet`} target="_blank" rel="noreferrer">
+        <a className="chain-badge" href={`https://explorer.solana.com/tx/${encodeURIComponent(sig)}?cluster=devnet`} target="_blank" rel="noreferrer">
           <span className="live-dot" aria-hidden /> Registrado na Solana · ver transação ↗
         </a>
       )}

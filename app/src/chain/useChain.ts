@@ -25,6 +25,7 @@ export interface ChainActivity {
 export type Chain =
   | { status: "off" }
   | { status: "connecting"; kind: ChainKind; step: string }
+  | { status: "needSol"; kind: ChainKind; address: string }
   | { status: "ready"; kind: ChainKind; owner: string; state: ChainState | null; activity: ChainActivity[] }
   | { status: "error"; kind: ChainKind; message: string };
 
@@ -91,13 +92,26 @@ export function useChain() {
       setChain({ status: "connecting", kind, step: kind === "phantom" ? "Conectando a Phantom…" : "Criando sua conta na Solana…" });
       const c = await loadClient();
       if (!c.isDeployed()) throw new Error("O programa ainda não está na devnet.");
-      const s = kind === "phantom" ? await c.phantomSigner() : c.localSigner();
+      const s = kind === "phantom" ? await c.phantomSigner(opts.silent) : c.localSigner();
       signer.current = s;
-      let state = await c.fetchState(s.publicKey);
       const owner = s.publicKey.toBase58();
-      if (!state.hasTokenAccounts || (state.sol < 0.002 && state.balances[0] === 0n && state.balances[1] === 0n)) {
-        setChain({ status: "connecting", kind, step: `Recebendo R$ ${c.FAUCET_BRL.toLocaleString("pt-BR")} de teste…` });
-        const sig = await c.onboard(s.publicKey);
+      let state = await c.fetchState(s.publicKey);
+      const fresh = !state.hasTokenAccounts || (state.balances[0] === 0n && state.balances[1] === 0n && state.positions.length === 0);
+      if (fresh) {
+        // Ao voltar sozinho para uma conta, nunca pede SOL nem moedas sem a pessoa tocar em nada.
+        if (opts.silent) throw new Error("silencioso");
+        setChain({ status: "connecting", kind, step: "Pegando SOL de teste para as taxas da rede…" });
+        try {
+          await c.ensureSol(s.publicKey);
+        } catch (e) {
+          if (e instanceof c.NeedSolError) {
+            setChain({ status: "needSol", kind, address: e.address });
+            return;
+          }
+          throw e;
+        }
+        setChain({ status: "connecting", kind, step: `Recebendo R$ ${c.FAUCET_BRL.toLocaleString("pt-BR")} de teste do faucet do programa…` });
+        const sig = await c.faucetClaim(s);
         const activity = [{ id: Date.now(), kind: "faucet" as const, side: "BRL" as const, amountIn: c.FAUCET_BRL, sig, at: Date.now() }, ...loadActivity(owner)];
         store.set(activityKey(owner), JSON.stringify(activity));
         state = await c.fetchState(s.publicKey);
@@ -110,6 +124,24 @@ export function useChain() {
       else setChain({ status: "error", kind, message: humanize(e).message });
     }
   }, []);
+
+  /** Mais moedas de teste (o programa decide se pode: intervalo de 1 hora e saldo baixo). */
+  const claim = useCallback(async () => {
+    const s = signer.current;
+    if (!s) throw new Error("Ative sua conta na Solana primeiro.");
+    try {
+      const c = await loadClient();
+      await c.ensureSol(s.publicKey).catch((e) => {
+        if (e instanceof c.NeedSolError) throw new Error("Sem SOL de teste para a taxa. Peça em faucet.solana.com para o endereço da sua conta.");
+        throw e;
+      });
+      const sig = await c.faucetClaim(s);
+      await refresh().catch(() => {});
+      return sig;
+    } catch (e) {
+      throw humanize(e);
+    }
+  }, [refresh]);
 
   // Volta automaticamente para a conta usada da última vez.
   useEffect(() => {
@@ -129,8 +161,9 @@ export function useChain() {
     return () => clearInterval(id);
   }, [chain.status, refresh]);
 
-  const deactivate = useCallback(() => {
+  const deactivate = useCallback((forget = false) => {
     store.del(MODE_KEY);
+    if (forget) loadClient().then((c) => c.forgetLocalAccount());
     signer.current = null;
     setChain({ status: "off" });
   }, []);
@@ -162,5 +195,5 @@ export function useChain() {
     [refresh],
   );
 
-  return { chain, activate, deactivate, refresh, run, record };
+  return { chain, activate, deactivate, refresh, run, record, claim };
 }

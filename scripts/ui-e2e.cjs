@@ -3,6 +3,17 @@
 // Uso: node scripts/ui-e2e.cjs http://localhost:4173/ [pasta-de-prints]
 const { chromium } = require("playwright");
 const fs = require("fs");
+const web3 = require("../app/node_modules/@solana/web3.js");
+
+/** O faucet público de SOL limita IPs de servidores: no CI o admin cobre as taxas da conta criada na tela. */
+async function fundFromAdmin(address) {
+  const conn = new web3.Connection("https://api.devnet.solana.com", "confirmed");
+  const admin = web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(process.env.ANCHOR_WALLET, "utf8"))));
+  const tx = new web3.Transaction().add(
+    web3.SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: new web3.PublicKey(address), lamports: 0.03 * web3.LAMPORTS_PER_SOL }),
+  );
+  await web3.sendAndConfirmTransaction(conn, tx, [admin]);
+}
 
 const url = process.argv[2] || "http://localhost:4173/";
 const out = process.argv[3] || "ui-e2e";
@@ -21,10 +32,20 @@ fs.mkdirSync(out, { recursive: true });
 
   await page.goto(url);
   await page.getByRole("button", { name: "Criar minha conta grátis" }).click();
-  await page.getByText("Conta na Solana · devnet").waitFor({ timeout: CHAIN });
+  const ready = page.getByText("Conta na Solana · devnet");
+  const needSol = page.getByText("Falta só o SOL de teste");
+  await ready.or(needSol).waitFor({ timeout: CHAIN });
+  if (await needSol.isVisible()) {
+    const address = (await page.locator(".address").innerText()).trim();
+    await shot("precisa-de-sol");
+    step(`tela de SOL de teste apareceu (faucet público limitado); conta ${address}`);
+    await fundFromAdmin(address);
+    await page.getByRole("button", { name: "Já recebi, continuar" }).click();
+  }
+  await ready.waitFor({ timeout: CHAIN });
   await page.locator(".balance-card").getByText("R$ 1.000,00").first().waitFor({ timeout: CHAIN });
   await shot("conta-criada");
-  step("conta criada pela interface, com R$ 1.000 de teste");
+  step("conta criada pela interface, com R$ 1.000 do faucet do programa");
 
   await page.getByRole("navigation").getByRole("button", { name: "Trocar" }).click();
   const input = page.getByLabel("Você envia");
@@ -41,8 +62,9 @@ fs.mkdirSync(out, { recursive: true });
   await page.getByRole("navigation").getByRole("button", { name: "Rende" }).click();
   await page.getByRole("button", { name: /^Depositar R\$/ }).click();
   await page.getByText("Depósito feito").waitFor({ timeout: CHAIN });
+  await page.getByText("Resgate liberado às").waitFor({ timeout: CHAIN });
   await shot("rende-deposito");
-  step("depósito real na Rende");
+  step("depósito real na Rende, com aviso da trava de resgate");
 
   await page.getByRole("navigation").getByRole("button", { name: "Início" }).click();
   await page.locator(".quick-actions").getByRole("button", { name: "Enviar" }).click();

@@ -7,7 +7,7 @@ interface Props {
   chain: Chain;
   balanceBRL: number;
   onActivate: (kind: ChainKind) => void;
-  onDeactivate: () => void;
+  onDeactivate: (forget?: boolean) => void;
   onFaucet: () => Promise<void>;
 }
 
@@ -45,14 +45,18 @@ export function ChainCard({ chain, balanceBRL, onActivate, onDeactivate, onFauce
           comprovante público. Sem senha de 12 palavras e sem precisar de cripto.
         </p>
         <ul className="ticks">
-          <li>Você ganha R$ 1.000 de teste para usar</li>
-          <li>A cambI paga a taxa da rede</li>
+          <li>R$ 1.000 de teste do faucet do próprio programa</li>
+          <li>SOL de teste para as taxas, do faucet público da Solana</li>
           <li>Tudo verificável no Solana Explorer</li>
         </ul>
         <button className="primary" onClick={() => onActivate("local")}>Criar minha conta grátis</button>
         <button className="link" onClick={phantom}>
           <WalletIcon /> Prefiro usar minha Phantom
         </button>
+        <p className="muted small">
+          Segurança: a cambI nunca pede assinatura com moeda real. Na Phantom, use o modo de testes (Solana Devnet) e
+          confira cada transação antes de aprovar.
+        </p>
       </section>
     );
   }
@@ -69,6 +73,25 @@ export function ChainCard({ chain, balanceBRL, onActivate, onDeactivate, onFauce
     );
   }
 
+  if (chain.status === "needSol") {
+    return (
+      <section className="card chain-card" role="alert">
+        <h3>Falta só o SOL de teste</h3>
+        <p className="muted">
+          O faucet público da Solana está limitado agora. Peça SOL de teste (grátis, sem valor) para o endereço da sua
+          conta e toque em continuar.
+        </p>
+        <code className="address">{chain.address}</code>
+        <div className="actions-row">
+          <button className="secondary" onClick={() => navigator.clipboard?.writeText(chain.address).catch(() => {})}>Copiar endereço</button>
+          <a className="secondary as-button" href="https://faucet.solana.com" target="_blank" rel="noreferrer">Abrir faucet ↗</a>
+        </div>
+        <button className="primary" onClick={() => onActivate(chain.kind)}>Já recebi, continuar</button>
+        <button className="link" onClick={() => onDeactivate()}>Continuar no modo demonstração</button>
+      </section>
+    );
+  }
+
   if (chain.status === "error") {
     return (
       <section className="card chain-card" role="alert">
@@ -78,7 +101,7 @@ export function ChainCard({ chain, balanceBRL, onActivate, onDeactivate, onFauce
           <p className="muted small">Na Phantom, ative Configurações → Desenvolvedor → Modo de testes (Solana Devnet).</p>
         )}
         <button className="primary" onClick={() => onActivate(chain.kind)}>Tentar de novo</button>
-        <button className="link" onClick={onDeactivate}>Continuar no modo demonstração</button>
+        <button className="link" onClick={() => onDeactivate()}>Continuar no modo demonstração</button>
       </section>
     );
   }
@@ -119,7 +142,17 @@ export function ChainCard({ chain, balanceBRL, onActivate, onDeactivate, onFauce
         </button>
       )}
       {msg && <p className="error small">{msg}</p>}
-      <button className="link small-link" onClick={onDeactivate}>Voltar ao modo demonstração</button>
+      <button className="link small-link" onClick={() => onDeactivate()}>Voltar ao modo demonstração</button>
+      {chain.kind === "local" && (
+        <button
+          className="link small-link"
+          onClick={() => {
+            if (confirm("Apagar a conta de teste deste aparelho? As moedas de teste dela ficam inacessíveis.")) onDeactivate(true);
+          }}
+        >
+          Apagar minha conta de teste deste aparelho
+        </button>
+      )}
     </section>
   );
 }

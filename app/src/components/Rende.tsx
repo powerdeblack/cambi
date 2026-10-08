@@ -14,7 +14,7 @@ interface Props {
   wallet: Wallet;
   onDeposit: (side: Side, amount: number) => void | Promise<void>;
   /** Modo blockchain: colher as taxas e resgatar a posição de verdade. */
-  onchain?: { onHarvest: () => Promise<void>; onWithdraw: () => Promise<void> };
+  onchain?: { onHarvest: () => Promise<void>; onWithdraw: () => Promise<void>; unlockAt?: number };
 }
 
 export function Rende({ wallet, onDeposit, onchain }: Props) {
@@ -98,10 +98,21 @@ export function Rende({ wallet, onDeposit, onchain }: Props) {
                 <button className="secondary" disabled={!!busy} onClick={() => act("harvest", onchain.onHarvest, "Rendimento enviado para sua carteira.")}>
                   {busy === "harvest" ? "Recebendo…" : "Receber rendimento"}
                 </button>
-                <button className="secondary" disabled={!!busy} onClick={() => act("withdraw", onchain.onWithdraw, "Resgate concluído.")}>
+                <button
+                  className="secondary"
+                  disabled={!!busy || (onchain.unlockAt ?? 0) * 1000 > Date.now()}
+                  onClick={() => act("withdraw", onchain.onWithdraw, "Resgate concluído.")}
+                >
                   {busy === "withdraw" ? "Resgatando…" : "Resgatar tudo"}
                 </button>
               </div>
+            )}
+            {onchain && (onchain.unlockAt ?? 0) * 1000 > Date.now() && (
+              <p className="muted small">
+                Por segurança, o principal fica travado por alguns minutos após cada depósito. Resgate liberado às{" "}
+                {new Date(onchain.unlockAt! * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. O
+                rendimento pode ser recebido a qualquer momento.
+              </p>
             )}
 
             <div className="field-box">
