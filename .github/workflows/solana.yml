@@ -17,8 +17,10 @@ jobs:
       - uses: ./.github/actions/solana-setup
       - name: Carteira local de teste
         run: solana-keygen new --no-bip39-passphrase --silent --force -o ~/.config/solana/id.json
-      - name: Sincronizar ID do programa
-        run: anchor keys sync
+      - name: Gerar a chave do programa e sincronizar o ID
+        run: |
+          anchor build
+          anchor keys sync
       - name: Compilar e testar numa Solana local
         run: anchor test
       - name: Tamanho do programa
