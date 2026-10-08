@@ -94,8 +94,9 @@ Na [demo](https://powerdeblack.github.io/cambi/), **"Criar minha conta grátis"*
 
 - **Conta invisível:** a conta na Solana é criada no próprio aparelho. Sem frase-semente, sem extensão, sem precisar
   de cripto. Quem já usa cripto pode escolher **"Prefiro usar minha Phantom"**.
-- **A cambI paga a entrada:** uma carteira patrocinadora cria as contas de token, dá R$ 1.000 de teste (cBRL) e o SOL
-  das taxas. A pessoa nunca vê SOL.
+- **Moedas de teste do próprio programa:** um faucet on-chain dá R$ 1.000 de teste (cBRL), com regras na blockchain
+  (1 vez por hora, só para quem tem pouco saldo, teto global). O SOL das taxas vem do faucet público da Solana.
+  Nenhuma chave com poder fica no app.
 - **Tudo vira transação real:** troca, depósito na Rende, rendimento, resgate, Pix e envio em dólar. Cada comprovante
   tem o link **"ver na blockchain"**.
 - **A prévia é a conta do programa:** o app calcula a troca com a mesma matemática do programa (porta fiel de
@@ -110,7 +111,7 @@ Comprovado automaticamente pelo workflow [Teste de ponta a ponta na devnet](../.
    comprovante da Solana.
 
 Em produção, a conta invisível vem de um provedor de carteira embutida (login com e-mail ou Google, confirmação por
-biometria) e o patrocinador vira um servidor que paga as taxas. A chave dele nunca vai para o app.
+biometria) e um servidor paga as taxas da rede. Nenhuma chave com poder vai para o app.
 
 ## Rodar localmente
 
@@ -132,6 +133,17 @@ python3 sim/cambi_sim.py
 ## Stack
 
 Solana · Anchor 0.31 · SPL Token · React 18 · Vite · TypeScript · Mocha/Chai · Vitest · GitHub Actions · Python
+
+## Segurança
+
+Revisão de segurança completa do programa, do app e da infraestrutura, com cada ataque reproduzido num teste:
+[docs/AUDITORIA.md](docs/AUDITORIA.md). Para relatar uma falha: [SECURITY.md](SECURITY.md).
+
+- A Rende é sênior nas duas moedas; depósitos têm trava de resgate e há limite de saída por minuto
+- O oráculo só move o preço até 10% por vez, por consenso de várias fontes, com chave separada do admin
+- Só a autoridade de upgrade cria pools; a troca de admin é feita em dois passos
+- Faucet de testes só na versão devnet (o CI confere que o binário de produção não o contém)
+- Ações do GitHub fixadas por hash, nenhum código de fork roda com acesso às chaves, auditoria de dependências semanal
 
 ## Regulação e riscos
 

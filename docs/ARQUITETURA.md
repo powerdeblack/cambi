@@ -90,16 +90,17 @@ trocas e depósitos (`Paused`), mas **saques continuam liberados** para ninguém
 | Cliente | `app/src/chain/client.ts` | Monta e envia as instruções `swap`, `deposit` e `withdraw`, além de transferências SPL com memo. Carregado sob demanda |
 | Matemática | `app/src/chain/accounts.ts` | Decodifica `Pool` e `Position` e porta `quote`, `available` e `pending_fees` em bigint, idênticos ao programa |
 | Estado | `app/src/chain/useChain.ts` | Conta no aparelho ou Phantom, saldos atualizados a cada 20 s, atividade com assinaturas |
-| Patrocinador | `app/src/chain/sponsor.json` | Paga a criação da conta, dá R$ 1.000 de teste e SOL para as taxas |
-| Manutenção | `scripts/sponsor-setup.ts` | A cada 15 min: repõe SOL do patrocinador e liquidez do pool (como Baleia) |
+| Faucet | instrução `faucet_claim` (só na feature `devnet`) | R$ 1.000 de teste por pedido: 1x por hora, só com saldo baixo, teto global por hora; emissão por PDA |
+| Manutenção | `scripts/maintain-liquidity.ts` | A cada 6 h, com a chave de admin: SOL do oráculo e liquidez do pool (como Baleia, via `admin_mint`) |
 | Prova | `scripts/e2e-devnet.ts`, `scripts/ui-e2e.cjs` | Fluxo completo contra o programa real e pelas telas, num navegador |
 
-**Saída do dinheiro na devnet:** USDC vai direto para a carteira de destino. Pix e conta nos EUA transferem as moedas
-de teste para a carteira que faz o papel do parceiro, com o destino num memo. O pagamento do outro lado é simulado.
+**Saída do dinheiro na devnet:** USDC vai direto para a carteira de destino (só carteiras, nunca endereços de programa).
+Pix e conta nos EUA transferem as moedas de teste para a carteira que faz o papel do parceiro, com um memo que tem só
+um código de referência, sem dados pessoais. O pagamento do outro lado é simulado.
 
-**Chave do patrocinador pública, de propósito, só na devnet.** Ela vale apenas moedas de teste. O pior caso é alguém
-emitir cBRL de teste e esvaziar o pool de teste, e a manutenção repõe a liquidez a cada 15 minutos. Em produção esse
-papel é de um servidor (relayer) com limites por conta, e a chave nunca sai dele.
+**Nenhuma chave com poder fica no app.** As moedas de teste saem do faucet do programa, com regras on-chain. O SOL
+das taxas vem do faucet público da Solana; se ele estiver limitado, o app mostra o endereço e o link do faucet. O
+oráculo tem chave própria, separada do admin. Detalhes em [AUDITORIA.md](AUDITORIA.md).
 
 ## Segurança
 
