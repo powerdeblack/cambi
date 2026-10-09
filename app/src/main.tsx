@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./styles.css";
 
 // Contra clickjacking: o app não roda dentro de moldura (iframe) de outro site.
@@ -14,7 +15,9 @@ if (window.top !== window.self) {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary onReset={() => location.reload()}>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );
 

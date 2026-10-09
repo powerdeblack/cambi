@@ -3,6 +3,7 @@ import { previewSwap, fromUnits, toUnits } from "./chain/accounts";
 import { useChain } from "./chain/useChain";
 import { AlertSheet } from "./components/AlertSheet";
 import { ChainCard } from "./components/ChainCard";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DollarCard } from "./components/DollarCard";
 import { DollarScreen } from "./components/DollarScreen";
 import { Exchange } from "./components/Exchange";
@@ -285,7 +286,8 @@ export default function App() {
         </div>
       </header>
 
-      <main key={tab} className="screen">
+      <ErrorBoundary key={tab} onReset={() => setTab("inicio")}>
+      <main className="screen">
         {alertFired && (
           <div className="alert-banner" role="alert">
             <span>
@@ -384,6 +386,7 @@ export default function App() {
           )}
         </p>
       </main>
+      </ErrorBoundary>
 
       <nav className="bottom-nav" aria-label="Navegação principal">
         {TABS.map(({ id, label, Icon }) => (

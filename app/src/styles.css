@@ -433,6 +433,9 @@ a.as-button { display: inline-flex; align-items: center; justify-content: center
 .statement-day .card { padding: 4px 16px; }
 .statement-day small { display: block; }
 
+.crash { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.crash h2 { margin: 0; }
+
 /* ---------- Conformidade ---------- */
 .topbar-right { display: flex; align-items: center; gap: 8px; }
 .profile-btn { position: relative; width: 40px; height: 40px; background: var(--card); border: 1px solid var(--line); }
