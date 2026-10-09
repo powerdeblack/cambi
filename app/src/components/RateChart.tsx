@@ -10,15 +10,19 @@ interface Props {
   refPrice?: number;
   refLabel?: string;
   label: string; // descrição para leitor de tela
+  /** Suas compras: data e preço pago, marcados no gráfico. */
+  marks?: { t: number; price: number }[];
 }
 
 const W = 300;
 const H = 88;
 
 /** Gráfico de linha da cotação, em que dá para arrastar o dedo; opcionalmente com uma linha de referência. */
-export function RateChart({ points, hover, onHover, refPrice, refLabel, label }: Props) {
+export function RateChart({ points, hover, onHover, refPrice, refLabel, label, marks = [] }: Props) {
   const gradient = useId().replace(/:/g, "");
-  const prices = points.map((p) => p.price).concat(refPrice ? [refPrice] : []);
+  const t1 = points[points.length - 1].t;
+  const inRange = marks.filter((m) => m.t >= points[0].t && m.t <= t1 + 3600);
+  const prices = points.map((p) => p.price).concat(refPrice ? [refPrice] : [], inRange.map((m) => m.price));
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const pad = (max - min) * 0.12 || 0.01;
@@ -62,6 +66,16 @@ export function RateChart({ points, hover, onHover, refPrice, refLabel, label }:
           {refLabel} {rate(refPrice)}
         </span>
       )}
+      {/* Marcas em HTML, por cima: o SVG estica sem manter a proporção e deformaria o triângulo. */}
+      {inRange.map((m, k) => (
+        <span
+          key={k}
+          className="buy-mark"
+          style={{ left: `${Math.min(100, ((m.t - t0) / span) * 100)}%`, top: `${(y(m.price) / H) * 100}%` }}
+          title={`Sua compra a ${rate(m.price)}`}
+          aria-hidden
+        />
+      ))}
       <span className="chart-dot" style={{ left: `${(dot[0] / W) * 100}%`, top: `${(dot[1] / H) * 100}%` }} aria-hidden />
     </div>
   );

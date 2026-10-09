@@ -16,6 +16,8 @@ interface Props {
   formatAxis: (v: number) => string;
   label: string; // descrição para leitor de tela
   height?: number;
+  /** Pontos marcados na primeira série (ex.: depósitos), com legenda própria. */
+  markers?: { i: number; label: string }[];
 }
 
 const PAD = { top: 12, right: 12, bottom: 22, left: 52 };
@@ -24,7 +26,7 @@ const PAD = { top: 12, right: 12, bottom: 22, left: 52 };
  * Gráfico de linhas com cruz e tooltip ao passar o dedo ou o mouse, linhas de grade discretas e rótulo no fim de cada
  * linha. As cores vêm de --series-1..3 (paleta validada para daltonismo e contraste nos dois temas).
  */
-export function LineChart({ series, xLabel, format, formatAxis, label, height = 200 }: Props) {
+export function LineChart({ series, xLabel, format, formatAxis, label, height = 200, markers = [] }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(320);
   const [hover, setHover] = useState<number | null>(null);
@@ -43,7 +45,8 @@ export function LineChart({ series, xLabel, format, formatAxis, label, height = 
   const lo = Math.min(...all);
   const hi = Math.max(...all);
   const span = hi - lo || hi * 0.1 || 1;
-  const yMin = lo - span * 0.08;
+  // Valores que nunca são negativos (acumulados) não ganham eixo abaixo de zero.
+  const yMin = lo >= 0 ? Math.max(0, lo - span * 0.08) : lo - span * 0.08;
   const yMax = hi + span * 0.08;
   const iw = width - PAD.left - PAD.right;
   const ih = height - PAD.top - PAD.bottom;
@@ -93,6 +96,11 @@ export function LineChart({ series, xLabel, format, formatAxis, label, height = 
           const d = s.values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
           return <path key={s.id} d={d} className={`line s${k}${s.dashed ? " dashed" : ""}`} />;
         })}
+        {markers.map((m) => {
+          const cx = x(m.i);
+          const cy = y(series[0].values[m.i]);
+          return <path key={`m${m.i}`} d={`M${cx},${cy - 7} L${cx + 7},${cy} L${cx},${cy + 7} L${cx - 7},${cy} Z`} className="marker" />;
+        })}
         {hover !== null && (
           <>
             <line x1={hx} x2={hx} y1={PAD.top} y2={PAD.top + ih} className="crosshair" />
@@ -105,6 +113,9 @@ export function LineChart({ series, xLabel, format, formatAxis, label, height = 
       {hover !== null && (
         <div className="chart-tip" style={{ left: tipLeft }}>
           <strong>{xLabel(hover)}</strong>
+          {markers.filter((m) => m.i === hover).map((m) => (
+            <em key={m.label}>◆ {m.label}</em>
+          ))}
           {series.map((s, k) => (
             <span key={s.id}>
               <i className={`key s${k + 1}${s.dashed ? " dashed" : ""}`} /> {s.label}

@@ -1,7 +1,4 @@
-import { useEffect, useState } from "react";
 import deployment from "../devnet.json";
-import { ago, rate, reais } from "../format";
-import { OnchainPool, fetchPool, fetchTokenBalance } from "../onchain";
 
 interface Deployment {
   rpc: string;
@@ -13,27 +10,10 @@ interface Deployment {
   links: { program: string; pool: string } | null;
 }
 
-type State =
-  | { status: "loading" }
-  | { status: "ok"; pool: OnchainPool; brl: number; usd: number }
-  | { status: "error"; message: string };
-
 const short = (s: string) => `${s.slice(0, 4)}…${s.slice(-4)}`;
 
 export function OnchainCard() {
   const d = deployment as unknown as Deployment;
-  const [state, setState] = useState<State>({ status: "loading" });
-
-  useEffect(() => {
-    if (!d.pool || !d.brlVault || !d.usdVault) return;
-    let alive = true;
-    Promise.all([fetchPool(d.rpc, d.pool), fetchTokenBalance(d.rpc, d.brlVault), fetchTokenBalance(d.rpc, d.usdVault)])
-      .then(([pool, brl, usd]) => alive && setState({ status: "ok", pool, brl, usd }))
-      .catch((e: Error) => alive && setState({ status: "error", message: e.message }));
-    return () => {
-      alive = false;
-    };
-  }, [d.pool, d.brlVault, d.usdVault, d.rpc]);
 
   if (!d.pool || !d.programId || !d.links) {
     return (
@@ -49,40 +29,8 @@ export function OnchainCard() {
     <section className="card onchain">
       <div className="onchain-head">
         <span className="live-dot" aria-hidden />
-        <h3>Ao vivo na Solana devnet</h3>
+        <h3>Confira na Solana</h3>
       </div>
-      {state.status === "loading" && <p className="muted">Lendo o pool na blockchain…</p>}
-      {state.status === "error" && (
-        <p className="muted">Não foi possível ler a devnet agora ({state.message}). Os links abaixo continuam válidos.</p>
-      )}
-      {state.status === "ok" && (
-        <div className="stats">
-          <div className="stat">
-            <span className="muted">Cotação do oráculo · {ago(state.pool.priceUpdatedAt)}</span>
-            <strong>{rate(state.pool.price)}</strong>
-          </div>
-          <div className="stat">
-            <span className="muted">Trocas registradas</span>
-            <strong>{state.pool.swapCount}</strong>
-          </div>
-          <div className="stat">
-            <span className="muted">Cofre em reais</span>
-            <strong>{state.brl.toLocaleString("pt-BR")} cBRL</strong>
-          </div>
-          <div className="stat">
-            <span className="muted">Cofre em dólar</span>
-            <strong>{state.usd.toLocaleString("pt-BR")} cUSD</strong>
-          </div>
-          <div className="stat">
-            <span className="muted">Volume</span>
-            <strong>{reais(state.pool.volumeBRL)}</strong>
-          </div>
-          <div className="stat">
-            <span className="muted">Status</span>
-            <strong>{state.pool.paused ? "Pausado" : "Ativo"}</strong>
-          </div>
-        </div>
-      )}
       <ul className="list proofs">
         <li>
           <span>Programa</span>
@@ -100,7 +48,7 @@ export function OnchainCard() {
         ))}
       </ul>
       <p className="muted small">
-        A cotação do pool é atualizada a cada 15 minutos com o dólar real. Moedas de teste (cBRL e cUSD) sem valor
+        Programa, pool e cada operação de teste da implantação, com link público. Moedas de teste (cBRL e cUSD) sem valor
         real. Qualquer pessoa pode conferir no Solana Explorer.
       </p>
     </section>

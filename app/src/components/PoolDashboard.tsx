@@ -149,7 +149,7 @@ function YieldSimulator() {
 }
 
 /** Para onde vai cada R$ 100 de taxa de uma troca de varejo (as mesmas regras do programa na Solana). */
-function FeeFlow() {
+export function FeeFlow() {
   const s = feeSplitPer100(1 - BALEIA_SHARE_OF_LP, PLATFORM_SHARE, PARTNER_COST / BASE_FEE.retail);
   const parts = [
     { id: "rende", label: <>Quem deposita na <Brand /> Rende</>, value: s.rende },

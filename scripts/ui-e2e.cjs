@@ -113,6 +113,35 @@ fs.mkdirSync(out, { recursive: true });
   step("conta continua ativa depois de recarregar");
   await shot("inicio");
 
+  // Mais uma troca depois do depósito: parte da taxa volta para quem deixou dinheiro na Rende.
+  await page.getByRole("navigation").getByRole("button", { name: "Trocar" }).click();
+  const again = page.getByLabel("Você envia");
+  await again.click();
+  await again.pressSequentially("5000"); // R$ 50,00
+  await page.getByLabel("Finalidade da troca").selectOption("viagem");
+  await page.getByRole("button", { name: /^Trocar R\$/ }).click();
+  await page.getByText("Registrada na Solana").waitFor({ timeout: CHAIN });
+  await page.getByRole("button", { name: "Deixar na carteira" }).click();
+
+  // Aba Pool com o dinheiro real: a posição, o rendimento ao vivo e o losango do depósito.
+  await page.getByRole("navigation").getByRole("button", { name: "Pool" }).click();
+  await page.locator(".my-pool .line-chart").waitFor({ timeout: CHAIN });
+  await page.locator(".pool-now .line-chart").waitFor({ timeout: CHAIN });
+  const deposits = await page.locator(".my-pool .marker").count();
+  if (deposits < 1) throw new Error("gráfico da Pool sem a marca do depósito");
+  const earned = (await page.locator(".my-pool .hero-tiles strong").first().innerText()).trim();
+  await page.waitForTimeout(700);
+  await shot("pool-ao-vivo");
+  step(`pool real: rendeu ${earned}, ${deposits} depósito(s) marcado(s) no gráfico`);
+
+  await page.getByRole("navigation").getByRole("button", { name: "Início" }).click();
+  await page.locator(".quick-actions").getByRole("button", { name: "Meus dólares" }).click();
+  await page.locator(".buy-mark, .chart-empty").first().waitFor({ timeout: 15_000 }).catch(() => {});
+  const buys = await page.locator(".buy-mark").count();
+  if (buys) step(`meus dólares: ${buys} compra(s) marcada(s) no gráfico`);
+  else console.log("! meus dólares sem histórico para marcar as compras");
+  await shot("meus-dolares");
+
   await browser.close();
   // Fontes externas de cotação e histórico podem limitar o IP do runner; o app trata isso e segue funcionando.
   const relevant = errors.filter((e) => !/favicon|429|Failed to load resource/i.test(e) && !(/CORS policy/i.test(e) && /awesomeapi|frankfurter|coinbase|er-api/i.test(e)));

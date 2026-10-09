@@ -11,7 +11,8 @@ import { Home } from "./components/Home";
 import { BankIcon, ChevronIcon, GrowIcon, HomeIcon, KeyIcon, PoolIcon, SwapIcon, UserIcon } from "./components/Icons";
 import { Logo } from "./components/Logo";
 import { OnchainCard } from "./components/OnchainCard";
-import { PoolDashboard } from "./components/PoolDashboard";
+import { FeeFlow } from "./components/PoolDashboard";
+import { PoolLive } from "./components/PoolLive";
 import { QuoteBadge } from "./components/QuoteBadge";
 import { QuickSim } from "./components/QuickSim";
 import { Rende } from "./components/Rende";
@@ -396,7 +397,8 @@ export default function App() {
         )}
         {tab === "pool" && (
           <>
-            <PoolDashboard pool={pool} />
+            <PoolLive live={live} onRende={() => setTab("rende")} />
+            <FeeFlow />
             <OnchainCard />
           </>
         )}

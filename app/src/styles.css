@@ -600,3 +600,40 @@ button.link.inline { padding: 0; font-size: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .splash, .splash * { animation: none !important; transition: none !important; }
 }
+
+/* Marcas nos gráficos: depósitos (losango) e compras de dólar (triângulo) */
+.line-chart .marker { fill: var(--series-1); stroke: var(--card); stroke-width: 2; }
+.chart-tip em { font-style: normal; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.legend-diamond { display: inline-block; width: 9px; height: 9px; margin-left: 10px; background: var(--series-1); transform: rotate(45deg); }
+.buy-mark {
+  position: absolute; width: 0; height: 0; transform: translate(-50%, -60%); pointer-events: none;
+  border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid var(--ink);
+  filter: drop-shadow(0 0 1.5px var(--card));
+}
+.legend-buy { display: inline-block; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--ink); }
+
+/* Pool real */
+.hero-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.live-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+.live-tag .live-dot { width: 8px; height: 8px; box-shadow: none; animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .live-tag .live-dot { animation: none; } }
+.balance-card .live-tag { color: rgba(255,255,255,0.85); }
+.hero-sub { display: block; color: rgba(255,255,255,0.75); font-size: 0.8rem; margin-top: 2px; }
+.hero-chart { margin-top: 14px; padding: 10px 10px 6px; border-radius: 14px; background: var(--card); color: var(--ink); }
+.hero-chart .chart-legend { color: var(--muted); }
+.hero-note { color: rgba(255,255,255,0.75); font-size: 0.78rem; margin: 10px 0 12px; }
+.my-pool button.on-dark { width: 100%; background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.3); }
+.pool-cta button { width: 100%; margin-top: 8px; }
+.sub-title { margin: 18px 0 0; font-size: 0.95rem; }
+.skeleton.tall { height: 160px; margin-top: 10px; }
+.swap-feed li { display: flex; align-items: center; gap: 10px; }
+.feed-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; font-size: 0.75rem; font-weight: 800; background: var(--bg); }
+.feed-icon.buy { color: var(--green); }
+.feed-icon.sell { color: var(--whale); }
+.feed-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.feed-main small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feed-main .you { font-style: normal; color: var(--green); }
+.feed-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-variant-numeric: tabular-nums; }
+.pool-now .stat strong { white-space: nowrap; }
+.pool-now .stat .muted { font-size: 0.8rem; }

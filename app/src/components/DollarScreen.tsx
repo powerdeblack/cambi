@@ -28,6 +28,10 @@ export function DollarScreen({ wallet, quote, price, onSwap, onRende, onClose }:
   const r = dollarResult(wallet, price);
   const s = points ? summary(points) : null;
   const sel = hover !== null && points ? points[hover] : null;
+  // Suas compras de dólar: quando e a que preço (real que entrou ÷ dólar que saiu).
+  const buys = wallet.activity
+    .filter((a) => a.kind === "swap" && a.side === "BRL" && a.at && a.amountOut)
+    .map((a) => ({ t: a.at! / 1000, price: a.amountIn / a.amountOut! }));
 
   if (!r) {
     return (
@@ -74,6 +78,7 @@ export function DollarScreen({ wallet, quote, price, onSwap, onRende, onClose }:
             onHover={setHover}
             refPrice={r.avgPrice}
             refLabel="seu preço médio"
+            marks={buys}
             label={`Dólar nos últimos ${period} dias, de ${rate(s.first)} para ${rate(s.last)}; seu preço médio é ${rate(r.avgPrice)}`}
           />
         ) : (
@@ -81,6 +86,11 @@ export function DollarScreen({ wallet, quote, price, onSwap, onRende, onClose }:
         )}
         <p className="muted small chart-legend">
           <span className="legend-line green" /> dólar &nbsp; <span className="legend-line dashed" /> seu preço médio
+          {buys.length > 0 && (
+            <>
+              {" "}&nbsp; <span className="legend-buy" /> suas compras
+            </>
+          )}
         </p>
       </section>
 
