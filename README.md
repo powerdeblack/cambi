@@ -2,211 +2,204 @@
   <img src="brand/logo.svg" alt="cambI" height="72" />
 </p>
 
-<h3 align="center">O câmbio sou eu.</h3>
+<h3 align="center">O câmbio sou eu. <i>(“I am the exchange.”)</i></h3>
+
+<p align="center"><b>English</b> · <a href="README.pt-BR.md">Português</a></p>
 
 <p align="center">
-  Casa de câmbio on-chain (real ↔ dólar) em que os clientes são os donos.<br/>
-  Troca na hora, 24h, com a conta inteira à mostra. E quem deixa dinheiro no pool ganha com as trocas dos outros.
+  An on-chain currency exchange (Brazilian real ↔ US dollar) where the customers are the owners.<br/>
+  Instant swaps, 24/7, with every cent of the fee shown. And people who leave money in the pool earn from everyone else's swaps.
 </p>
 
 ---
 
-> **For judges (English summary)** · the app and docs are in Portuguese because the first market is Brazil.
->
-> **What it is:** an on-chain FX house (Brazilian real ↔ US dollar) where the customers are the owners. Anyone swaps at
-> the oracle price with the fee shown upfront. Depositors in **Rende** (retail, senior tranche) earn a share of every
-> swap fee; **Baleia** (qualified LPs, junior tranche) absorb imbalance risk for a larger share. Fiat in/out via Pix
-> through a licensed partner: since Feb 2026, Brazilian Central Bank rules (Res. 519/520/521) treat stablecoin FX as
-> foreign exchange.
->
-> **Try it in 2 minutes:** open the [live app](https://powerdeblack.github.io/cambi/) → **"Criar minha conta grátis"**
-> (create free account: a devnet account is created in your browser; R$ 1,000 in test tokens come from the program's
-> own on-chain faucet) → **Trocar** (swap) → tap **"ver transação"** to open the real transaction in Solana Explorer.
-> Other tabs: **Enviar** (send via Pix / to a US account / USDC wallet), **Rende** (deposit and earn), **Pool**.
->
-> **On-chain (devnet):** program [`AgZt…35XJ`](https://explorer.solana.com/address/AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ?cluster=devnet) · pool
-> [`BM34…C3pg`](https://explorer.solana.com/address/BM342uKMYgDQ2hWmhuXnC4JdHtmWAN3kprptRgRxC3pg?cluster=devnet). The app builds swaps, deposits, fee harvests, withdrawals and
-> transfers itself and sends them as real transactions. Its preview uses the program's exact integer math, so the
-> amount shown is the amount received.
->
-> **Evidence:**
-> - 23 integration tests on a local validator, 12 program unit tests and 39 app tests.
-> - An end-to-end test against devnet every 6 hours, through the app's client and through the UI in a real browser.
-> - An oracle that writes the median of agreeing price sources every 15 minutes, with its own key and an on-chain
->   cap on how far each update can move the price.
->
-> **Security:** an internal review found 1 high and 4 medium issues; all are fixed and each has a regression test
-> ([report, in Portuguese](docs/AUDITORIA.md)). No external audit yet.
->
-> **Business model:** swap fee of 1% (retail), 0.5% (depositors) or 0.4% (B2B apps). The platform keeps 25% of net
-> fees plus 20% of Rende returns above 100% of CDI (the Brazilian interbank rate).
->
-> **Team and disclosure:** solo founder ([@powerdeblack](https://github.com/powerdeblack)), São Paulo, Brazil. All
-> code was written during the hackathon. AI-assisted: Claude Code for coding and Colosseum Copilot for research,
-> both declared in the submission. Product decisions are the founder's. Early commits show "Claude" as the author
-> (the coding agent's default git identity); later commits are authored by the founder's account.
->
-> **Limits:** devnet only. The Pix and US-bank legs are simulated, and the program is not externally audited.
+**Try it in 2 minutes:** open the [live app](https://powerdeblack.github.io/cambi/) on your phone → tap
+**“Criar minha conta grátis”** (create free account) → **Trocar** (swap) R$ 100 → tap **“ver transação”** to open the
+real transaction on Solana Explorer. Other tabs: **Enviar** (send via Pix, to a US bank account or a USDC wallet),
+**Rende** (deposit and earn) and **Pool**. Devnet only: no real money is used.
 
----
+The app is in Portuguese because the first market is Brazil. Some docs are in Portuguese too (linked below).
 
-## O problema
+## The problem
 
-Quando um brasileiro troca real por dólar, o spread é invisível e fica todo com o intermediário: mais de 5% no banco
-e perto de 4% em casas de câmbio. Fintechs baixaram o custo, mas o cliente continua sendo só cliente. A maioria das
-pessoas nunca soube quanto pagou, nem para quem.
+When a Brazilian exchanges reais for dollars, the spread is invisible and goes entirely to the middleman: over 5% at
+banks and close to 4% at exchange offices. Fintechs lowered the cost, but the customer is still just a customer. Most
+people never knew how much they paid, or to whom.
 
-## A solução
+## The solution
 
-**cambI** = câmbio + **I** ("eu", em inglês).
+**cambI** = *câmbio* (exchange) + **I**.
 
-- **Troca instantânea** real ↔ dólar digital, **na cotação real do dólar** (ao vivo no app; gravada no pool da devnet a cada 15 minutos), com a taxa mostrada antes de confirmar.
-- **A outra ponta da troca:** os reais saem por **Pix** para qualquer chave e os dólares vão para uma **conta nos EUA** (ACH) ou uma **carteira USDC** na Solana, com revisão, comprovante e contatos recentes (simulado na demo).
-- **"Para onde foi o seu dinheiro?"**: toda troca mostra a divisão da taxa e quanto custaria no banco ou na casa de câmbio.
-- **Pool com duas camadas:**
-  - 🟢 **cambI Rende** (qualquer pessoa, a partir de R$ 10): quase tudo aplicado em renda fixa, mais parte das taxas. Protegida: perdas de desequilíbrio caem primeiro na Baleia.
-  - 🐋 **cambI Baleia** (investidores qualificados): é o motor de liquidez, assume o risco e recebe a maior fatia das taxas.
-- **Taxa dinâmica:** fica mais barata no sentido que equilibra o pool, mais cara no que desequilibra.
-- **Alinhamento:** a cambI só cobra performance da Rende sobre o que passar de 100% do CDI.
+- **Instant swaps** between reais and digital dollars **at the real market rate** (live in the app; written to the
+  devnet pool several times a day), with the fee shown before confirming.
+- **The other side of the trade:** reais go out by **Pix** to any key, and dollars go to a **US bank account** (ACH)
+  or a **USDC wallet** on Solana, with review, receipt and recent contacts (simulated in the demo).
+- **“Where did your money go?”**: every swap shows how the fee was split and what it would have cost at a bank or an
+  exchange office.
+- **A pool with two tranches:**
+  - 🟢 **cambI Rende** (anyone, from R$ 10): mostly invested in fixed income, plus a share of the fees. Protected:
+    imbalance losses hit Baleia first (senior tranche).
+  - 🐋 **cambI Baleia** (qualified investors): the liquidity engine. Takes the risk and gets the larger share of the
+    fees (junior tranche).
+- **Dynamic fee:** cheaper in the direction that balances the pool, more expensive in the one that unbalances it.
+- **Aligned incentives:** cambI only charges performance on Rende returns above 100% of CDI (the Brazilian interbank
+  rate).
 
-| Quem | Paga para trocar | Ganha (simulação, giro de 5%/dia) |
+| Who | Pays to swap | Earns (simulation, 5% daily turnover) |
 |---|---|---|
-| Varejo | 1,0% | — |
-| Depositante | 0,5% | Rende em reais: ~108% do CDI · em dólar: ~1,4× o T-bill |
-| Baleia | — | ~27% a.a., assumindo o risco de desequilíbrio |
-| App parceiro (B2B) | 0,4% | Liquidez real ↔ dólar 24h |
+| Retail | 1.0% | — |
+| Depositor | 0.5% | Rende in reais: ~108% of CDI · in dollars: ~1.4× the T-bill |
+| Baleia | — | ~27% a year, taking the imbalance risk |
+| Partner app (B2B) | 0.4% | 24/7 real ↔ dollar liquidity |
 
-Premissas, fontes e riscos em [docs/ECONOMIA.md](docs/ECONOMIA.md). **Simulações não são promessa de rendimento.**
+**Business model:** the platform keeps 25% of net fees plus 20% of Rende returns above 100% of CDI. Assumptions,
+sources and risks in [docs/ECONOMIA.md](docs/ECONOMIA.md) (Portuguese). **Simulations are not a promise of returns.**
 
-## O que está neste repositório
+## Why now
 
-| Pasta | Conteúdo | Estado |
-|---|---|---|
-| [`programs/cambi_pool`](programs/cambi_pool) | Programa Solana em Rust/Anchor 0.31 | ✅ Compila para a Solana (SBF, 502 KB) · 12 testes unitários · revisão de segurança |
-| [`tests/`](tests) | Testes de integração numa Solana local | ✅ 23 testes passando no [GitHub Actions](../../actions/workflows/solana.yml) |
-| [`scripts/`](scripts) | Montagem do pool de demonstração na devnet | ✅ [Implantado na devnet](#na-devnet-ao-vivo) |
-| [`app/`](app) | App web (React + Vite + TypeScript), instalável no celular | ✅ [No ar](https://powerdeblack.github.io/cambi/) · 39 testes · transações reais na devnet |
-| [`sim/`](sim) | Simulação econômica (Python) | ✅ |
-| [`docs/`](docs) | [Arquitetura](docs/ARQUITETURA.md) · [Economia](docs/ECONOMIA.md) · [Mercado](docs/MERCADO.md) · [Marca](docs/MARCA.md) · [Validação](docs/VALIDACAO.md) · [Colosseum](docs/COLOSSEUM.md) | ✅ |
+- Brazilians spent **US$ 21.7 billion** abroad in 2025, the highest since 2014.
+- About **80%** of the crypto volume declared to Brazil's tax authority is stablecoins.
+- Since **February 2026**, Brazilian Central Bank rules (Res. 519/520/521) treat stablecoin trades as foreign exchange,
+  done through authorized providers. The sector now has clear rules.
 
-### O que os testes de integração comprovam
+Sources for every number in [docs/MERCADO.md](docs/MERCADO.md) (Portuguese).
 
-Rodando o programa de verdade numa Solana local:
+## Live on devnet
 
-- Depósitos nas duas camadas, com participação nas taxas pelo **valor em reais** (quem deposita dólar também recebe as taxas pagas em reais)
-- Taxa de varejo (1%), **desconto de depositante (0,5%)** e **taxa B2B (0,4%)** provados por contas on-chain
-- Posição de outra pessoa não vale como desconto
-- Saque devolve principal **e** taxas acumuladas
-- **Rende sênior:** a Baleia não consegue sacar se deixar a Rende descoberta
-- Limite de 20% da liquidez por troca, proteção de slippage
-- **Pausa de emergência** bloqueia trocas e depósitos, mas **saques continuam liberados**
-- Só o oráculo muda o preço; só o admin muda taxas, e dentro de limites
-- Troca recusada com cotação desatualizada
+The program (version 2, with the fixes from the [security review](docs/AUDITORIA.md)) runs on **Solana devnet**, and
+the demo pool was set up with real transactions. Anyone can check them on Solana Explorer:
 
-## Na devnet, ao vivo
-
-O programa (versão 2, com as correções da [auditoria](docs/AUDITORIA.md)) está na **Solana devnet** e o pool de
-demonstração foi montado com transações reais. Qualquer pessoa pode conferir no Solana Explorer:
-
-- **Programa:** [`AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ`](https://explorer.solana.com/address/AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ?cluster=devnet)
+- **Program:** [`AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ`](https://explorer.solana.com/address/AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ?cluster=devnet)
 - **Pool:** [`BM342uKMYgDQ2hWmhuXnC4JdHtmWAN3kprptRgRxC3pg`](https://explorer.solana.com/address/BM342uKMYgDQ2hWmhuXnC4JdHtmWAN3kprptRgRxC3pg?cluster=devnet)
-- **Oráculo** (chave própria, separada do admin): `HyU5mJweYbRU5wc8CCqXQ2VXBU5WGk1WYsyNFjCtzrwM`. Grava a cotação por consenso de fontes a cada 15 minutos
+- **Oracle** (its own key, separate from the admin): `HyU5mJweYbRU5wc8CCqXQ2VXBU5WGk1WYsyNFjCtzrwM`. Writes the
+  median of agreeing price sources several times a day (scheduled on GitHub Actions, which often runs late; so on
+  devnet the price stays valid for 24 h, and each update can move it at most 10%).
 
-| Operação | Prova |
+| Operation | Proof |
 |---|---|
-| Pool v2 criado (R$ 5.0090 por dólar), só pela autoridade de upgrade | [ver transação](https://explorer.solana.com/tx/5YPpYMHbND3mxSmcEreRXTLGB7AcFUUQj2wnXVFZE78rj7Qu4PXrRSKBkXpXEjGko4vviYpFVhfDupiCAkxsWx9o?cluster=devnet) |
-| Limites: cotação vale 1 h, oráculo move até 10% por vez, depósito travado 10 min | [ver transação](https://explorer.solana.com/tx/5umpEub3GQfQ3WrNwdRW42QuLkHGGyWykPRf3AhhdxXuw9QyTs9xA2GHAbcgsLBJWbag3yV7GNfv124HzBcdaNbX?cluster=devnet) |
-| Oráculo com chave própria (separada do admin) | [ver transação](https://explorer.solana.com/tx/2oWCkWdCnmgxYpyF2gcR1GsPKfrWXRmmJQjLhqqUCScjaFLF9yipUJLN8TgQTcbC9Dx5NHCdWPeLdQHVVFfuursm?cluster=devnet) |
-| Depósito Rende: R$ 50.000 | [ver transação](https://explorer.solana.com/tx/5NXVEY8MQrssHC3N6sYhpuVF8ZszUBjbf6yCKbq9cQ9XTdMFQXEXPmPyt5vHc33qTss43YaTvN4pUnwNRYoXHuDc?cluster=devnet) |
-| Depósito Rende: US$ 10.000 | [ver transação](https://explorer.solana.com/tx/JfjXzvygnoWbFZ3ZnPyev6F6zWpwTQ3zfZ53Sf2uZrLa3JWA1Y5pmsBRQtuMaNAqWST7yzoJhvEpFNpuyrWDALX?cluster=devnet) |
-| Depósito Baleia: R$ 10.000 | [ver transação](https://explorer.solana.com/tx/YHB1JodEYje7AsCbUFqxaY2rdeEXG9Sa8uV9CxQSqkDBdM5mdK25JghhH1TuJUpT67nizPYZwKZRJGTx5ZwHsf5?cluster=devnet) |
-| Depósito Baleia: US$ 2.000 | [ver transação](https://explorer.solana.com/tx/4SRzNa47ps2oJz1hCUt1Nmn1ho4To9ER2NVp25TEEzoTWnxRHZWU6824Xb2BAGGo1WHEbyTMZnHxT3xEYVDEojKB?cluster=devnet) |
-| Troca varejo: R$ 1.000 → dólar (taxa 1%) | [ver transação](https://explorer.solana.com/tx/5Uv1y7AGCuvWgt3ur2MSUht2rWm3xDpdQWzXo7UsCtTuYUYwG13pZcnwGNpwQQdSdtXZy6j7Z98op2f7wtqP5eTt?cluster=devnet) |
-| Troca depositante: R$ 1.000 → dólar (taxa 0,5%) | [ver transação](https://explorer.solana.com/tx/5Ajdt3f1UFP5BHjQJbhJiDQWZBp7VjUoYQ4g5vd3BZ2aU7XpW7xVFgzaY85dT5HmeQemXm92yBvEqtN6R9jcuHUW?cluster=devnet) |
-| App parceiro registrado | [ver transação](https://explorer.solana.com/tx/Qb9whPf3LxnALJMmndT54nymcu8aunhGF6XzxtLtvLAro3dJ2XyjatqeG9BFuZsQSiUqQuxZyuG579LPWuw5swB?cluster=devnet) |
-| Troca B2B: US$ 200 → real (taxa 0,4%) | [ver transação](https://explorer.solana.com/tx/5T7C894q7PnP4A3bXUJhDVz9HeJhsKK5gK8UekmHQHw8GVMJrCJfDh3Nxr2SeVnNr5oHfb5b71nTRLk1p7kBvyQc?cluster=devnet) |
-| Depositante colhe as taxas (nas duas moedas) | [ver transação](https://explorer.solana.com/tx/BAkh9ewTFJ76xNiVxbzBQ9daGusoupGB3arzHanwZJWKG2xB61s1RCK8gFjVghLoZAL7ENUG6uRutvk9Xqq1wuh?cluster=devnet) |
+| Pool v2 created (R$ 5.0090 per dollar), only by the program's upgrade authority | [view transaction](https://explorer.solana.com/tx/5YPpYMHbND3mxSmcEreRXTLGB7AcFUUQj2wnXVFZE78rj7Qu4PXrRSKBkXpXEjGko4vviYpFVhfDupiCAkxsWx9o?cluster=devnet) |
+| Limits: price valid 1 h (now 24 h), oracle moves up to 10% per update, deposits locked 10 min | [view transaction](https://explorer.solana.com/tx/5umpEub3GQfQ3WrNwdRW42QuLkHGGyWykPRf3AhhdxXuw9QyTs9xA2GHAbcgsLBJWbag3yV7GNfv124HzBcdaNbX?cluster=devnet) |
+| Oracle with its own key (separate from the admin) | [view transaction](https://explorer.solana.com/tx/2oWCkWdCnmgxYpyF2gcR1GsPKfrWXRmmJQjLhqqUCScjaFLF9yipUJLN8TgQTcbC9Dx5NHCdWPeLdQHVVFfuursm?cluster=devnet) |
+| Rende deposit: R$ 50,000 | [view transaction](https://explorer.solana.com/tx/5NXVEY8MQrssHC3N6sYhpuVF8ZszUBjbf6yCKbq9cQ9XTdMFQXEXPmPyt5vHc33qTss43YaTvN4pUnwNRYoXHuDc?cluster=devnet) |
+| Rende deposit: US$ 10,000 | [view transaction](https://explorer.solana.com/tx/JfjXzvygnoWbFZ3ZnPyev6F6zWpwTQ3zfZ53Sf2uZrLa3JWA1Y5pmsBRQtuMaNAqWST7yzoJhvEpFNpuyrWDALX?cluster=devnet) |
+| Baleia deposit: R$ 10,000 | [view transaction](https://explorer.solana.com/tx/YHB1JodEYje7AsCbUFqxaY2rdeEXG9Sa8uV9CxQSqkDBdM5mdK25JghhH1TuJUpT67nizPYZwKZRJGTx5ZwHsf5?cluster=devnet) |
+| Baleia deposit: US$ 2,000 | [view transaction](https://explorer.solana.com/tx/4SRzNa47ps2oJz1hCUt1Nmn1ho4To9ER2NVp25TEEzoTWnxRHZWU6824Xb2BAGGo1WHEbyTMZnHxT3xEYVDEojKB?cluster=devnet) |
+| Retail swap: R$ 1,000 → dollars (1% fee) | [view transaction](https://explorer.solana.com/tx/5Uv1y7AGCuvWgt3ur2MSUht2rWm3xDpdQWzXo7UsCtTuYUYwG13pZcnwGNpwQQdSdtXZy6j7Z98op2f7wtqP5eTt?cluster=devnet) |
+| Depositor swap: R$ 1,000 → dollars (0.5% fee) | [view transaction](https://explorer.solana.com/tx/5Ajdt3f1UFP5BHjQJbhJiDQWZBp7VjUoYQ4g5vd3BZ2aU7XpW7xVFgzaY85dT5HmeQemXm92yBvEqtN6R9jcuHUW?cluster=devnet) |
+| Partner app registered | [view transaction](https://explorer.solana.com/tx/Qb9whPf3LxnALJMmndT54nymcu8aunhGF6XzxtLtvLAro3dJ2XyjatqeG9BFuZsQSiUqQuxZyuG579LPWuw5swB?cluster=devnet) |
+| B2B swap: US$ 200 → reais (0.4% fee) | [view transaction](https://explorer.solana.com/tx/5T7C894q7PnP4A3bXUJhDVz9HeJhsKK5gK8UekmHQHw8GVMJrCJfDh3Nxr2SeVnNr5oHfb5b71nTRLk1p7kBvyQc?cluster=devnet) |
+| Depositor harvests fees (in both currencies) | [view transaction](https://explorer.solana.com/tx/BAkh9ewTFJ76xNiVxbzBQ9daGusoupGB3arzHanwZJWKG2xB61s1RCK8gFjVghLoZAL7ENUG6uRutvk9Xqq1wuh?cluster=devnet) |
 
-Moedas de teste (cBRL e cUSD), sem valor real. Endereços completos em [`deployments/devnet.json`](deployments/devnet.json).
+Test tokens (cBRL and cUSD), with no real value. Full addresses in [`deployments/devnet.json`](deployments/devnet.json).
 
-## O app usa a Solana de verdade (sem a pessoa perceber)
+## The app really uses Solana (without the user noticing)
 
-Na [demo](https://powerdeblack.github.io/cambi/), **"Criar minha conta grátis"** liga o app ao programa na devnet:
+In the [demo](https://powerdeblack.github.io/cambi/), **“Criar minha conta grátis”** connects the app to the program on
+devnet:
 
-- **Conta invisível:** a conta na Solana é criada no próprio aparelho. Sem frase-semente, sem extensão, sem precisar
-  de cripto. Quem já usa cripto pode escolher **"Prefiro usar minha Phantom"**.
-- **Moedas de teste do próprio programa:** um faucet on-chain dá R$ 1.000 de teste (cBRL), com regras na blockchain
-  (1 vez por hora, só para quem tem pouco saldo, teto global). O SOL das taxas vem do faucet público da Solana.
-  Nenhuma chave com poder fica no app.
-- **Tudo vira transação real:** troca, depósito na Rende, rendimento, resgate, Pix e envio em dólar. Cada comprovante
-  tem o link **"ver na blockchain"**.
-- **A prévia é a conta do programa:** o app calcula a troca com a mesma matemática do programa (porta fiel de
-  `quote`, em inteiros), então o valor mostrado antes de confirmar é o valor recebido, centavo por centavo.
+- **Invisible account:** the Solana account is created on the device itself. No seed phrase, no extension, no crypto
+  needed. Crypto users can choose **“Prefiro usar minha Phantom”** (use my Phantom wallet).
+- **Test money from the program itself:** an on-chain faucet gives R$ 1,000 in test tokens (cBRL), with rules on the
+  blockchain (once per hour, only for low balances, global hourly cap). SOL for fees comes from Solana's public
+  faucet. No privileged key lives in the app.
+- **Everything is a real transaction:** swap, Rende deposit, fee harvest, withdrawal, Pix and dollar transfers. Every
+  receipt links to the blockchain (**“ver na blockchain”**).
+- **The preview is the program's math:** the app computes the swap with the same integer math as the program (a
+  faithful port of `quote`), so the amount shown before confirming is the amount received, to the cent.
 
-Comprovado automaticamente pelo workflow [Teste de ponta a ponta na devnet](../../actions/workflows/e2e-devnet.yml)
-(roda a cada 6 horas):
+Checked automatically by the [end-to-end devnet workflow](../../actions/workflows/e2e-devnet.yml):
 
-1. **Cliente do app contra o programa real:** conta nova → troca (recebe exatamente a prévia) → depósito na Rende →
-   troca como depositante (0,5%) → colher taxas (recebe exatamente o pendente) → envio USDC → Pix → resgate.
-2. **As telas num navegador real:** cria a conta, troca, deposita e envia um Pix pela interface, esperando cada
-   comprovante da Solana.
+1. **The app's client against the real program:** new account → swap (receives exactly the preview) → Rende deposit
+   → depositor swap (0.5%) → fee harvest (receives exactly the pending amount) → USDC transfer → Pix → withdrawal.
+2. **The screens in a real browser:** creates the account, swaps, deposits and sends a Pix through the UI, waiting
+   for each Solana receipt.
 
-Em produção, a conta invisível vem de um provedor de carteira embutida (login com e-mail ou Google, confirmação por
-biometria) e um servidor paga as taxas da rede. Nenhuma chave com poder vai para o app.
+In production, the invisible account comes from an embedded wallet provider (sign in with email or Google, confirm
+with biometrics) and a server pays network fees. No privileged key goes to the app.
 
-## Rodar localmente
+## What's in this repository
+
+| Folder | Contents | Status |
+|---|---|---|
+| [`programs/cambi_pool`](programs/cambi_pool) | Solana program in Rust/Anchor 0.31 | ✅ Builds for Solana (SBF) · 12 unit tests · security review |
+| [`tests/`](tests) | Integration tests on a local Solana validator | ✅ 23 tests passing on [GitHub Actions](../../actions/workflows/solana.yml) |
+| [`scripts/`](scripts) | Devnet pool setup, oracle and maintenance | ✅ [Deployed on devnet](#live-on-devnet) |
+| [`app/`](app) | Web app (React + Vite + TypeScript), installable on phones | ✅ [Live](https://powerdeblack.github.io/cambi/) · 39 tests · real devnet transactions |
+| [`sim/`](sim) | Economic simulation (Python) | ✅ |
+| [`docs/`](docs) | [Architecture](docs/ARQUITETURA.md) · [Economics](docs/ECONOMIA.md) · [Market](docs/MERCADO.md) · [Brand](docs/MARCA.md) · [Validation](docs/VALIDACAO.md) · [Colosseum](docs/COLOSSEUM.md) (Portuguese) | ✅ |
+
+### What the integration tests prove
+
+Running the real program on a local Solana validator:
+
+- Deposits in both tranches, with fee shares based on **value in reais** (dollar depositors also earn fees paid in
+  reais)
+- Retail fee (1%), **depositor discount (0.5%)** and **B2B fee (0.4%)**, each proven by on-chain accounts
+- Someone else's position does not count for the discount
+- Withdrawals return principal **and** accrued fees
+- **Rende is senior:** Baleia cannot withdraw if it would leave Rende uncovered
+- 20% of liquidity per swap, slippage protection
+- **Emergency pause** blocks swaps and deposits, but **withdrawals stay open**
+- Only the oracle changes the price; only the admin changes fees, and within limits
+- Swaps are rejected with a stale price
+
+## Run locally
 
 ```bash
-# Demo web
+# Web demo
 cd app && npm install && npm run dev      # http://localhost:5173
-npm test                                  # testes do motor do pool
+npm test                                  # pool engine tests
 
-# Testes unitários do programa (sem Solana CLI)
+# Program unit tests (no Solana CLI needed)
 cargo test -p cambi_pool
 
-# Testes de integração (requer Solana CLI + Anchor 0.31)
+# Integration tests (requires Solana CLI + Anchor 0.31)
 npm install && anchor build && anchor keys sync && anchor test
 
-# Simulação econômica
+# Economic simulation
 python3 sim/cambi_sim.py
 ```
 
 ## Stack
 
-Solana · Anchor 0.31 · SPL Token · React 18 · Vite · TypeScript · Mocha/Chai · Vitest · GitHub Actions · Python
+Solana · Anchor 0.31 · SPL Token · React 18 · Vite · TypeScript · Mocha/Chai · Vitest · Playwright · GitHub Actions ·
+Python
 
-## Segurança
+## Security
 
-Revisão de segurança completa do programa, do app e da infraestrutura, com cada ataque reproduzido num teste:
-[docs/AUDITORIA.md](docs/AUDITORIA.md). Para relatar uma falha: [SECURITY.md](SECURITY.md).
+A full security review of the program, the app and the infrastructure, with each attack reproduced in a test:
+[docs/AUDITORIA.md](docs/AUDITORIA.md) (Portuguese). It found 1 high and 4 medium issues; all are fixed. No external
+audit yet. To report a vulnerability: [SECURITY.md](SECURITY.md).
 
-- A Rende é sênior nas duas moedas; depósitos têm trava de resgate e há limite de saída por minuto
-- O oráculo só move o preço até 10% por vez, por consenso de várias fontes, com chave separada do admin
-- Só a autoridade de upgrade cria pools; a troca de admin é feita em dois passos
-- Faucet de testes só na versão devnet (o CI confere que o binário de produção não o contém)
-- Ações do GitHub fixadas por hash, nenhum código de fork roda com acesso às chaves, auditoria de dependências semanal
+- Rende is senior in both currencies; deposits have a withdrawal lockup and there is a per-minute outflow limit
+- The oracle moves the price at most 10% per update, by consensus of several sources, with a key separate from the
+  admin
+- Only the program's upgrade authority creates pools; admin changes take two steps
+- The test faucet exists only in the devnet build (CI checks that the production binary does not contain it)
+- GitHub Actions pinned by commit hash, no fork code runs with access to keys, weekly dependency audit
 
-## Regulação e riscos
+## Regulation and risks
 
-- **Descentralizado por dentro, regulado na porta:** entrada e saída via Pix devem ser feitas por uma SPSAV
-  autorizada pelo Banco Central. Desde fevereiro de 2026 (Res. BCB 519/520/521), operações com stablecoin atrelada
-  a moeda estrangeira são tratadas como câmbio.
-- Rendimento para depositantes tende a ser enquadrado como oferta de investimento (CVM); a camada Baleia é pensada
-  para investidores qualificados.
-- **O dinheiro no pool não tem garantia do FGC.**
-- O programa **não foi auditado**. Esta é uma versão de hackathon: não use com dinheiro real.
-- Limitações conhecidas (oráculo, marcação a mercado da Baleia, renda fixa tokenizada) em [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
+- **Decentralized inside, regulated at the door:** Pix on- and off-ramps must go through a provider authorized by
+  Brazil's Central Bank (SPSAV). Since February 2026 (Res. BCB 519/520/521), trades with stablecoins pegged to a
+  foreign currency are treated as foreign exchange.
+- Returns for depositors are likely to be classed as an investment offering (CVM, Brazil's securities regulator);
+  Baleia is designed for qualified investors.
+- **Money in the pool is not covered by deposit insurance (FGC).**
+- The program **has not been externally audited**. This is a hackathon version: do not use it with real money.
+- Known limitations (oracle, Baleia mark-to-market, tokenized fixed income) in
+  [docs/ARQUITETURA.md](docs/ARQUITETURA.md) (Portuguese).
 
 ## Hackathon
 
-Projeto criado para o **Colosseum Crypto World's Fair** (inscrições até 13/10/2026). Todo o código foi escrito
-durante o hackathon; não há trabalho pré-existente. Checklist da submissão em [docs/COLOSSEUM.md](docs/COLOSSEUM.md).
+Built for the **Colosseum Crypto World's Fair** (submissions until Oct 13, 2026). All code was written during the
+hackathon; there is no pre-existing work.
 
-**Autoria:** fundador solo, [@powerdeblack](https://github.com/powerdeblack), de São Paulo. Desenvolvido com apoio de
-IA: Claude Code no código e Colosseum Copilot na pesquisa, os dois declarados na submissão. As decisões de produto
-são do fundador. Os primeiros commits aparecem com o autor "Claude" (a identidade padrão do agente de código); os
-seguintes saem pela conta do fundador.
+**Authorship:** solo founder, [@powerdeblack](https://github.com/powerdeblack), from São Paulo, Brazil. A product
+designer building with AI: Claude Code for coding and Colosseum Copilot for research, both declared in the submission.
+Product decisions are the founder's. Early commits show “Claude” as the author (the coding agent's default git
+identity); later commits come from the founder's account.
 
-## Licença
+## License
 
 [MIT](LICENSE)

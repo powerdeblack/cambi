@@ -41,7 +41,7 @@ submitted Github repo?" e "Are Colosseum hackathons only for new products?".
 ## Fatos atuais para conferir nos campos (8/10)
 
 - **Programa na devnet:** `AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ` (v2). O pool e as provas estão em
-  [README](../README.md#na-devnet-ao-vivo).
+  [README](../README.md#live-on-devnet).
 - **No app, tudo vira transação real:** troca, depósito na Rende, colher rendimento, resgate e envio (Pix, conta nos
   EUA e carteira USDC). Cada comprovante tem o link para o Explorer.
 - **A prévia da troca usa a mesma conta do programa:** o valor mostrado é o valor recebido, provado em teste.
@@ -65,7 +65,7 @@ submitted Github repo?" e "Are Colosseum hackathons only for new products?".
 | Insight | Spread invisível; o cliente vira dono; regra de 2026 do BC (stablecoin = câmbio) | Dizer isso de forma explícita nos textos e no vídeo |
 | Produto e execução | Programa na devnet, app com transações reais, revisão de segurança | Mostrar no vídeo de demo |
 | Tamanho de mercado | [MERCADO.md](MERCADO.md): dados com fonte e conta transparente | Escolher 2 ou 3 números e dizer com suas palavras |
-| Comunicação | README em português e resumo em inglês | Os vídeos (com legenda em inglês) |
+| Comunicação | README em inglês, com versão em português (README.pt-BR.md) | Os vídeos (com legenda em inglês) |
 | Viabilidade | [ECONOMIA.md](ECONOMIA.md) | Preencher a monetização com suas palavras |
 | Tração | Roteiro em [VALIDACAO.md](VALIDACAO.md) | Conversas reais e números: o maior buraco hoje |
 
@@ -135,7 +135,7 @@ Dica: grave a tela do celular ou o navegador em modo celular (largura de uns 420
 
 ## Antes de enviar
 
-- [x] Repositório público, README com resumo em inglês e declaração de autoria e IA
+- [x] Repositório público, README em inglês (e versão em português) com declaração de autoria e IA
 - [x] Demo publicada e programa na devnet com transações reais
 - [x] Revisão de segurança publicada
 - [ ] GitHub ligado ao perfil da Colosseum
