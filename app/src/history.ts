@@ -113,3 +113,14 @@ export function saveAlert(a: RateAlert | null) {
     /* navegação privada: o alerta vale só enquanto a tela estiver aberta */
   }
 }
+
+// Histórico guardado por 10 minutos: o cartão do dólar e a tela "Meus dólares" usam a mesma busca.
+const cache = new Map<Period, { at: number; points: Promise<RatePoint[]> }>();
+export function cachedHistory(days: Period, now = Date.now()): Promise<RatePoint[]> {
+  const hit = cache.get(days);
+  if (hit && now - hit.at < 600_000) return hit.points;
+  const points = fetchHistory(days);
+  cache.set(days, { at: now, points });
+  points.catch(() => cache.delete(days));
+  return points;
+}

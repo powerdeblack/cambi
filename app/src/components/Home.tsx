@@ -1,9 +1,10 @@
 import { PoolState } from "../engine/pool";
-import { money, reais } from "../format";
+import { money, rate, reais } from "../format";
+import { dollarResult } from "../position";
 import { Wallet, isDepositor } from "../wallet";
 import { Brand } from "./Brand";
 import { ACTIVITY_ICON, activityTitle } from "../activity";
-import { GrowIcon, SendIcon, SwapIcon } from "./Icons";
+import { ChevronIcon, GrowIcon, SendIcon, SwapIcon } from "./Icons";
 
 interface Props {
   pool: PoolState;
@@ -12,13 +13,15 @@ interface Props {
   onSend: () => void;
   onSimulateMarket?: () => void;
   onStatement: () => void;
+  onDollars: () => void;
 }
 
-export function Home({ pool, wallet, go, onSend, onSimulateMarket, onStatement }: Props) {
+export function Home({ pool, wallet, go, onSend, onSimulateMarket, onStatement, onDollars }: Props) {
   const p = pool.price;
   const free = wallet.balance.BRL + wallet.balance.USD * p;
   const invested = wallet.rende.BRL + wallet.rende.USD * p;
   const earned = wallet.earned.BRL + wallet.earned.USD * p;
+  const dollars = dollarResult(wallet, p);
 
   return (
     <>
@@ -57,10 +60,20 @@ export function Home({ pool, wallet, go, onSend, onSimulateMarket, onStatement }
             <span>Real</span>
             <strong>{money("BRL", wallet.balance.BRL)}</strong>
           </li>
-          <li>
-            <span className="flag">🇺🇸</span>
-            <span>Dólar digital</span>
-            <strong>{money("USD", wallet.balance.USD)}</strong>
+          <li className="tap">
+            <button className="row-btn" onClick={onDollars}>
+              <span className="flag">🇺🇸</span>
+              <span>
+                Dólar digital
+                {dollars ? (
+                  <small className="muted">preço médio {rate(dollars.avgPrice)}</small>
+                ) : (
+                  <small className="muted">ver preço médio</small>
+                )}
+              </span>
+              <strong>{money("USD", wallet.balance.USD)}</strong>
+              <ChevronIcon />
+            </button>
           </li>
         </ul>
       </section>

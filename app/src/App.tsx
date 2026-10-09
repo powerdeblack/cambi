@@ -4,6 +4,7 @@ import { useChain } from "./chain/useChain";
 import { AlertSheet } from "./components/AlertSheet";
 import { ChainCard } from "./components/ChainCard";
 import { DollarCard } from "./components/DollarCard";
+import { DollarScreen } from "./components/DollarScreen";
 import { Exchange } from "./components/Exchange";
 import { Home } from "./components/Home";
 import { BankIcon, ChevronIcon, GrowIcon, HomeIcon, KeyIcon, PoolIcon, SwapIcon } from "./components/Icons";
@@ -69,6 +70,7 @@ export default function App() {
   const [flow, setFlow] = useState<Flow>(null);
   const [chooser, setChooser] = useState(false);
   const [statement, setStatement] = useState(false);
+  const [dollarsOpen, setDollarsOpen] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
   const [alert, setAlert] = useState<RateAlert | null>(loadAlert);
   const [alertFired, setAlertFired] = useState<{ alert: RateAlert; price: number } | null>(null);
@@ -295,6 +297,7 @@ export default function App() {
             onSend={() => setChooser(true)}
             onSimulateMarket={live ? undefined : handleMarket}
             onStatement={() => setStatement(true)}
+            onDollars={() => setDollarsOpen(true)}
           />
         )}
         {tab === "inicio" && <QuickSim pool={viewPool} wallet={view} onSwap={() => setTab("trocar")} />}
@@ -384,6 +387,23 @@ export default function App() {
       {alertOpen && <AlertSheet price={livePrice ?? pool.price} alert={alert} onSave={updateAlert} onClose={() => setAlertOpen(false)} />}
 
       {statement && <Statement wallet={view} onClose={() => setStatement(false)} />}
+
+      {dollarsOpen && (
+        <DollarScreen
+          wallet={view}
+          quote={quote}
+          price={viewPool.price}
+          onSwap={() => {
+            setDollarsOpen(false);
+            setTab("trocar");
+          }}
+          onRende={() => {
+            setDollarsOpen(false);
+            setTab("rende");
+          }}
+          onClose={() => setDollarsOpen(false)}
+        />
+      )}
 
       {flow?.kind === "send" && (
         <SendFlow

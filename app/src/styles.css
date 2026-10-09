@@ -427,6 +427,27 @@ a.as-button { display: inline-flex; align-items: center; justify-content: center
 .statement-day .card { padding: 4px 16px; }
 .statement-day small { display: block; }
 
+/* ---------- Meus dólares ---------- */
+.list li.tap { padding: 0; }
+.list li.tap .row-btn { padding: 12px 0; }
+.list li.tap .row-btn > span:nth-child(2) small { display: block; font-size: 0.8rem; }
+.dollar-hero .big { font-size: 1.9rem; }
+.dollar-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+.dollar-compare span { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.08); }
+.dollar-compare small { color: rgba(255,255,255,0.7); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+.dollar-compare strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.ref-tag {
+  position: absolute; right: 0; transform: translateY(-120%); padding: 2px 6px; border-radius: 6px; pointer-events: none;
+  font-size: 0.7rem; font-weight: 700; color: var(--whale); background: var(--card); white-space: nowrap;
+}
+.legend { display: flex; align-items: center; gap: 6px; margin: 4px 0 0; }
+.legend-line { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--green); }
+.legend-line.dashed { border-top: 2px dashed var(--whale); }
+.result-list li > span:first-child { flex: 1; display: flex; flex-direction: column; }
+.result-list li.total { border-top: 2px solid var(--line); font-weight: 700; }
+.result-list li.total strong { font-size: 1.15rem; }
+.neg-red { color: var(--error); font-weight: 700; }
+
 /* Tela de abertura (index.html): marca sobre o azul do app, como nos apps de banco */
 .splash {
   position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center;
