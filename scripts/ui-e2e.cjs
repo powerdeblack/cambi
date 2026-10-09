@@ -100,7 +100,7 @@ fs.mkdirSync(out, { recursive: true });
 
   await browser.close();
   // Fontes externas de cotação e histórico podem limitar o IP do runner; o app trata isso e segue funcionando.
-  const relevant = errors.filter((e) => !/favicon|429|Failed to load resource/i.test(e) && !/CORS policy.*(awesomeapi|frankfurter|coinbase|er-api)/i.test(e));
+  const relevant = errors.filter((e) => !/favicon|429|Failed to load resource/i.test(e) && !(/CORS policy/i.test(e) && /awesomeapi|frankfurter|coinbase|er-api/i.test(e)));
   if (relevant.length) {
     console.error("Erros no navegador:\n" + relevant.join("\n"));
     process.exit(1);
