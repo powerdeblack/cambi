@@ -166,8 +166,8 @@ function MyPosition({ live, data, status, onRende }: { live: Live; data: Data; s
       <small className="hero-sub">
         {[brl > 0 && money("BRL", brl), usd > 0 && money("USD", usd)].filter(Boolean).join(" + ")} · desde {day(start)}
       </small>
-      <div className="hero-tiles">
-        <div>
+      <div className="hero-tiles my-tiles">
+        <div className="wide">
           <small>Rendeu até agora</small>
           <strong>+{fine(earned)}</strong>
           <small>{invested <= 0 ? "—" : earned > 0 && earned / invested < 0.0001 ? "< 0,01% do valor" : `${pct2(earned / invested)} do valor`}</small>
@@ -194,8 +194,12 @@ function MyPosition({ live, data, status, onRende }: { live: Live; data: Data; s
           label={`Seu rendimento real no pool: ${fine(earned)} desde ${day(start)}, ${markers.length} depósito(s) marcados.`}
         />
         <p className="chart-legend small">
-          <span className="legend-line" aria-hidden /> rendimento acumulado
-          <span className="legend-diamond" aria-hidden /> seus depósitos
+          <span className="legend-item">
+            <span className="legend-line" aria-hidden /> rendimento acumulado
+          </span>
+          <span className="legend-item">
+            <span className="legend-diamond" aria-hidden /> seus depósitos
+          </span>
         </p>
       </div>
       <p className="hero-note">
@@ -289,11 +293,13 @@ function PoolNow({ data, owner, status }: { data: Data; owner?: string; status: 
             label={`Total pago aos donos nas últimas ${swaps} trocas: ${fine(paid)}.`}
           />
           <p className="chart-legend small">
-            <span className="legend-line" aria-hidden /> acumulado (Rende + Baleia)
+            <span className="legend-item">
+              <span className="legend-line" aria-hidden /> acumulado (Rende + Baleia)
+            </span>
             {markers.length > 0 && (
-              <>
+              <span className="legend-item">
                 <span className="legend-diamond" aria-hidden /> suas trocas
-              </>
+              </span>
             )}
           </p>
         </>

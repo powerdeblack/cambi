@@ -48,17 +48,19 @@ export function LineChart({ series, xLabel, format, formatAxis, label, height = 
   // Valores que nunca são negativos (acumulados) não ganham eixo abaixo de zero.
   const yMin = lo >= 0 ? Math.max(0, lo - span * 0.08) : lo - span * 0.08;
   const yMax = hi + span * 0.08;
-  const iw = width - PAD.left - PAD.right;
-  const ih = height - PAD.top - PAD.bottom;
-  const x = (i: number) => PAD.left + (i / (n - 1)) * iw;
-  const y = (v: number) => PAD.top + (1 - (v - yMin) / (yMax - yMin)) * ih;
   const ticks = [0, 0.5, 1].map((t) => yMin + (yMax - yMin) * t);
+  // Margem esquerda cresce com o rótulo mais longo do eixo (ex.: 0,000052), para não cortar.
+  const left = Math.max(PAD.left, Math.max(...ticks.map((t) => formatAxis(t).length)) * 6.2 + 10);
+  const iw = width - left - PAD.right;
+  const ih = height - PAD.top - PAD.bottom;
+  const x = (i: number) => left + (i / (n - 1)) * iw;
+  const y = (v: number) => PAD.top + (1 - (v - yMin) / (yMax - yMin)) * ih;
   const xTicks = [0, Math.round((n - 1) / 2), n - 1];
 
   function scrub(e: React.PointerEvent<HTMLDivElement>) {
     const r = e.currentTarget.getBoundingClientRect();
     const px = ((e.clientX - r.left) / r.width) * width;
-    const i = Math.round(((px - PAD.left) / iw) * (n - 1));
+    const i = Math.round(((px - left) / iw) * (n - 1));
     setHover(Math.max(0, Math.min(n - 1, i)));
   }
 
@@ -79,8 +81,8 @@ export function LineChart({ series, xLabel, format, formatAxis, label, height = 
       <svg width={width} height={height} aria-hidden>
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} className="grid" />
-            <text x={PAD.left - 6} y={y(t) + 4} textAnchor="end" className="axis">
+            <line x1={left} x2={width - PAD.right} y1={y(t)} y2={y(t)} className="grid" />
+            <text x={left - 6} y={y(t) + 4} textAnchor="end" className="axis">
               {formatAxis(t)}
             </text>
           </g>
