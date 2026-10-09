@@ -7,7 +7,7 @@ import { DollarCard } from "./components/DollarCard";
 import { DollarScreen } from "./components/DollarScreen";
 import { Exchange } from "./components/Exchange";
 import { Home } from "./components/Home";
-import { BankIcon, ChevronIcon, GrowIcon, HomeIcon, KeyIcon, PoolIcon, SwapIcon } from "./components/Icons";
+import { BankIcon, ChevronIcon, GrowIcon, HomeIcon, KeyIcon, PoolIcon, SwapIcon, UserIcon } from "./components/Icons";
 import { Logo } from "./components/Logo";
 import { OnchainCard } from "./components/OnchainCard";
 import { PoolDashboard } from "./components/PoolDashboard";
@@ -19,6 +19,10 @@ import { Sheet } from "./components/Sheet";
 import { Statement } from "./components/Statement";
 import { BENCHMARKS, PoolState, Side, SwapResult, createPool, deposit, setPrice } from "./engine/pool";
 import { money, rate } from "./format";
+import { EMPTY_PROFILE, Profile, isVerified, limitProblem, loadProfile, saveProfile } from "./compliance";
+import { Legal, LegalDoc } from "./components/Legal";
+import { ProfileScreen } from "./components/ProfileScreen";
+import { SuitabilitySheet } from "./components/SuitabilitySheet";
 import { RateAlert, alertHit, loadAlert, saveAlert } from "./history";
 import { useLiveQuote } from "./useLiveQuote";
 import { INITIAL_WALLET, Recipient, Wallet, rememberRecipient, sanitizeWallet, simulateMarket, walletDeposit, walletSend, walletSwap } from "./wallet";
@@ -71,6 +75,14 @@ export default function App() {
   const [chooser, setChooser] = useState(false);
   const [statement, setStatement] = useState(false);
   const [dollarsOpen, setDollarsOpen] = useState(false);
+  const [profile, setProfileState] = useState<Profile>(loadProfile);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [suitabilityOpen, setSuitabilityOpen] = useState(false);
+  const [legal, setLegal] = useState<LegalDoc | null>(null);
+  const setProfile = (p: Profile) => {
+    setProfileState(p);
+    saveProfile(p);
+  };
   const [alertOpen, setAlertOpen] = useState(false);
   const [alert, setAlert] = useState<RateAlert | null>(loadAlert);
   const [alertFired, setAlertFired] = useState<{ alert: RateAlert; price: number } | null>(null);
@@ -80,7 +92,17 @@ export default function App() {
   const quote = useLiveQuote((q) => setPool((p) => (touched.current ? setPrice(p, q.price) : seedPool(q.price))));
 
   // Conta na Solana (devnet): quando ativa, saldos e operações são reais na blockchain.
-  const { chain, activate, deactivate, run, record, claim } = useChain();
+  const { chain, activate: activateChain, deactivate, run, record, claim } = useChain();
+  // Criar a conta registra o aceite dos Termos e da Política de privacidade (LGPD).
+  const activate: typeof activateChain = (kind, opts) => {
+    setProfileState((p) => {
+      if (p.termsAcceptedAt) return p;
+      const next = { ...p, termsAcceptedAt: Date.now() };
+      saveProfile(next);
+      return next;
+    });
+    return activateChain(kind, opts);
+  };
   const live = chain.status === "ready" && chain.state ? { ...chain, state: chain.state } : null;
   const chainPrice = live ? Number(live.state.pool.price) / 1e6 : null;
   const view: Wallet = live
@@ -116,6 +138,9 @@ export default function App() {
     }
   }, [alert, livePrice]);
 
+  /** Limite por operação da conta, com o valor convertido para reais. */
+  const limitCheck = (side: Side, amount: number) => limitProblem(profile, side === "BRL" ? amount : amount * viewPool.price);
+
   function updateAlert(a: RateAlert | null) {
     setAlert(a);
     saveAlert(a);
@@ -133,7 +158,7 @@ export default function App() {
   // Ao trocar de aba, volta ao topo, como num app nativo.
   useEffect(() => window.scrollTo({ top: 0 }), [tab]);
 
-  async function chainSwap(side: Side, amount: number): Promise<SwapResult> {
+  async function chainSwap(side: Side, amount: number, purpose?: string): Promise<SwapResult> {
     // O mínimo aceito vem do valor que a pessoa viu na tela (prévia do mesmo estado exibido).
     const shown = previewSwap(live!.state, idx(side), toUnits(amount)).q.amountOut;
     const res = await run((c, s, st) => c.swap(s, st, idx(side), toUnits(amount), shown));
@@ -158,7 +183,7 @@ export default function App() {
       state: { ...pool, price },
       signature: res.sig,
     };
-    record({ kind: "swap", side, amountIn: amount, amountOut: result.amountOut, fee: feeTotal, savedVsBank: comparison[0].cost - feeBRL, sig: res.sig });
+    record({ kind: "swap", side, amountIn: amount, amountOut: result.amountOut, fee: feeTotal, savedVsBank: comparison[0].cost - feeBRL, purpose, sig: res.sig });
     return result;
   }
 
@@ -202,9 +227,9 @@ export default function App() {
     return sig;
   }
 
-  function handleSwap(side: Side, amount: number) {
+  function handleSwap(side: Side, amount: number, purpose?: string) {
     touched.current = true;
-    const r = walletSwap(pool, wallet, side, amount);
+    const r = walletSwap(pool, wallet, side, amount, purpose);
     setPool(r.pool);
     setWallet(r.wallet);
     return r.result;
@@ -251,7 +276,13 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <Logo height={28} />
-        <span className="demo-badge">{live ? "Devnet" : "Demo"}</span>
+        <div className="topbar-right">
+          <span className="demo-badge">{live ? "Devnet" : "Demo"}</span>
+          <button className="icon-btn profile-btn" onClick={() => setProfileOpen(true)} aria-label={isVerified(profile) ? "Perfil" : "Perfil: identidade não verificada"}>
+            <UserIcon />
+            {!isVerified(profile) && <span className="badge-dot" aria-hidden />}
+          </button>
+        </div>
       </header>
 
       <main key={tab} className="screen">
@@ -283,6 +314,7 @@ export default function App() {
             balanceBRL={view.balance.BRL}
             onActivate={activate}
             onDeactivate={deactivate}
+            onLegal={setLegal}
             onFaucet={async () => {
               const sig = await claim();
               record({ kind: "faucet", side: "BRL", amountIn: 1_000, sig });
@@ -306,6 +338,8 @@ export default function App() {
             pool={viewPool}
             wallet={view}
             onSwap={live ? chainSwap : handleSwap}
+            limitCheck={limitCheck}
+            onVerify={() => setProfileOpen(true)}
             preview={live ? chainPreview : undefined}
             onDone={() => setTab("inicio")}
             onSendOut={(side, amount) => {
@@ -318,6 +352,9 @@ export default function App() {
           <Rende
             wallet={view}
             onDeposit={live ? chainDeposit : handleDeposit}
+            suitability={profile.suitability?.profile}
+            onSuitability={() => setSuitabilityOpen(true)}
+            limitCheck={limitCheck}
             onchain={
               live
                 ? {
@@ -388,6 +425,36 @@ export default function App() {
 
       {statement && <Statement wallet={view} onClose={() => setStatement(false)} />}
 
+      {profileOpen && (
+        <ProfileScreen
+          profile={profile}
+          wallet={view}
+          onSave={setProfile}
+          onSuitability={() => setSuitabilityOpen(true)}
+          onLegal={setLegal}
+          onErase={() => {
+            setProfile(EMPTY_PROFILE);
+            saveProfile(null);
+            updateAlert(null);
+            reset();
+            setProfileOpen(false);
+          }}
+          onClose={() => setProfileOpen(false)}
+        />
+      )}
+
+      {suitabilityOpen && (
+        <SuitabilitySheet
+          onSave={(s) => {
+            setProfile({ ...profile, suitability: { profile: s, at: Date.now() } });
+            setSuitabilityOpen(false);
+          }}
+          onClose={() => setSuitabilityOpen(false)}
+        />
+      )}
+
+      {legal && <Legal doc={legal} onClose={() => setLegal(null)} />}
+
       {dollarsOpen && (
         <DollarScreen
           wallet={view}
@@ -412,6 +479,7 @@ export default function App() {
           wallet={view}
           initialCents={flow.cents}
           onSend={handleSend}
+          limitCheck={limitCheck}
           onClose={() => setFlow(null)}
         />
       )}

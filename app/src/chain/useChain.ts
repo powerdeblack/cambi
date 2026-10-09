@@ -18,6 +18,7 @@ export interface ChainActivity {
   savedVsBank?: number;
   to?: string;
   route?: string;
+  purpose?: string; // finalidade da troca (só no aparelho)
   sig: string;
   at: number;
 }

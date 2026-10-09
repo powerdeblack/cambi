@@ -16,6 +16,7 @@ import { Recipient, Wallet } from "../wallet";
 import { FlowScreen } from "./FlowScreen";
 import { BankIcon, CheckIcon, ChevronIcon, CopyIcon, KeyIcon, ShareIcon, ShieldIcon, WalletIcon } from "./Icons";
 import { MoneyInput } from "./MoneyInput";
+import { TRAVEL_RULE_USD, isSanctioned, travelRuleApplies } from "../compliance";
 
 interface Props {
   side: Side; // BRL = Pix; USD = conta nos EUA ou carteira
@@ -24,6 +25,8 @@ interface Props {
   /** Pode ser assíncrono (modo blockchain); devolve a assinatura da transação quando houver. */
   onSend: (side: Side, amount: number, fee: number, recipient: Recipient) => void | string | Promise<void | string>;
   onClose: () => void;
+  /** Limite por operação da conta (null = dentro do limite). */
+  limitCheck: (side: Side, amount: number) => string | null;
 }
 
 type Step = "destino" | "valor" | "revisar" | "enviando" | "pronto" | "erro";
@@ -36,7 +39,7 @@ const STAGES: Record<Recipient["route"], string[]> = {
 
 const reduceMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-export function SendFlow({ side, wallet, initialCents, onSend, onClose }: Props) {
+export function SendFlow({ side, wallet, initialCents, onSend, onClose, limitCheck }: Props) {
   const [step, setStep] = useState<Step>("destino");
   const [recipient, setRecipient] = useState<Recipient | null>(null);
   const [cents, setCents] = useState(initialCents ?? 0);
@@ -52,6 +55,13 @@ export function SendFlow({ side, wallet, initialCents, onSend, onClose }: Props)
   const amount = cents / 100;
   const balance = wallet.balance[side];
   const over = amount + fee > balance + 1e-9;
+  const limit = amount > 0 && !over ? limitCheck(side, amount) : null;
+  // Envio para carteira: triagem de sanções e, a partir de US$ 1.000, a Travel Rule (dados de quem recebe).
+  const sanctioned = route === "usdc" && isSanctioned(recipient?.data.address ?? "");
+  const travel = travelRuleApplies(route, amount);
+  const [ownWallet, setOwnWallet] = useState<boolean | null>(null);
+  const [beneficiary, setBeneficiary] = useState("");
+  const travelOk = !travel || ownWallet === true || (ownWallet === false && beneficiary.trim().split(/\s+/).length >= 2);
 
   // Começa o envio uma única vez ao entrar na etapa "enviando".
   useEffect(() => {
@@ -121,7 +131,7 @@ export function SendFlow({ side, wallet, initialCents, onSend, onClose }: Props)
         onBack={() => setStep("destino")}
         onClose={onClose}
         footer={
-          <button className="primary" disabled={cents === 0 || over} onClick={() => setStep("revisar")}>
+          <button className="primary" disabled={cents === 0 || over || Boolean(limit)} onClick={() => setStep("revisar")}>
             Continuar
           </button>
         }
@@ -133,6 +143,7 @@ export function SendFlow({ side, wallet, initialCents, onSend, onClose }: Props)
             ? `Saldo insuficiente${fee ? " (inclui a tarifa)" : ""}. Disponível: ${money(side, balance)}`
             : `Disponível: ${money(side, balance)}`}
         </p>
+        {limit && <p className="warn-box">{limit}</p>}
         <div className="chips">
           {presets.map((p) => (
             <button key={p.label} className="chip" onClick={() => setCents(p.cents)} disabled={p.cents === 0}>
@@ -158,7 +169,7 @@ export function SendFlow({ side, wallet, initialCents, onSend, onClose }: Props)
         onBack={() => setStep("valor")}
         onClose={onClose}
         footer={
-          <button className="primary" onClick={() => { setStage(0); setStep("enviando"); }}>
+          <button className="primary" disabled={sanctioned || !travelOk} onClick={() => { setStage(0); setStep("enviando"); }}>
             Confirmar e enviar {money(side, amount)}
           </button>
         }
@@ -175,6 +186,33 @@ export function SendFlow({ side, wallet, initialCents, onSend, onClose }: Props)
           <div><dt>Chega</dt><dd>{route === "pix" ? "na hora, 24h" : USD_ROUTE[route].eta}</dd></div>
           <div><dt>Por meio de</dt><dd>{route === "pix" ? "Pix (parceiro autorizado)" : USD_ROUTE[route].via}</dd></div>
         </dl>
+        {sanctioned && (
+          <p className="warn-box" role="alert">
+            Não é possível enviar para este endereço: ele consta em lista de sanções. Por lei, a operação é bloqueada.
+          </p>
+        )}
+        {travel && !sanctioned && (
+          <fieldset className="card travel-rule">
+            <legend><strong>Dados de quem recebe</strong></legend>
+            <p className="muted small">
+              Envios de cripto a partir de {money("USD", TRAVEL_RULE_USD)} levam os dados de quem envia e de quem recebe (Travel Rule, regra internacional do GAFI).
+            </p>
+            <div className="segmented small-seg">
+              <button type="button" className={ownWallet === true ? "on" : ""} aria-pressed={ownWallet === true} onClick={() => setOwnWallet(true)}>
+                A carteira é minha
+              </button>
+              <button type="button" className={ownWallet === false ? "on" : ""} aria-pressed={ownWallet === false} onClick={() => setOwnWallet(false)}>
+                É de outra pessoa
+              </button>
+            </div>
+            {ownWallet === false && (
+              <label className="field">
+                <span className="label">Nome completo de quem recebe</span>
+                <input value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} autoComplete="off" />
+              </label>
+            )}
+          </fieldset>
+        )}
         <p className="secure"><ShieldIcon /> Confira os dados. Depois de enviado, o valor não pode ser cancelado.</p>
       </FlowScreen>
     );

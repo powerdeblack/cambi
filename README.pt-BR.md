@@ -149,6 +149,18 @@ Revisão de segurança completa do programa, do app e da infraestrutura, com cad
 - Faucet de testes só na versão devnet (o CI confere que o binário de produção não o contém)
 - Ações do GitHub fixadas por hash, nenhum código de fork roda com acesso às chaves, auditoria de dependências semanal
 
+## Feito como se fosse de verdade: conformidade
+
+O app se comporta como um produto regulado (versão de hackathon: rede de testes e parceiros simulados). Mapa completo
+das normas brasileiras e internacionais em [docs/CONFORMIDADE.md](docs/CONFORMIDADE.md).
+
+- **Cadastro (Lei 9.613 e Circular BCB 3.978):** CPF validado, maioridade, PEP e origem dos recursos; limite por
+  operação para conta não verificada.
+- **Câmbio (Lei 14.286 e Res. BCB 277):** finalidade de cada troca, VET e IOF estimado antes de confirmar.
+- **Perfil de investidor (Res. CVM 30):** antes do primeiro depósito na Rende, com aviso de inadequação.
+- **LGPD:** aceite ao criar a conta, política de privacidade, baixar e apagar meus dados, nada pessoal na blockchain.
+- **Internacional:** Travel Rule do GAFI a partir de US$ 1.000, triagem de sanções e FATCA/CRS.
+
 ## Regulação e riscos
 
 - **Descentralizado por dentro, regulado na porta:** entrada e saída via Pix devem ser feitas por uma SPSAV

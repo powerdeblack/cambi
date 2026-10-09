@@ -11,6 +11,7 @@ export interface Activity {
   savedVsBank?: number; // em reais
   to?: string; // envio: destinatário mascarado (chave Pix, conta ou carteira)
   route?: string; // envio: "Pix", "ACH" ou "USDC"
+  purpose?: string; // troca: finalidade declarada (natureza da operação de câmbio)
   at?: number; // quando aconteceu (ms)
   sig?: string; // assinatura da transação na Solana (modo blockchain)
 }
@@ -48,7 +49,7 @@ const nextId = () => (lastId = Math.max(lastId + 1, Date.now()));
 export const isDepositor = (w: Wallet) => w.rende.BRL > 0 || w.rende.USD > 0;
 export const kindFor = (w: Wallet): UserKind => (isDepositor(w) ? "depositor" : "retail");
 
-export function walletSwap(pool: PoolState, w: Wallet, side: Side, amount: number) {
+export function walletSwap(pool: PoolState, w: Wallet, side: Side, amount: number, purpose?: string) {
   if (amount > w.balance[side]) throw new Error("Saldo insuficiente na sua carteira");
   const r: SwapResult = swap(pool, side, amount, kindFor(w));
   const out: Side = side === "BRL" ? "USD" : "BRL";
@@ -62,7 +63,7 @@ export function walletSwap(pool: PoolState, w: Wallet, side: Side, amount: numbe
     // A própria troca também rende para quem é depositante: parte da taxa volta para ele.
     earned: { ...w.earned, [side]: w.earned[side] + r.toRende * share },
     activity: [
-      { id: nextId(), kind: "swap", side, amountIn: amount, amountOut: r.amountOut, fee: r.feeTotal, savedVsBank: bank - feeBRL, at: Date.now() },
+      { id: nextId(), kind: "swap", side, amountIn: amount, amountOut: r.amountOut, fee: r.feeTotal, savedVsBank: bank - feeBRL, purpose, at: Date.now() },
       ...w.activity,
     ],
   };

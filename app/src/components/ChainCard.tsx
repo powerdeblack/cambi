@@ -9,6 +9,7 @@ interface Props {
   onActivate: (kind: ChainKind) => void;
   onDeactivate: (forget?: boolean) => void;
   onFaucet: () => Promise<void>;
+  onLegal: (doc: "termos" | "privacidade") => void;
 }
 
 const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
@@ -19,7 +20,7 @@ const hasPhantom = () => {
 const isMobile = () => /Android|iPhone|iPad/i.test(navigator.userAgent);
 
 /** Liga o app à Solana: conta invisível criada no aparelho (padrão) ou a Phantom de quem já usa cripto. */
-export function ChainCard({ chain, balanceBRL, onActivate, onDeactivate, onFaucet }: Props) {
+export function ChainCard({ chain, balanceBRL, onActivate, onDeactivate, onFaucet, onLegal }: Props) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -50,6 +51,11 @@ export function ChainCard({ chain, balanceBRL, onActivate, onDeactivate, onFauce
           <li>Tudo verificável no Solana Explorer</li>
         </ul>
         <button className="primary" onClick={() => onActivate("local")}>Criar minha conta grátis</button>
+        <p className="muted small consent">
+          Ao criar a conta, você aceita os{" "}
+          <button className="link inline" onClick={() => onLegal("termos")}>Termos de uso</button> e a{" "}
+          <button className="link inline" onClick={() => onLegal("privacidade")}>Política de privacidade</button> (LGPD).
+        </p>
         <button className="link" onClick={phantom}>
           <WalletIcon /> Prefiro usar minha Phantom
         </button>

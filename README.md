@@ -178,6 +178,22 @@ audit yet. To report a vulnerability: [SECURITY.md](SECURITY.md).
 - The test faucet exists only in the devnet build (CI checks that the production binary does not contain it)
 - GitHub Actions pinned by commit hash, no fork code runs with access to keys, weekly dependency audit
 
+## Built as if it were real: compliance
+
+The app behaves as a regulated product would (hackathon version: test network, simulated partners). Full map of
+Brazilian and international rules in [docs/CONFORMIDADE.md](docs/CONFORMIDADE.md) (Portuguese).
+
+- **KYC (AML law 9.613 and Central Bank Circular 3.978):** identity check with a validated CPF, age, politically
+  exposed person (PEP) and source of funds. Unverified accounts are limited per operation.
+- **FX rules (Law 14.286 and Res. BCB 277):** every swap records its purpose; the effective total cost (VET) and
+  estimated IOF tax are shown before confirming.
+- **Investor profile (CVM Res. 30):** suitability questionnaire before the first Rende deposit, with a mismatch
+  warning; Baleia is for qualified investors.
+- **LGPD (Brazil's data protection law):** consent at sign-up, privacy policy, download and delete my data, nothing
+  personal on-chain.
+- **International:** FATF Travel Rule for wallet transfers from US$ 1,000, sanctions screening before sending,
+  FATCA/CRS tax residency. PCI DSS and card network rules are listed for the future card.
+
 ## Regulation and risks
 
 - **Decentralized inside, regulated at the door:** Pix on- and off-ramps must go through a provider authorized by

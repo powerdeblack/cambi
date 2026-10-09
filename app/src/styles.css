@@ -433,6 +433,33 @@ a.as-button { display: inline-flex; align-items: center; justify-content: center
 .statement-day .card { padding: 4px 16px; }
 .statement-day small { display: block; }
 
+/* ---------- Conformidade ---------- */
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.profile-btn { position: relative; width: 40px; height: 40px; background: var(--card); border: 1px solid var(--line); }
+.profile-btn svg { width: 20px; height: 20px; }
+.badge-dot { position: absolute; top: 6px; right: 6px; width: 9px; height: 9px; border-radius: 50%; background: #f59e0b; border: 2px solid var(--card); }
+.kyc-status .chain-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 8px; }
+.kyc-status h3 { margin: 0 0 4px; }
+.kyc-status.ok .qa-icon { background: var(--green-soft); color: var(--green); }
+.kyc-status:not(.ok) .qa-icon { background: var(--warn-bg); color: var(--warn); }
+.qa-icon.danger { background: #fde8e7; color: var(--error); }
+.field select, .purpose select {
+  min-height: 48px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); font: inherit;
+}
+.purpose { margin: 12px 0 4px; }
+fieldset.field, fieldset.travel-rule, fieldset.suit-q { border: 0; margin: 0; padding: 0; min-width: 0; }
+fieldset.travel-rule, fieldset.suit-q { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.suit-q legend, .travel-rule legend { padding: 0 4px; }
+.radio-row { display: flex; align-items: center; gap: 10px; min-height: 40px; cursor: pointer; }
+.radio-row input { width: 20px; height: 20px; accent-color: var(--green); flex: none; }
+.consent { margin: 8px 0 0; text-align: center; }
+button.link.inline { padding: 0; font-size: inherit; }
+.legal h3 { margin: 16px 0 6px; }
+.legal-list { padding-left: 18px; margin: 0 0 12px; display: flex; flex-direction: column; gap: 8px; line-height: 1.45; }
+.legal a { color: var(--green); font-weight: 700; }
+.legal-draft { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.warn-box.toggle-row { margin: 8px 0; }
+
 /* ---------- IOF ---------- */
 .toggle-row { display: flex; align-items: flex-start; gap: 10px; margin: 10px 0 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
 .toggle-row input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--green); flex: none; }

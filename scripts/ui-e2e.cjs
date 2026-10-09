@@ -62,6 +62,8 @@ fs.mkdirSync(out, { recursive: true });
   await input.click();
   await input.pressSequentially("10000"); // R$ 100,00
   await page.getByText("Cotação do pool").waitFor();
+  // Câmbio no Brasil registra a finalidade de cada troca.
+  await page.getByLabel("Finalidade da troca").selectOption("viagem");
   await shot("troca-previa");
   await page.getByRole("button", { name: /^Trocar R\$/ }).click();
   await page.getByText("Registrada na Solana").waitFor({ timeout: CHAIN });
@@ -70,6 +72,14 @@ fs.mkdirSync(out, { recursive: true });
   await page.getByRole("button", { name: "Deixar na carteira" }).click();
 
   await page.getByRole("navigation").getByRole("button", { name: "Rende" }).click();
+  await page.getByRole("button", { name: /^Depositar R\$/ }).click();
+  // Primeiro investimento: perfil de investidor (Res. CVM 30/2021).
+  await page.getByRole("dialog", { name: "Perfil de investidor" }).waitFor();
+  for (const name of ["objetivo", "prazo", "perda"]) await page.locator(`input[name="${name}"]`).nth(1).check();
+  await page.getByText(/não tem garantia do FGC/).click();
+  await shot("perfil-investidor");
+  await page.getByRole("button", { name: "Salvar meu perfil" }).click();
+  step("perfil de investidor respondido (moderado)");
   await page.getByRole("button", { name: /^Depositar R\$/ }).click();
   await page.getByText("Depósito feito").waitFor({ timeout: CHAIN });
   await page.getByText("Resgate liberado às").waitFor({ timeout: CHAIN });

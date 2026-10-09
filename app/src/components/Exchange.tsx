@@ -6,11 +6,15 @@ import { Brand } from "./Brand";
 import { CheckIcon, SendIcon, SwapIcon } from "./Icons";
 import { MoneyInput } from "./MoneyInput";
 import { iofOnTrade, iofRate, vet } from "../taxes";
+import { PURPOSES, Purpose } from "../compliance";
 
 interface Props {
   pool: PoolState;
   wallet: Wallet;
-  onSwap: (side: Side, amount: number) => SwapResult | Promise<SwapResult>;
+  onSwap: (side: Side, amount: number, purpose: Purpose) => SwapResult | Promise<SwapResult>;
+  /** Limite por operação da conta (null = dentro do limite). */
+  limitCheck: (side: Side, amount: number) => string | null;
+  onVerify: () => void;
   /** Modo blockchain: prévia exata do programa (taxa, valor recebido e motivo de recusa). */
   preview?: (side: Side, amount: number) => { amountOut: number; feeTotal: number; feeRate: number; blocker: string | null; price: number };
   onDone: () => void;
@@ -20,18 +24,20 @@ interface Props {
 
 const FLAG: Record<Side, string> = { BRL: "🇧🇷 BRL", USD: "🇺🇸 USD" };
 
-export function Exchange({ pool, wallet, onSwap, preview, onDone, onSendOut }: Props) {
+export function Exchange({ pool, wallet, onSwap, limitCheck, onVerify, preview, onDone, onSendOut }: Props) {
   const [side, setSide] = useState<Side>("BRL");
   const [cents, setCents] = useState(50_000);
   const amount = cents / 100;
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<SwapResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [purpose, setPurpose] = useState<Purpose | "">("");
 
   const out: Side = side === "BRL" ? "USD" : "BRL";
   const over = amount > wallet.balance[side] + 1e-9;
   const pv = preview && amount > 0 && !over ? preview(side, amount) : null;
-  const valid = amount > 0 && !over && !pv?.blocker;
+  const limit = amount > 0 && !over ? limitCheck(side, amount) : null;
+  const valid = amount > 0 && !over && !pv?.blocker && !limit;
   const q = pv ?? (valid ? quote(pool, side, amount, kindFor(wallet)) : null);
   const price = pv?.price ?? pool.price;
 
@@ -39,7 +45,7 @@ export function Exchange({ pool, wallet, onSwap, preview, onDone, onSendOut }: P
     setBusy(true);
     setError("");
     try {
-      setReceipt(await onSwap(side, amount));
+      setReceipt(await onSwap(side, amount, purpose as Purpose));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -116,9 +122,26 @@ export function Exchange({ pool, wallet, onSwap, preview, onDone, onSendOut }: P
         <p className="tip">Quem tem dinheiro na <Brand /> Rende paga metade: 0,5%.</p>
       )}
 
+      <label className="field purpose">
+        <span className="label">Finalidade da troca</span>
+        <select value={purpose} onChange={(e) => setPurpose(e.target.value as Purpose)} aria-label="Finalidade da troca">
+          <option value="">Escolha o motivo</option>
+          {PURPOSES.map((p) => (
+            <option key={p.id} value={p.id}>{p.label}</option>
+          ))}
+        </select>
+        <small className="muted">Toda operação de câmbio no Brasil registra o motivo (regra do Banco Central).</small>
+      </label>
+
+      {limit && (
+        <p className="warn-box">
+          {limit}{" "}
+          <button className="link inline" onClick={onVerify}>Verificar agora</button>
+        </p>
+      )}
       {pv?.blocker && <p className="error">{pv.blocker}</p>}
       {error && <p className="error" role="alert">{error}</p>}
-      <button className="primary" disabled={!valid || busy} onClick={confirm}>
+      <button className="primary" disabled={!valid || !purpose || busy} onClick={confirm}>
         {busy ? (
           <>
             <span className="spinner tiny" aria-hidden /> Confirmando na Solana…

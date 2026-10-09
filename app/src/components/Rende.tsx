@@ -6,6 +6,7 @@ import { Wallet } from "../wallet";
 import { Brand } from "./Brand";
 import { InfoIcon } from "./Icons";
 import { MoneyInput } from "./MoneyInput";
+import { Suitability, rendeMismatch } from "../compliance";
 
 const CDI = 0.1365;
 const TBILL = 0.0386;
@@ -15,9 +16,12 @@ interface Props {
   onDeposit: (side: Side, amount: number) => void | Promise<void>;
   /** Modo blockchain: colher as taxas e resgatar a posição de verdade. */
   onchain?: { onHarvest: () => Promise<void>; onWithdraw: () => Promise<void>; unlockAt?: number };
+  suitability?: Suitability;
+  onSuitability: () => void;
+  limitCheck: (side: Side, amount: number) => string | null;
 }
 
-export function Rende({ wallet, onDeposit, onchain }: Props) {
+export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, limitCheck }: Props) {
   const [tier, setTier] = useState<"rende" | "baleia">("rende");
   const [side, setSide] = useState<Side>("BRL");
   const [cents, setCents] = useState(10_000);
@@ -44,6 +48,9 @@ export function Rende({ wallet, onDeposit, onchain }: Props) {
     }
   }
   const over = amount > wallet.balance[side] + 1e-9;
+  const [mismatchAck, setMismatchAck] = useState(false);
+  const mismatch = rendeMismatch(suitability, side);
+  const limit = amount > 0 && !over ? limitCheck(side, amount) : null;
 
   return (
     <>
@@ -68,6 +75,10 @@ export function Rende({ wallet, onDeposit, onchain }: Props) {
             <strong className="big">{pct(r.baleia)} a.a.</strong>
           </div>
           <p className="warn">Pode ter retorno negativo em crises cambiais. Não disponível nesta demonstração.</p>
+          <p className="muted small">
+            Em produção, exige declaração de investidor qualificado (mais de R$ 1 milhão em aplicações financeiras ou
+            certificação profissional, Res. CVM 30/2021) e assinatura do termo de ciência de risco.
+          </p>
         </section>
       ) : (
         <>
@@ -125,12 +136,26 @@ export function Rende({ wallet, onDeposit, onchain }: Props) {
               </div>
               <span className={over ? "error" : "muted"}>Disponível: {money(side, wallet.balance[side])} · mínimo R$ 10</span>
             </div>
+            {!suitability && (
+              <p className="tip">Antes do primeiro investimento, a lei pede o seu perfil de investidor (3 perguntas).</p>
+            )}
+            {mismatch && (
+              <label className="toggle-row warn-box">
+                <input type="checkbox" checked={mismatchAck} onChange={(e) => setMismatchAck(e.target.checked)} />
+                <span>Seu perfil é conservador e a Rende em dólar oscila com o câmbio. Entendo e quero continuar.</span>
+              </label>
+            )}
+            {limit && <p className="warn-box">{limit}</p>}
             {error && <p className="error" role="alert">{error}</p>}
             {done && <p className="pos" role="status">{done}</p>}
             <button
               className="primary"
-              disabled={!(amount > 0) || over || !!busy}
-              onClick={() => act("deposit", () => onDeposit(side, amount), "Depósito feito. Agora você ganha com as trocas do pool.")}
+              disabled={!(amount > 0) || over || !!busy || Boolean(limit) || (mismatch && !mismatchAck)}
+              onClick={() =>
+                suitability
+                  ? act("deposit", () => onDeposit(side, amount), "Depósito feito. Agora você ganha com as trocas do pool.")
+                  : onSuitability()
+              }
             >
               {busy === "deposit" ? (
                 <>
