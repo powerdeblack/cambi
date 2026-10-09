@@ -10,7 +10,7 @@ const CSP = [
   "img-src 'self' data:",
   "font-src 'self'",
   "manifest-src 'self'",
-  "connect-src 'self' https://api.devnet.solana.com wss://api.devnet.solana.com https://api.coinbase.com https://economia.awesomeapi.com.br https://open.er-api.com",
+  "connect-src 'self' https://api.devnet.solana.com wss://api.devnet.solana.com https://api.coinbase.com https://economia.awesomeapi.com.br https://open.er-api.com https://api.frankfurter.app https://api.frankfurter.dev",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'none'",

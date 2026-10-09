@@ -368,6 +368,65 @@ button.link.inline { padding: 0; font-size: inherit; text-decoration: underline;
 .address { display: block; padding: 10px 12px; border-radius: 12px; background: var(--bg); font-size: 0.8rem; word-break: break-all; }
 a.as-button { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; text-decoration: none; }
 
+/* ---------- Dólar: cotação, variação e gráfico ---------- */
+.dollar-card { padding: 18px 18px 14px; }
+.dollar-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.dollar-price { display: block; font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin: 2px 0 6px; }
+.var-chip { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.var-chip.up { background: var(--green-soft); color: var(--green-strong); }
+.var-chip.down { background: #fde8e7; color: var(--error); }
+@media (prefers-color-scheme: dark) { .var-chip.up { color: #7ee2a8; } .var-chip.down { background: #3a1513; color: #ff9a8f; } }
+.icon-btn.bell { background: var(--bg); color: var(--muted); }
+.icon-btn.bell.on { background: var(--green-soft); color: var(--green); }
+.icon-btn.bell svg { width: 20px; height: 20px; }
+.chart { position: relative; height: 96px; margin: 12px 0 8px; touch-action: pan-y; cursor: crosshair; }
+.chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.chart-empty { display: grid; place-items: center; cursor: default; background: var(--bg); border-radius: 12px; }
+.chart-dot {
+  position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; pointer-events: none;
+  background: var(--green); box-shadow: 0 0 0 4px var(--green-soft);
+}
+.dollar-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.dollar-foot .muted { margin: 0; }
+.chips.tight { margin: 0; gap: 6px; }
+.chips.tight .chip { min-height: 32px; padding: 4px 12px; }
+.alert-chip {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 12px; border-radius: 999px; border: 0;
+  background: var(--green-soft); color: var(--green-strong); font-weight: 700; font-size: 0.8rem; cursor: pointer;
+}
+.alert-chip svg { width: 16px; height: 16px; }
+@media (prefers-color-scheme: dark) { .alert-chip { color: #7ee2a8; } }
+.alert-input { margin-top: 16px; }
+.alert-input input { font-size: 1.8rem; }
+.alert-banner {
+  display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 16px; border-radius: 16px; color: #fff;
+  background: linear-gradient(135deg, var(--green-strong), var(--green)); animation: slide-up 0.3s ease both;
+}
+.alert-banner > span { flex: 1; display: flex; flex-direction: column; }
+.alert-banner small { opacity: 0.85; }
+.alert-banner .chip.on { background: #fff; border-color: #fff; color: var(--green-strong); }
+.alert-banner .icon-btn { width: 36px; height: 36px; background: rgba(255,255,255,0.15); color: #fff; }
+
+/* ---------- Simulador rápido ---------- */
+.quick-sim .segmented { margin-bottom: 12px; }
+.quick-sim .money-input { margin-bottom: 4px; }
+.sim-list li { padding: 10px 0; }
+.sim-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
+.sim-list li.best .sim-dot { background: var(--green); box-shadow: 0 0 0 4px var(--green-soft); }
+.sim-list li.best strong { color: var(--green); font-size: 1.1rem; }
+.sim-name { font-weight: 700; }
+.sim-gain { margin: 8px 0 4px; font-size: 0.95rem; }
+
+/* ---------- Extrato ---------- */
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.card-head .link { padding: 0; }
+.statement-summary .big { font-size: 1.6rem; }
+.chips.scroll { flex-wrap: nowrap; overflow-x: auto; margin: 0; padding-bottom: 2px; scrollbar-width: none; }
+.chips.scroll .chip { flex: none; }
+.statement-day h4 { margin: 4px 0 8px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.statement-day .card { padding: 4px 16px; }
+.statement-day small { display: block; }
+
 /* Tela de abertura (index.html): marca sobre o azul do app, como nos apps de banco */
 .splash {
   position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center;

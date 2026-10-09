@@ -2,6 +2,7 @@ import { PoolState } from "../engine/pool";
 import { money, reais } from "../format";
 import { Wallet, isDepositor } from "../wallet";
 import { Brand } from "./Brand";
+import { ACTIVITY_ICON, activityTitle } from "../activity";
 import { GrowIcon, SendIcon, SwapIcon } from "./Icons";
 
 interface Props {
@@ -10,20 +11,10 @@ interface Props {
   go: (tab: "trocar" | "rende") => void;
   onSend: () => void;
   onSimulateMarket?: () => void;
+  onStatement: () => void;
 }
 
-const ACTIVITY_ICON = { swap: "⇄", deposit: "＋", send: "↗", harvest: "✦", withdraw: "↙", faucet: "🎁" } as const;
-
-function activityTitle(a: Wallet["activity"][number]) {
-  if (a.kind === "swap") return `Troca ${a.side === "BRL" ? "real → dólar" : "dólar → real"}`;
-  if (a.kind === "deposit") return "Depósito na Rende";
-  if (a.kind === "harvest") return "Rendimento recebido";
-  if (a.kind === "withdraw") return "Resgate da Rende";
-  if (a.kind === "faucet") return "Moedas de teste recebidas";
-  return a.route === "Pix" ? "Pix enviado" : a.route === "ACH" ? "Envio para conta nos EUA" : "Envio para carteira USDC";
-}
-
-export function Home({ pool, wallet, go, onSend, onSimulateMarket }: Props) {
+export function Home({ pool, wallet, go, onSend, onSimulateMarket, onStatement }: Props) {
   const p = pool.price;
   const free = wallet.balance.BRL + wallet.balance.USD * p;
   const invested = wallet.rende.BRL + wallet.rende.USD * p;
@@ -98,12 +89,19 @@ export function Home({ pool, wallet, go, onSend, onSimulateMarket }: Props) {
       )}
 
       <section className="card">
-        <h3>Atividade</h3>
+        <div className="card-head">
+          <h3>Atividade</h3>
+          {wallet.activity.length > 0 && (
+            <button className="link small-link" onClick={onStatement}>
+              Ver extrato
+            </button>
+          )}
+        </div>
         {wallet.activity.length === 0 ? (
           <p className="muted">Nenhuma movimentação ainda. Que tal fazer sua primeira troca?</p>
         ) : (
           <ul className="list activity">
-            {wallet.activity.slice(0, 6).map((a) => (
+            {wallet.activity.slice(0, 4).map((a) => (
               <li key={a.id}>
                 <span className={`flag act-${a.kind}`}>{ACTIVITY_ICON[a.kind]}</span>
                 <span>

@@ -11,7 +11,7 @@ export interface LiveQuote {
 /** Faixa de sanidade: fora dela a fonte está errada, não o câmbio. */
 export const isSanePrice = (p: number) => Number.isFinite(p) && p > 2 && p < 15;
 
-async function getJson(url: string, timeoutMs: number): Promise<any> {
+export async function getJson(url: string, timeoutMs: number): Promise<any> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {

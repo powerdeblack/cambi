@@ -47,6 +47,11 @@ fs.mkdirSync(out, { recursive: true });
   await shot("conta-criada");
   step("conta criada pela interface, com R$ 1.000 do faucet do programa");
 
+  // Gráfico do dólar com histórico real (AwesomeAPI ou Frankfurter). Só avisa: fonte fora do ar não quebra o app.
+  await page.locator(".chart svg, .chart-empty").first().waitFor({ timeout: 15_000 }).catch(() => {});
+  if (await page.locator(".chart svg").count()) step("gráfico do dólar carregou o histórico real");
+  else console.log(`! gráfico do dólar sem histórico: ${(await page.locator(".chart").innerText().catch(() => "?")).trim()}`);
+
   await page.getByRole("navigation").getByRole("button", { name: "Trocar" }).click();
   const input = page.getByLabel("Você envia");
   await input.click();

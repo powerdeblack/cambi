@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { previewSwap, fromUnits, toUnits } from "./chain/accounts";
 import { useChain } from "./chain/useChain";
+import { AlertSheet } from "./components/AlertSheet";
 import { ChainCard } from "./components/ChainCard";
+import { DollarCard } from "./components/DollarCard";
 import { Exchange } from "./components/Exchange";
 import { Home } from "./components/Home";
 import { BankIcon, ChevronIcon, GrowIcon, HomeIcon, KeyIcon, PoolIcon, SwapIcon } from "./components/Icons";
@@ -9,11 +11,14 @@ import { Logo } from "./components/Logo";
 import { OnchainCard } from "./components/OnchainCard";
 import { PoolDashboard } from "./components/PoolDashboard";
 import { QuoteBadge } from "./components/QuoteBadge";
+import { QuickSim } from "./components/QuickSim";
 import { Rende } from "./components/Rende";
 import { SendFlow } from "./components/SendFlow";
 import { Sheet } from "./components/Sheet";
+import { Statement } from "./components/Statement";
 import { BENCHMARKS, PoolState, Side, SwapResult, createPool, deposit, setPrice } from "./engine/pool";
-import { money } from "./format";
+import { money, rate } from "./format";
+import { RateAlert, alertHit, loadAlert, saveAlert } from "./history";
 import { useLiveQuote } from "./useLiveQuote";
 import { INITIAL_WALLET, Recipient, Wallet, rememberRecipient, sanitizeWallet, simulateMarket, walletDeposit, walletSend, walletSwap } from "./wallet";
 
@@ -63,6 +68,10 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("inicio");
   const [flow, setFlow] = useState<Flow>(null);
   const [chooser, setChooser] = useState(false);
+  const [statement, setStatement] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alert, setAlert] = useState<RateAlert | null>(loadAlert);
+  const [alertFired, setAlertFired] = useState<{ alert: RateAlert; price: number } | null>(null);
 
   // Antes da primeira ação do usuário, o pool nasce equilibrado na cotação real; depois, só a cotação muda.
   const touched = useRef(saved !== null);
@@ -88,6 +97,27 @@ export default function App() {
       }
     : wallet;
   const viewPool = chainPrice ? { ...pool, price: chainPrice } : pool;
+
+  // Alerta de cotação: confere a cada cotação ao vivo; dispara uma vez e sai da lista.
+  const livePrice = quote.status === "live" ? quote.quote.price : null;
+  useEffect(() => {
+    if (!alert || livePrice === null || !alertHit(alert, livePrice)) return;
+    setAlertFired({ alert, price: livePrice });
+    setAlert(null);
+    saveAlert(null);
+    try {
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("cambI · alerta de cotação", { body: `O dólar chegou a ${rate(livePrice)}.`, icon: "./icon-192.png" });
+      }
+    } catch {
+      /* celulares sem notificação fora de service worker: fica o aviso dentro do app */
+    }
+  }, [alert, livePrice]);
+
+  function updateAlert(a: RateAlert | null) {
+    setAlert(a);
+    saveAlert(a);
+  }
 
   useEffect(() => {
     if (!touched.current) return;
@@ -223,7 +253,28 @@ export default function App() {
       </header>
 
       <main key={tab} className="screen">
-        {(tab === "inicio" || tab === "trocar") && <QuoteBadge quote={quote} price={pool.price} />}
+        {alertFired && (
+          <div className="alert-banner" role="alert">
+            <span>
+              <strong>O dólar chegou a {rate(alertFired.price)}</strong>
+              <small>Seu alerta: {alertFired.alert.dir === "below" ? "abaixo de" : "acima de"} {rate(alertFired.alert.target)}</small>
+            </span>
+            <button
+              className="chip on"
+              onClick={() => {
+                setAlertFired(null);
+                setTab("trocar");
+              }}
+            >
+              Trocar
+            </button>
+            <button className="icon-btn" aria-label="Fechar aviso" onClick={() => setAlertFired(null)}>
+              ✕
+            </button>
+          </div>
+        )}
+        {tab === "trocar" && <QuoteBadge quote={quote} price={pool.price} />}
+        {tab === "inicio" && <DollarCard quote={quote} price={pool.price} alert={alert} onAlert={() => setAlertOpen(true)} />}
         {tab === "inicio" && (
           <ChainCard
             chain={chain}
@@ -237,8 +288,16 @@ export default function App() {
           />
         )}
         {tab === "inicio" && (
-          <Home pool={viewPool} wallet={view} go={setTab} onSend={() => setChooser(true)} onSimulateMarket={live ? undefined : handleMarket} />
+          <Home
+            pool={viewPool}
+            wallet={view}
+            go={setTab}
+            onSend={() => setChooser(true)}
+            onSimulateMarket={live ? undefined : handleMarket}
+            onStatement={() => setStatement(true)}
+          />
         )}
+        {tab === "inicio" && <QuickSim pool={viewPool} wallet={view} onSwap={() => setTab("trocar")} />}
         {tab === "trocar" && (
           <Exchange
             pool={viewPool}
@@ -321,6 +380,10 @@ export default function App() {
           </ul>
         </Sheet>
       )}
+
+      {alertOpen && <AlertSheet price={livePrice ?? pool.price} alert={alert} onSave={updateAlert} onClose={() => setAlertOpen(false)} />}
+
+      {statement && <Statement wallet={view} onClose={() => setStatement(false)} />}
 
       {flow?.kind === "send" && (
         <SendFlow
