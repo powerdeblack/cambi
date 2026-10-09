@@ -183,7 +183,9 @@ export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, 
                   <Brand /> Rende
                 </span>
                 <strong>{money(side, yearly)}</strong>
-                <span className="pos">+{money(side, yearly - common)}</span>
+                <span className={yearly >= common ? "pos" : "neg-red"}>
+                  {yearly >= common ? "+" : "−"} {money(side, Math.abs(yearly - common))}
+                </span>
               </div>
             </div>
             <label className="slider">
@@ -196,6 +198,12 @@ export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, 
                 <span>muito</span>
               </span>
             </label>
+            {yearly < common && (
+              <p className="warn" role="status">
+                <InfoIcon /> Com pouco movimento, a taxa das trocas não cobre a parte do dinheiro que fica parada para pagar
+                saques (5%). Aí a <Brand /> Rende fica um pouco abaixo da conta comum.
+              </p>
+            )}
             <p className="muted small">
               Simulação, não promessa. Premissas: pool de R$ 100 mi, CDI {pct(CDI)}, Tesouro americano {pct(TBILL)}, 60% do
               volume de apps parceiros. A <Brand /> só cobra 20% do que passar de 100% do CDI. Antes de IR e IOF.
