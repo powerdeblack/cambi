@@ -13,7 +13,6 @@ interface Props {
 
 const W = 300;
 const H = 88;
-const dayFmt = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
 /** Cartão do dólar: cotação ao vivo, variação do período e gráfico que dá para "arrastar o dedo", como em apps de banco. */
@@ -115,8 +114,7 @@ export function DollarCard({ quote, price, alert, onAlert }: Props) {
 
       <div className="dollar-foot">
         <span className="muted small">
-          {points ? `${dayFmt.format(points[0].t * 1000)} – hoje` : " "}
-          {s ? ` · mín. ${rate(s.min)} · máx. ${rate(s.max)}` : ""}
+          {s ? `mín. ${rate(s.min)} · máx. ${rate(s.max)}` : " "}
         </span>
         <div className="chips tight" role="group" aria-label="Período do gráfico">
           {([7, 30] as Period[]).map((p) => (

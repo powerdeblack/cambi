@@ -29,6 +29,7 @@ fs.mkdirSync(out, { recursive: true });
   // Os prints esperam a tela de abertura sair (ela volta a cada recarga, como num app de banco).
   const shot = async (name) => {
     await page.locator("#splash").waitFor({ state: "detached", timeout: 10_000 }).catch(() => {});
+    await page.waitForTimeout(700); // fim das animações de entrada (comprovantes aparecem com fade)
     await page.screenshot({ path: `${out}/${String(++n).padStart(2, "0")}-${name}.png` });
   };
   const step = (msg) => console.log(`✓ ${msg}`);
