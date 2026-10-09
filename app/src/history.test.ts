@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alertHit, alertProblem, clean, fetchHistory, fromAwesomeDaily, fromFrankfurter, summary, withLive } from "./history";
+import { alertHit, alertProblem, clean, fetchHistory, fromAwesomeDaily, fromCoinbaseDaily, fromFrankfurter, summary, withLive } from "./history";
 
 const mockFetch = (body: unknown) => {
   globalThis.fetch = (async () => new Response(JSON.stringify(body), { status: 200 })) as typeof fetch;
@@ -21,6 +21,18 @@ describe("histórico do dólar", () => {
     const pts = clean(await fromFrankfurter(7, 6000, Date.parse("2026-10-08")));
     expect(pts).toHaveLength(2);
     expect(pts[1].price).toBe(5.35);
+  });
+
+  it("monta o histórico pela Coinbase, um dia por chamada", async () => {
+    const urls: string[] = [];
+    globalThis.fetch = (async (u: string) => {
+      urls.push(u);
+      return new Response(JSON.stringify({ data: { amount: "5.33", base: "USD", currency: "BRL" } }), { status: 200 });
+    }) as typeof fetch;
+    const pts = clean(await fromCoinbaseDaily(30, 6000, Date.parse("2026-10-09T15:00:00Z")));
+    expect(urls).toHaveLength(10);
+    expect(urls[0]).toContain("date=2026-10-06");
+    expect(pts).toHaveLength(10);
   });
 
   it("descarta valores absurdos e repetidos", () => {

@@ -18,9 +18,24 @@ export async function fromAwesomeDaily(days: Period, timeoutMs = 6000): Promise<
 /** Frankfurter (Banco Central Europeu): uma cotação por dia útil. Reserva. */
 export async function fromFrankfurter(days: Period, timeoutMs = 6000, now = Date.now()): Promise<RatePoint[]> {
   const start = new Date(now - days * 86_400_000).toISOString().slice(0, 10);
-  const data = await getJson(`https://api.frankfurter.app/${start}..?from=USD&to=BRL`, timeoutMs);
+  // Endereço novo direto (o antigo, api.frankfurter.app, redireciona e o redirecionamento não libera CORS).
+  const data = await getJson(`https://api.frankfurter.dev/v1/${start}..?base=USD&symbols=BRL`, timeoutMs);
   const rates = data?.rates ?? {};
   return Object.keys(rates).map((day) => ({ t: Date.parse(`${day}T18:00:00Z`) / 1000, price: Number(rates[day]?.BRL) }));
+}
+
+/** Coinbase: preço de um dia por chamada (UTC). Última reserva; no período de 30 dias, um ponto a cada 3 dias. */
+export async function fromCoinbaseDaily(days: Period, timeoutMs = 6000, now = Date.now()): Promise<RatePoint[]> {
+  const step = days > 10 ? 3 : 1;
+  const offsets = Array.from({ length: Math.floor(days / step) }, (_, i) => (i + 1) * step);
+  const results = await Promise.allSettled(
+    offsets.map(async (d) => {
+      const day = new Date(now - d * 86_400_000).toISOString().slice(0, 10);
+      const data = await getJson(`https://api.coinbase.com/v2/prices/USD-BRL/spot?date=${day}`, timeoutMs);
+      return { t: Date.parse(`${day}T12:00:00Z`) / 1000, price: Number(data?.data?.amount) };
+    }),
+  );
+  return results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
 }
 
 /** Pontos válidos, em ordem de tempo, sem repetir o mesmo instante. */
@@ -29,7 +44,7 @@ export function clean(points: RatePoint[]): RatePoint[] {
   return ok.filter((p, i) => i === 0 || p.t !== ok[i - 1].t);
 }
 
-export async function fetchHistory(days: Period, sources = [fromAwesomeDaily, fromFrankfurter]): Promise<RatePoint[]> {
+export async function fetchHistory(days: Period, sources = [fromAwesomeDaily, fromFrankfurter, fromCoinbaseDaily]): Promise<RatePoint[]> {
   let last: unknown;
   for (const source of sources) {
     try {
