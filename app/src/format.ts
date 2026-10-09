@@ -7,6 +7,9 @@ const pctFmt = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractio
 export const money = (side: Side, v: number) => (side === "BRL" ? brl : usd).format(v);
 export const reais = (v: number) => brl.format(v);
 export const pct = (v: number) => pctFmt.format(v);
+const pctFine = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
+/** Percentual com até 2 casas (alíquotas como 0,38%). */
+export const pct2 = (v: number) => pctFine.format(v);
 
 const rateFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 4, maximumFractionDigits: 4 });
 /** Cotação de câmbio com 4 casas, como no mercado (R$ 5,4321). */

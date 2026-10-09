@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { BENCHMARKS, PoolState, Side, quote } from "../engine/pool";
-import { money, pct } from "../format";
+import { money, pct, pct2 } from "../format";
 import { Wallet, kindFor } from "../wallet";
 import { Brand } from "./Brand";
 import { MoneyInput } from "./MoneyInput";
+import { iofRate, withIof } from "../taxes";
 
 interface Props {
   pool: PoolState;
@@ -19,13 +20,18 @@ export function QuickSim({ pool, wallet, onSwap }: Props) {
   const out: Side = side === "BRL" ? "USD" : "BRL";
   const convert = (net: number) => (side === "BRL" ? net / pool.price : net * pool.price);
 
-  const ours = amount > 0 ? quote(pool, side, amount, kindFor(wallet)) : null;
+  const [withTax, setWithTax] = useState(true);
+  // O IOF é igual em qualquer instituição; com ele ligado, todas as linhas mostram o valor final.
+  const final = (fx: (forFx: number) => number) => (withTax ? withIof(side, amount, fx).receive : fx(amount));
+  const iof = withTax && amount > 0 ? withIof(side, amount, (x) => x).iof * (side === "USD" ? pool.price : 1) : 0;
+  const kind = kindFor(wallet);
+  const ourFee = amount > 0 ? quote(pool, side, amount, kind).feeRate : 0;
   const rows = [
-    { name: "cambi", label: <Brand />, cost: ours?.feeRate ?? 0, receive: ours?.amountOut ?? 0 },
-    ...BENCHMARKS.map((b) => ({ name: b.name, label: <>{b.name}</>, cost: b.rate, receive: convert(amount * (1 - b.rate)) })),
+    { name: "cambi", label: <Brand />, cost: ourFee, receive: amount > 0 ? final((x) => quote(pool, side, x, kind).amountOut) : 0 },
+    ...BENCHMARKS.map((b) => ({ name: b.name, label: <>{b.name}</>, cost: b.rate, receive: final((x) => convert(x * (1 - b.rate))) })),
   ];
   const bank = rows[1].receive;
-  const gain = (ours?.amountOut ?? 0) - bank;
+  const gain = rows[0].receive - bank;
 
   return (
     <section className="card quick-sim" aria-label="Simulador de câmbio">
@@ -51,10 +57,19 @@ export function QuickSim({ pool, wallet, onSwap }: Props) {
           </li>
         ))}
       </ul>
-      {amount > 0 && gain > 0 && (
+      {amount > 0 && gain > 0.005 && (
         <p className="saved sim-gain">Você recebe {money(out, gain)} a mais que no banco.</p>
       )}
-      <p className="muted small">Estimativa sem IOF, na cotação atual. Bancos e casas de câmbio: custo médio de mercado.</p>
+      <label className="toggle-row">
+        <input type="checkbox" checked={withTax} onChange={(e) => setWithTax(e.target.checked)} />
+        <span>
+          Incluir IOF ({pct2(iofRate(side))}){withTax && amount > 0 ? ` · ${money("BRL", iof)}` : ""}
+          <small className="muted">imposto do governo, igual em qualquer instituição</small>
+        </span>
+      </label>
+      <p className="muted small">
+        Na cotação atual. Bancos e casas de câmbio: custo médio de mercado. IOF de referência: {pct2(iofRate("BRL"))} na compra e {pct2(iofRate("USD"))} na venda de dólar; confirme a alíquota vigente.
+      </p>
       <button className="secondary" onClick={onSwap}>
         Trocar agora
       </button>

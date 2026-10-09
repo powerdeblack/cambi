@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { PoolState, Side, SwapResult, quote } from "../engine/pool";
-import { money, pct, rate, reais } from "../format";
+import { money, pct, pct2, rate, reais } from "../format";
 import { Wallet, isDepositor, kindFor } from "../wallet";
 import { Brand } from "./Brand";
 import { CheckIcon, SendIcon, SwapIcon } from "./Icons";
 import { MoneyInput } from "./MoneyInput";
+import { iofOnTrade, iofRate, vet } from "../taxes";
 
 interface Props {
   pool: PoolState;
@@ -95,7 +96,20 @@ export function Exchange({ pool, wallet, onSwap, preview, onDone, onSendOut }: P
               {money(side, q.feeTotal)} · {pct(q.feeRate)}
             </dd>
           </div>
+          <div>
+            <dt>IOF estimado ({pct2(iofRate(side))})</dt>
+            <dd>{money("BRL", iofOnTrade(side, amount, q.amountOut))}</dd>
+          </div>
+          <div className="vet">
+            <dt>Custo total (VET)</dt>
+            <dd>1 US$ = {rate(vet(side, amount, q.amountOut))}</dd>
+          </div>
         </dl>
+      )}
+      {q && (
+        <p className="muted small">
+          O IOF é imposto do governo, igual em qualquer instituição, cobrado pelo parceiro regulado {side === "BRL" ? "no Pix de entrada" : "na saída em reais"}. Alíquota de referência; não muda o valor da troca na blockchain.
+        </p>
       )}
 
       {!isDepositor(wallet) && (

@@ -123,7 +123,7 @@ export function DollarScreen({ wallet, quote, price, onSwap, onRende, onClose }:
       )}
 
       <p className="muted small">
-        Preço médio com a taxa incluída. Vendas e envios de dólar não mudam o preço médio do que ficou. Simulação sem IOF; não é recomendação de investimento.
+        Preço médio com a taxa incluída. Vendas e envios de dólar não mudam o preço médio do que ficou. IOF não incluído (é igual em qualquer instituição). Não é recomendação de investimento.
       </p>
     </FlowScreen>
   );

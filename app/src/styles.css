@@ -141,9 +141,9 @@ button.link { background: none; border: 0; color: var(--green); font-weight: 700
   transform: rotate(90deg);
 }
 .summary { margin: 16px 0 8px; }
-.summary div { display: flex; justify-content: space-between; padding: 6px 0; }
+.summary div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
 .summary dt { color: var(--muted); }
-.summary dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.summary dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow-wrap: normal; text-align: right; }
 
 /* Recibo */
 .receipt { text-align: center; }
@@ -432,6 +432,13 @@ a.as-button { display: inline-flex; align-items: center; justify-content: center
 .statement-day h4 { margin: 4px 0 8px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .statement-day .card { padding: 4px 16px; }
 .statement-day small { display: block; }
+
+/* ---------- IOF ---------- */
+.toggle-row { display: flex; align-items: flex-start; gap: 10px; margin: 10px 0 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+.toggle-row input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--green); flex: none; }
+.toggle-row span { display: flex; flex-direction: column; }
+.toggle-row small { font-weight: 400; }
+.summary .vet dt, .summary .vet dd { font-weight: 800; color: var(--ink); }
 
 /* ---------- Meus dólares ---------- */
 .list li.tap { padding: 0; }
