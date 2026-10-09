@@ -373,8 +373,8 @@ export default function App() {
         )}
         {tab === "pool" && (
           <>
-            <OnchainCard />
             <PoolDashboard pool={pool} />
+            <OnchainCard />
           </>
         )}
         <p className="footnote">
