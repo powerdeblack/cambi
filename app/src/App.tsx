@@ -26,7 +26,7 @@ import { ProfileScreen } from "./components/ProfileScreen";
 import { SuitabilitySheet } from "./components/SuitabilitySheet";
 import { RateAlert, alertHit, loadAlert, saveAlert } from "./history";
 import { useLiveQuote } from "./useLiveQuote";
-import { INITIAL_WALLET, Recipient, Wallet, rememberRecipient, sanitizeWallet, simulateMarket, walletDeposit, walletSend, walletSwap } from "./wallet";
+import { INITIAL_WALLET, Recipient, Wallet, rememberRecipient, routeLabel, sanitizeWallet, simulateMarket, walletDeposit, walletSend, walletSwap } from "./wallet";
 
 const PRICE = 5.4; // cotação de referência, usada só até chegar a cotação ao vivo (ou se as fontes estiverem fora do ar)
 const STORAGE_KEY = "cambi-demo-v1";
@@ -225,7 +225,7 @@ export default function App() {
     const reference = `${recipient.route}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const destination = recipient.route === "usdc" ? recipient.data.address ?? "" : "";
     const sig = await run((c, s) => c.sendOut(s, idx(side), toUnits(amount + fee), recipient.route, destination, reference));
-    const route = recipient.route === "pix" ? "Pix" : recipient.route === "ach" ? "ACH" : "USDC";
+    const route = routeLabel(recipient.route);
     record({ kind: "send", side, amountIn: amount, fee, to: `${recipient.name} · ${recipient.detail}`, route, sig });
     setWallet((w) => rememberRecipient(w, recipient));
     return sig;

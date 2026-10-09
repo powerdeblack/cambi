@@ -9,7 +9,10 @@ export function activityTitle(a: Wallet["activity"][number]) {
   if (a.kind === "harvest") return "Rendimento recebido";
   if (a.kind === "withdraw") return "Resgate da Rende";
   if (a.kind === "faucet") return "Moedas de teste recebidas";
-  return a.route === "Pix" ? "Pix enviado" : a.route === "ACH" ? "Envio para conta nos EUA" : "Envio para carteira USDC";
+  if (a.route === "Pix") return "Pix enviado";
+  if (a.route === "ACH") return "Envio para conta nos EUA";
+  if (a.route === "SWIFT") return "Transferência internacional";
+  return "Envio para carteira USDC";
 }
 
 export type Activity = Wallet["activity"][number];

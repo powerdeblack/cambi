@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { achError, isValidCpf, isValidRouting, maskPixKey, pixEndToEndId, pixKeyError, solanaAddressError } from "./payout";
+import { achError, isValidBic, isValidCpf, isValidIban, isValidRouting, maskAccount, maskPixKey, pixEndToEndId, pixKeyError, solanaAddressError, swiftErrors } from "./payout";
 
 describe("saída por Pix", () => {
   it("valida CPF pelos dígitos verificadores", () => {
@@ -46,5 +46,44 @@ describe("saída em dólar", () => {
   it("valida endereço de carteira Solana", () => {
     expect(solanaAddressError("AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ")).toBeNull();
     expect(solanaAddressError("0xabc")).not.toBeNull();
+  });
+});
+
+
+describe("transferência internacional (SWIFT)", () => {
+  it("valida IBAN pelo módulo 97", () => {
+    expect(isValidIban("PT50 0002 0123 1234 5678 9015 4")).toBe(true);
+    expect(isValidIban("DE89370400440532013000")).toBe(true);
+    expect(isValidIban("GB82WEST12345698765432")).toBe(true);
+    expect(isValidIban("DE89370400440532013001")).toBe(false);
+    expect(isValidIban("123")).toBe(false);
+  });
+
+  it("valida SWIFT/BIC", () => {
+    expect(isValidBic("DEUTDEFF")).toBe(true);
+    expect(isValidBic("BOFAUS3NXXX")).toBe(true);
+    expect(isValidBic("DEUT")).toBe(false);
+  });
+
+  it("aceita envio para Portugal com IBAN e SWIFT portugueses", () => {
+    expect(swiftErrors({ holder: "Ana Souza", country: "PT", account: "PT50000201231234567890154", bic: "CGDIPTPL" })).toEqual({});
+  });
+
+  it("confere se IBAN e SWIFT são do país escolhido", () => {
+    const e = swiftErrors({ holder: "Ana Souza", country: "PT", account: "DE89370400440532013000", bic: "DEUTDEFF" });
+    expect(e.account).toMatch(/não é de Portugal/);
+    expect(e.bic).toMatch(/não é de um banco de Portugal/);
+  });
+
+  it("países sem IBAN usam número da conta", () => {
+    expect(swiftErrors({ holder: "Juan Perez", country: "MX", account: "012180001234567897", bic: "BCMRMXMM" })).toEqual({});
+  });
+
+  it("bloqueia países sob sanções amplas", () => {
+    expect(swiftErrors({ holder: "Fulano de Tal", country: "KP", account: "12345678", bic: "AAAAKPPY" }).country).toMatch(/sanções/);
+  });
+
+  it("mascara a conta no comprovante", () => {
+    expect(maskAccount("PT50 0002 0123 1234 5678 9015 4")).toBe("PT50 •••• 0154");
   });
 });

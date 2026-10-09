@@ -375,7 +375,7 @@ export async function withdrawRende(signer: ChainSigner, side: number, amount: b
  * programa). Pix e conta nos EUA: vai para a carteira do parceiro, com um memo que tem SÓ um código de
  * referência (nenhum dado pessoal na blockchain); o parceiro paga a outra ponta.
  */
-export async function sendOut(signer: ChainSigner, side: number, amount: bigint, route: "pix" | "ach" | "usdc", destination: string, reference: string) {
+export async function sendOut(signer: ChainSigner, side: number, amount: bigint, route: "pix" | "ach" | "swift" | "usdc", destination: string, reference: string) {
   const owner = signer.publicKey;
   const { mint } = ids();
   let to: PublicKey;

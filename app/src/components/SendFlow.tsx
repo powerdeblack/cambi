@@ -2,15 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import { Side } from "../engine/pool";
 import { money } from "../format";
 import {
+  COUNTRIES,
   PIX_KEY_LABEL,
   PixKeyType,
+  SwiftFields,
   USD_ROUTE,
   UsdRoute,
   achError,
+  countryOf,
+  maskAccount,
   maskPixKey,
   pixEndToEndId,
   pixKeyError,
   solanaAddressError,
+  swiftErrors,
+  uetr,
 } from "../payout";
 import { Recipient, Wallet } from "../wallet";
 import { FlowScreen } from "./FlowScreen";
@@ -34,6 +40,7 @@ type Step = "destino" | "valor" | "revisar" | "enviando" | "pronto" | "erro";
 const STAGES: Record<Recipient["route"], string[]> = {
   pix: ["Conferindo a chave Pix", "Enviando pelo parceiro autorizado", "Pix concluído"],
   ach: ["Conferindo a conta", "Enviando ao parceiro bancário nos EUA", "Transferência agendada"],
+  swift: ["Conferindo os dados do banco", "Enviando pela rede SWIFT", "Transferência enviada"],
   usdc: ["Assinando a transação", "Confirmando na rede Solana", "Dólar na carteira"],
 };
 
@@ -271,6 +278,7 @@ function fakeTxId(route: Recipient["route"]) {
   const chars = route === "usdc" ? "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz" : "0123456789ABCDEF";
   let s = "";
   for (let i = 0; i < (route === "usdc" ? 64 : 16); i++) s += chars[Math.floor(Math.random() * chars.length)];
+  if (route === "swift") return uetr();
   return route === "ach" ? `ACH-${s}` : s;
 }
 
@@ -324,14 +332,14 @@ function Destination({ side, recents, onPick }: { side: Side; recents: Recipient
         <PixForm onPick={onPick} />
       ) : (
         <>
-          <div className="segmented" role="tablist" aria-label="Tipo de destino">
-            {(["ach", "usdc"] as const).map((k) => (
+          <div className="segmented three" role="tablist" aria-label="Tipo de destino">
+            {(["ach", "swift", "usdc"] as const).map((k) => (
               <button key={k} role="tab" aria-selected={usdRoute === k} className={usdRoute === k ? "on" : ""} onClick={() => setUsdRoute(k)}>
-                {k === "ach" ? <BankIcon /> : <WalletIcon />} {k === "ach" ? "Conta nos EUA" : "Carteira USDC"}
+                {k === "usdc" ? <WalletIcon /> : <BankIcon />} {USD_TAB[k]}
               </button>
             ))}
           </div>
-          {usdRoute === "ach" ? <AchForm onPick={onPick} /> : <UsdcForm onPick={onPick} />}
+          {usdRoute === "ach" ? <AchForm onPick={onPick} /> : usdRoute === "swift" ? <SwiftForm onPick={onPick} /> : <UsdcForm onPick={onPick} />}
         </>
       )}
     </>
@@ -457,6 +465,64 @@ function AchForm({ onPick }: { onPick: (r: Recipient) => void }) {
   );
 }
 
+const USD_TAB: Record<UsdRoute, string> = { ach: "EUA", swift: "Outro país", usdc: "Carteira" };
+
+/** Transferência internacional: qualquer país com conta bancária (IBAN ou número da conta + SWIFT). */
+function SwiftForm({ onPick }: { onPick: (r: Recipient) => void }) {
+  const [f, setF] = useState<SwiftFields>({ holder: "", country: "", account: "", bic: "" });
+  const [touched, setTouched] = useState<Partial<Record<keyof SwiftFields, boolean>>>({});
+  const errors = swiftErrors(f);
+  const country = countryOf(f.country);
+  const set = (k: keyof SwiftFields) => (v: string) => {
+    setF((x) => ({ ...x, [k]: v }));
+    setTouched((t) => ({ ...t, [k]: true }));
+  };
+  const show = (k: keyof SwiftFields) => (touched[k] ? errors[k] ?? null : null);
+  return (
+    <section className="form">
+      <label className="field">
+        <span className="label">País do banco</span>
+        <select value={f.country} onChange={(e) => set("country")(e.target.value)} aria-label="País do banco">
+          <option value="">Escolha o país</option>
+          {COUNTRIES.map((c) => (
+            <option key={c.code} value={c.code}>{c.name}</option>
+          ))}
+        </select>
+        {errors.country && f.country && <small className="error">{errors.country}</small>}
+      </label>
+      <Field label="Nome completo de quem recebe" value={f.holder} onChange={set("holder")} placeholder="Como está no banco" error={show("holder")} />
+      <Field
+        label={country?.iban ? "IBAN" : "Número da conta"}
+        value={f.account}
+        onChange={set("account")}
+        placeholder={country?.iban ? `Ex.: ${f.country || "PT"}50 0002 0123 …` : "Como aparece no extrato"}
+        error={show("account")}
+      />
+      <Field label="Código SWIFT/BIC do banco" value={f.bic} onChange={(v) => set("bic")(v.toUpperCase())} placeholder="8 ou 11 letras e números" error={show("bic")} hint="Fica no app ou no site do banco de quem recebe." />
+      <p className="muted small">
+        Tarifa: {money("USD", USD_ROUTE.swift.fee)} · chega em {USD_ROUTE.swift.eta}. Bancos intermediários podem descontar tarifas
+        próprias. Transferências internacionais levam os dados de quem envia e de quem recebe (regra do GAFI).
+      </p>
+      <button
+        className="primary"
+        disabled={Object.keys(errors).length > 0}
+        onClick={() =>
+          onPick({
+            id: `swift:${f.bic.trim().toUpperCase()}:${f.account.replace(/\s+/g, "").toUpperCase()}`,
+            side: "USD",
+            route: "swift",
+            name: f.holder.trim(),
+            detail: `${country?.iban ? "IBAN" : "Conta"} ${maskAccount(f.account)} · ${country?.name ?? ""}`,
+            data: {},
+          })
+        }
+      >
+        <BankIcon /> Continuar com esta conta
+      </button>
+    </section>
+  );
+}
+
 function UsdcForm({ onPick }: { onPick: (r: Recipient) => void }) {
   const [address, setAddress] = useState("");
   const [name, setName] = useState("");
@@ -495,8 +561,8 @@ function SendReceipt(props: { side: Side; amount: number; fee: number; recipient
   const [copied, setCopied] = useState(false);
   const route = recipient.route;
   const when = at.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-  const title = route === "pix" ? "Pix enviado" : route === "ach" ? "Transferência enviada" : "Dólar enviado";
-  const idLabel = route === "pix" ? "ID da transação (fim a fim)" : route === "ach" ? "Protocolo" : "Assinatura da transação";
+  const title = route === "pix" ? "Pix enviado" : route === "usdc" ? "Dólar enviado" : "Transferência enviada";
+  const idLabel = route === "pix" ? "ID da transação (fim a fim)" : route === "ach" ? "Protocolo" : route === "swift" ? "Rastreio SWIFT (UETR)" : "Assinatura da transação";
   const text = [
     `cambI · ${title}`,
     `Valor: ${money(side, amount)}`,
@@ -545,7 +611,7 @@ function SendReceipt(props: { side: Side; amount: number; fee: number; recipient
         <div><dt>Para</dt><dd>{recipient.name}</dd></div>
         <div><dt>{route === "pix" ? "Chave" : "Destino"}</dt><dd>{recipient.detail}</dd></div>
         <div><dt>Tarifa</dt><dd>{fee ? money(side, fee) : "Grátis"}</dd></div>
-        <div><dt>Instituição</dt><dd>{route === "pix" ? "Parceiro autorizado (demo)" : route === "ach" ? "Parceiro bancário nos EUA (demo)" : "Rede Solana (demo)"}</dd></div>
+        <div><dt>Instituição</dt><dd>{route === "pix" ? "Parceiro autorizado (demo)" : route === "ach" ? "Parceiro bancário nos EUA (demo)" : route === "swift" ? "Banco correspondente (demo)" : "Rede Solana (demo)"}</dd></div>
         <div className="stack">
           <dt>{idLabel}</dt>
           <dd className="mono">{id}</dd>

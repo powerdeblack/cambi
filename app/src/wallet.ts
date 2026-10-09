@@ -10,7 +10,7 @@ export interface Activity {
   fee?: number;
   savedVsBank?: number; // em reais
   to?: string; // envio: destinatário mascarado (chave Pix, conta ou carteira)
-  route?: string; // envio: "Pix", "ACH" ou "USDC"
+  route?: string; // envio: "Pix", "ACH", "SWIFT" ou "USDC"
   purpose?: string; // troca: finalidade declarada (natureza da operação de câmbio)
   at?: number; // quando aconteceu (ms)
   sig?: string; // assinatura da transação na Solana (modo blockchain)
@@ -20,7 +20,7 @@ export interface Activity {
 export interface Recipient {
   id: string; // chave única (tipo + valor)
   side: Side;
-  route: "pix" | "ach" | "usdc";
+  route: "pix" | "ach" | "swift" | "usdc";
   name: string;
   detail: string; // mascarado, para mostrar
   data: Record<string, string>; // dados para preencher de novo
@@ -45,6 +45,9 @@ export const INITIAL_WALLET: Wallet = {
 let lastId = 0;
 /** Id crescente e único, mesmo depois de recarregar a carteira salva. */
 const nextId = () => (lastId = Math.max(lastId + 1, Date.now()));
+
+/** Nome curto da rota de envio, como aparece na atividade. */
+export const routeLabel = (r: Recipient["route"]) => ({ pix: "Pix", ach: "ACH", swift: "SWIFT", usdc: "USDC" })[r];
 
 export const isDepositor = (w: Wallet) => w.rende.BRL > 0 || w.rende.USD > 0;
 export const kindFor = (w: Wallet): UserKind => (isDepositor(w) ? "depositor" : "retail");
@@ -106,7 +109,7 @@ export function storableRecipient(r: Recipient): Recipient {
   return { ...r, data: r.route === "usdc" ? { address: r.data.address ?? "" } : {} };
 }
 
-const ROUTES = new Set(["pix", "ach", "usdc"]);
+const ROUTES = new Set(["pix", "ach", "swift", "usdc"]);
 /** Dados vindos do armazenamento do aparelho são conferidos antes de usar. */
 export function sanitizeWallet(w: Wallet): Wallet {
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0);
@@ -129,7 +132,7 @@ export function sanitizeWallet(w: Wallet): Wallet {
 export function walletSend(w: Wallet, side: Side, amount: number, fee: number, recipient: Recipient) {
   if (!(amount > 0)) throw new Error("Informe um valor");
   if (amount + fee > w.balance[side] + 1e-9) throw new Error("Saldo insuficiente na sua carteira");
-  const route = recipient.route === "pix" ? "Pix" : recipient.route === "ach" ? "ACH" : "USDC";
+  const route = routeLabel(recipient.route);
   const activity: Activity = {
     id: nextId(),
     kind: "send",

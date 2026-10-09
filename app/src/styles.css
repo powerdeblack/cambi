@@ -306,6 +306,8 @@ button.link.inline { padding: 0; font-size: inherit; text-decoration: underline;
 .segmented button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .segmented button svg { width: 18px; height: 18px; }
 .small-seg button { font-size: 0.8rem; min-height: 40px; }
+.segmented.three { grid-template-columns: repeat(3, 1fr); }
+.segmented.three button { font-size: 0.85rem; padding: 0 4px; }
 .warn-box { margin: 0; padding: 12px 14px; border-radius: 14px; background: var(--warn-bg); color: var(--warn); font-size: 0.9rem; }
 
 .avatar {
