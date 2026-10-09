@@ -79,7 +79,7 @@ export function DollarScreen({ wallet, quote, price, onSwap, onRende, onClose }:
         ) : (
           <div className="chart chart-empty muted small">{raw === "error" ? "Histórico indisponível agora" : "Carregando histórico…"}</div>
         )}
-        <p className="muted small legend">
+        <p className="muted small chart-legend">
           <span className="legend-line green" /> dólar &nbsp; <span className="legend-line dashed" /> seu preço médio
         </p>
       </section>
