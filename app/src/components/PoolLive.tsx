@@ -3,7 +3,7 @@ import deployment from "../devnet.json";
 import { fromUnits } from "../chain/accounts";
 import type { ChainState } from "../chain/client";
 import type { ChainActivity } from "../chain/useChain";
-import { money, pct, rate, reais } from "../format";
+import { money, pct, pct2, rate, reais } from "../format";
 import { OnchainPool, fetchPool, fetchTokenBalance } from "../onchain";
 import { DepositEvt, PoolEvt, SwapEvt, addMarks, earningsCurve, fetchPoolEvents, ownersCurve, ownersEarnedBRL } from "../poolEvents";
 import { Brand } from "./Brand";
@@ -21,8 +21,14 @@ interface Live {
 type Data = { pool: OnchainPool; brl: number; usd: number; events: PoolEvt[]; readAt: number };
 
 const whole = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-const axis = (v: number) => v.toLocaleString("pt-BR", { notation: "compact", maximumFractionDigits: 2 });
-const fine = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: v < 1 ? 4 : 2 });
+// Rendimento de devnet pode ser fração de centavo: aí mostramos 2 algarismos significativos (ex.: R$ 0,00031).
+const tiny = (v: number) => v > 0 && v < 0.01;
+const axis = (v: number) =>
+  tiny(Math.abs(v)) || (v > 0 && v < 1)
+    ? v.toLocaleString("pt-BR", { maximumSignificantDigits: 2 })
+    : v.toLocaleString("pt-BR", { notation: "compact", maximumFractionDigits: 2 });
+const fine = (v: number) =>
+  v.toLocaleString("pt-BR", tiny(v) ? { style: "currency", currency: "BRL", maximumSignificantDigits: 2 } : { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: v < 1 ? 4 : 2 });
 const when = (at: number) =>
   new Date(at * 1000).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const day = (at: number) => new Date(at * 1000).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
@@ -163,8 +169,8 @@ function MyPosition({ live, data, status, onRende }: { live: Live; data: Data; s
       <div className="hero-tiles">
         <div>
           <small>Rendeu até agora</small>
-          <strong>+ {fine(earned)}</strong>
-          <small>{invested > 0 ? `${pct(earned / invested)} do valor` : "—"}</small>
+          <strong>+{fine(earned)}</strong>
+          <small>{invested <= 0 ? "—" : earned > 0 && earned / invested < 0.0001 ? "< 0,01% do valor" : `${pct2(earned / invested)} do valor`}</small>
         </div>
         <div>
           <small>A receber</small>

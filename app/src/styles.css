@@ -637,3 +637,6 @@ button.link.inline { padding: 0; font-size: inherit; }
 .feed-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-variant-numeric: tabular-nums; }
 .pool-now .stat strong { white-space: nowrap; }
 .pool-now .stat .muted { font-size: 0.8rem; }
+.my-pool .hero-tiles strong { white-space: nowrap; font-size: 0.98rem; }
+.hero-chart .chart-legend { flex-wrap: wrap; row-gap: 2px; }
+.hero-chart .chart-legend, .pool-now .chart-legend { white-space: nowrap; }

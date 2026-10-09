@@ -11,7 +11,7 @@ import { Home } from "./components/Home";
 import { BankIcon, ChevronIcon, GrowIcon, HomeIcon, KeyIcon, PoolIcon, SwapIcon, UserIcon } from "./components/Icons";
 import { Logo } from "./components/Logo";
 import { OnchainCard } from "./components/OnchainCard";
-import { FeeFlow } from "./components/PoolDashboard";
+import { FeeFlow } from "./components/FeeFlow";
 import { PoolLive } from "./components/PoolLive";
 import { QuoteBadge } from "./components/QuoteBadge";
 import { QuickSim } from "./components/QuickSim";
