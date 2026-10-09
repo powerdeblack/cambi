@@ -17,6 +17,22 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Tela de abertura: aparece antes do JavaScript carregar e some quando o app está pronto (main.tsx). -->
+    <div id="splash" class="splash" aria-hidden="true">
+      <div class="splash-center">
+        <svg class="splash-logo" viewBox="0 0 220 80" role="img" aria-label="cambI">
+          <text x="0" y="60" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="64" font-weight="800" letter-spacing="-2" fill="#ffffff">camb</text>
+          <g fill="#12A150">
+            <rect class="splash-i-top" x="168" y="12" width="44" height="10" rx="3" />
+            <rect class="splash-i-stem" x="183" y="12" width="14" height="56" rx="3" />
+            <rect class="splash-i-base" x="168" y="58" width="44" height="10" rx="3" />
+          </g>
+        </svg>
+        <p class="splash-tagline">O câmbio sou eu.</p>
+        <div class="splash-bar"><span></span></div>
+      </div>
+      <p class="splash-foot">Real ↔ Dólar · na rede Solana</p>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
