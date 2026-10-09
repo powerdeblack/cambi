@@ -435,6 +435,7 @@ a.as-button { display: inline-flex; align-items: center; justify-content: center
 
 .crash { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
 .crash h2 { margin: 0; }
+.crash code.small { white-space: pre-wrap; font-size: 0.7rem; }
 
 /* ---------- Conformidade ---------- */
 .topbar-right { display: flex; align-items: center; gap: 8px; }

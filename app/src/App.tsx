@@ -157,7 +157,10 @@ export default function App() {
   }, [pool, wallet]);
 
   // Ao trocar de aba, volta ao topo, como num app nativo.
-  useEffect(() => window.scrollTo({ top: 0 }), [tab]);
+  // Chaves: no Chrome novo, scrollTo devolve uma Promise, e o React trataria isso como função de limpeza.
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [tab]);
 
   async function chainSwap(side: Side, amount: number, purpose?: string): Promise<SwapResult> {
     // O mínimo aceito vem do valor que a pessoa viu na tela (prévia do mesmo estado exibido).

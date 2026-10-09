@@ -24,6 +24,8 @@ export class ErrorBoundary extends Component<{ children: ReactNode; onReset?: ()
         <h2>Algo deu errado nesta tela</h2>
         <p className="muted">Seus saldos não foram afetados. Tente voltar ao início ou recarregar o app.</p>
         <code className="address">{error.message || String(error)}</code>
+        {error.stack && <code className="address small">{error.stack.split("\n").slice(0, 4).join("\n")}</code>}
+
         <button
           className="primary"
           onClick={() => {
