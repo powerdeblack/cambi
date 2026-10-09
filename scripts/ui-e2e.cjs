@@ -26,7 +26,11 @@ fs.mkdirSync(out, { recursive: true });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && errors.push(`console: ${m.text()}`));
   let n = 0;
-  const shot = (name) => page.screenshot({ path: `${out}/${String(++n).padStart(2, "0")}-${name}.png` });
+  // Os prints esperam a tela de abertura sair (ela volta a cada recarga, como num app de banco).
+  const shot = async (name) => {
+    await page.locator("#splash").waitFor({ state: "detached", timeout: 10_000 }).catch(() => {});
+    await page.screenshot({ path: `${out}/${String(++n).padStart(2, "0")}-${name}.png` });
+  };
   const step = (msg) => console.log(`✓ ${msg}`);
   const CHAIN = 90_000;
 
