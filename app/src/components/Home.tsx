@@ -4,7 +4,8 @@ import { dollarResult } from "../position";
 import { Wallet, isDepositor } from "../wallet";
 import { Brand } from "./Brand";
 import { ACTIVITY_ICON, activityTitle } from "../activity";
-import { ChevronIcon, GrowIcon, SendIcon, SwapIcon } from "./Icons";
+import { BellIcon, ChevronIcon, EyeIcon, EyeOffIcon, GrowIcon, ListIcon, SendIcon, SwapIcon } from "./Icons";
+import { ReactNode } from "react";
 
 interface Props {
   pool: PoolState;
@@ -14,30 +15,54 @@ interface Props {
   onSimulateMarket?: () => void;
   onStatement: () => void;
   onDollars: () => void;
+  onAlert: () => void;
+  /** Primeiro nome da pessoa (do cadastro), para a saudação. */
+  name?: string;
+  hidden: boolean;
+  onToggleHidden: () => void;
+  /** Conteúdo logo abaixo dos atalhos (cartão do dólar, conta na Solana). */
+  afterActions?: ReactNode;
 }
 
-export function Home({ pool, wallet, go, onSend, onSimulateMarket, onStatement, onDollars }: Props) {
+const greeting = () => {
+  const h = new Date().getHours();
+  return h < 5 ? "Boa noite" : h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+};
+
+
+export function Home({ pool, wallet, go, onSend, onSimulateMarket, onStatement, onDollars, onAlert, name, hidden, onToggleHidden, afterActions }: Props) {
   const p = pool.price;
   const free = wallet.balance.BRL + wallet.balance.USD * p;
   const invested = wallet.rende.BRL + wallet.rende.USD * p;
   const earned = wallet.earned.BRL + wallet.earned.USD * p;
   const dollars = dollarResult(wallet, p);
+  // Escondido, mostra só a moeda: "R$ ••••".
+  const show = (v: string) => (hidden ? `${v.split(/\s/)[0]} ••••` : v);
 
   return (
     <>
       <section className="balance-card">
+        <div className="balance-top">
+          <span className="hello">
+            {greeting()}
+            {name ? `, ${name}` : ""}
+          </span>
+          <button className="eye" onClick={onToggleHidden} aria-label={hidden ? "Mostrar saldo" : "Esconder saldo"} aria-pressed={hidden}>
+            {hidden ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+        </div>
         <span className="label">Seu patrimônio</span>
-        <strong className="big">{reais(free + invested + earned)}</strong>
+        <strong className="big">{show(reais(free + invested + earned))}</strong>
         <div className="balance-split">
-          <span>Disponível {reais(free)}</span>
-          <span>Na Rende {reais(invested)}</span>
+          <span>Disponível {show(reais(free))}</span>
+          <span>Na Rende {show(reais(invested))}</span>
         </div>
         {isDepositor(wallet) && (
-          <div className="earned-chip">+ {reais(earned)} ganhos com o câmbio dos outros</div>
+          <div className="earned-chip">+ {show(reais(earned))} ganhos com o câmbio dos outros</div>
         )}
       </section>
 
-      <div className="quick-actions">
+      <div className="quick-actions" role="group" aria-label="Atalhos">
         <button onClick={() => go("trocar")}>
           <span className="qa-icon"><SwapIcon /></span>
           Trocar
@@ -48,9 +73,23 @@ export function Home({ pool, wallet, go, onSend, onSimulateMarket, onStatement, 
         </button>
         <button onClick={() => go("rende")}>
           <span className="qa-icon"><GrowIcon /></span>
-          Render
+          Rende
+        </button>
+        <button onClick={onStatement}>
+          <span className="qa-icon"><ListIcon /></span>
+          Extrato
+        </button>
+        <button onClick={onDollars}>
+          <span className="qa-icon qa-flag" aria-hidden>US$</span>
+          Meus dólares
+        </button>
+        <button onClick={onAlert}>
+          <span className="qa-icon"><BellIcon /></span>
+          Alerta
         </button>
       </div>
+
+      {afterActions}
 
       <section className="card">
         <h3>Suas moedas</h3>
@@ -58,7 +97,7 @@ export function Home({ pool, wallet, go, onSend, onSimulateMarket, onStatement, 
           <li>
             <span className="flag">🇧🇷</span>
             <span>Real</span>
-            <strong>{money("BRL", wallet.balance.BRL)}</strong>
+            <strong>{show(money("BRL", wallet.balance.BRL))}</strong>
           </li>
           <li className="tap">
             <button className="row-btn" onClick={onDollars}>
@@ -71,7 +110,7 @@ export function Home({ pool, wallet, go, onSend, onSimulateMarket, onStatement, 
                   <small className="muted">ver preço médio</small>
                 )}
               </span>
-              <strong>{money("USD", wallet.balance.USD)}</strong>
+              <strong>{show(money("USD", wallet.balance.USD))}</strong>
               <ChevronIcon />
             </button>
           </li>
@@ -105,7 +144,7 @@ export function Home({ pool, wallet, go, onSend, onSimulateMarket, onStatement, 
         <div className="card-head">
           <h3>Atividade</h3>
           {wallet.activity.length > 0 && (
-            <button className="link small-link" onClick={onStatement}>
+            <button className="link small-link" onClick={onStatement} aria-label="Ver extrato completo">
               Ver extrato
             </button>
           )}

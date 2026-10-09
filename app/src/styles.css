@@ -68,10 +68,13 @@ main { display: flex; flex-direction: column; gap: 12px; }
   flex: 1; max-width: 120px; display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding: 10px 0 12px; border: 0; background: none; color: var(--muted); font-size: 0.75rem; font-weight: 600; cursor: pointer;
 }
+.bottom-nav button svg { padding: 3px 14px; box-sizing: content-box; border-radius: 999px; transition: background 0.18s ease; }
 .bottom-nav button.on { color: var(--green); }
+.bottom-nav button.on svg { background: var(--green-soft); }
 
 /* Cartões */
-.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; box-shadow: 0 1px 2px rgba(11, 37, 69, 0.04), 0 6px 20px rgba(11, 37, 69, 0.05); }
+@media (prefers-color-scheme: dark) { .card { box-shadow: none; } .quick-actions .qa-icon { box-shadow: none; } }
 h2 { margin: 0 0 12px; font-size: 1.35rem; }
 h3 { margin: 0 0 12px; font-size: 1rem; }
 p { margin: 0 0 12px; line-height: 1.45; }
@@ -91,14 +94,18 @@ p { margin: 0 0 12px; line-height: 1.45; }
 .earned-chip { display: inline-block; margin-top: 14px; padding: 6px 12px; border-radius: 999px; background: rgba(18, 161, 80, 0.25); color: #9ff0c0; font-weight: 700; font-size: 0.85rem; }
 
 /* Atalhos */
-.quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 8px; padding: 4px 0 6px; }
 .quick-actions button {
-  display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px; border-radius: 18px;
-  border: 1px solid var(--line); background: var(--card); font-weight: 700; font-size: 0.9rem; cursor: pointer; min-height: 88px;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 4px 2px; border: 0; background: none;
+  font-weight: 600; font-size: 0.82rem; color: var(--ink); cursor: pointer; min-height: 76px; -webkit-tap-highlight-color: transparent;
 }
-.quick-actions button:active { transform: scale(0.96); }
-.quick-actions .qa-icon { width: 42px; height: 42px; border-radius: 14px; }
+.quick-actions .qa-icon {
+  width: 56px; height: 56px; border-radius: 50%; background: var(--card); color: var(--green); border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgba(11, 37, 69, 0.08); transition: transform 0.12s ease, background 0.12s ease;
+}
+.quick-actions .qa-icon svg { width: 24px; height: 24px; }
+.quick-actions button:active .qa-icon { transform: scale(0.92); background: var(--green-soft); }
+.qa-flag { font-size: 0.8rem; font-weight: 800; letter-spacing: -0.02em; }
 .qa-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: var(--green-soft); color: var(--green); }
 
 /* Listas */
@@ -441,6 +448,22 @@ a.as-button { display: inline-flex; align-items: center; justify-content: center
 .crash { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
 .crash h2 { margin: 0; }
 .crash code.small { white-space: pre-wrap; font-size: 0.7rem; }
+
+/* ---------- Topo do saldo (saudação e esconder saldo) ---------- */
+.balance-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.hello { font-weight: 700; font-size: 1.05rem; color: #fff; }
+.eye { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255,255,255,0.12); color: #fff; cursor: pointer; }
+.eye svg { width: 20px; height: 20px; }
+
+/* ---------- Carregando (blocos que pulsam no lugar do conteúdo) ---------- */
+.skeleton { position: relative; overflow: hidden; background: var(--bg); border-radius: 12px; }
+.skeleton::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent); animation: shimmer 1.2s infinite;
+}
+@media (prefers-color-scheme: dark) { .skeleton::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent); } }
+@keyframes shimmer { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .skeleton::after { animation: none; } }
 
 /* ---------- Aba Pool: gráficos (paleta validada: CVD e contraste, claro e escuro) ---------- */
 .viz { --series-1: #12a150; --series-2: #2a78d6; --series-3: #eb6834; }

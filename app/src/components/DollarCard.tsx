@@ -78,7 +78,11 @@ export function DollarCard({ quote, price, alert, onAlert }: Props) {
       {points && s ? (
         <RateChart points={points} hover={hover} onHover={setHover} label={`Dólar nos últimos ${period} dias: de ${rate(s.first)} para ${rate(s.last)}`} />
       ) : (
-        <div className="chart chart-empty muted small">{raw === "error" ? "Histórico indisponível agora" : "Carregando histórico…"}</div>
+        raw === "error" ? (
+          <div className="chart chart-empty muted small">Histórico indisponível agora</div>
+        ) : (
+          <div className="chart skeleton" role="status" aria-label="Carregando histórico" />
+        )
       )}
 
       <div className="dollar-foot">

@@ -80,6 +80,14 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [suitabilityOpen, setSuitabilityOpen] = useState(false);
   const [legal, setLegal] = useState<LegalDoc | null>(null);
+  // Esconder saldo (padrão dos apps de banco), lembrado neste aparelho.
+  const [hideMoney, setHideMoney] = useState(() => {
+    try {
+      return localStorage.getItem("cambi-hide-v1") === "1";
+    } catch {
+      return false;
+    }
+  });
   const setProfile = (p: Profile) => {
     setProfileState(p);
     saveProfile(p);
@@ -312,20 +320,6 @@ export default function App() {
           </div>
         )}
         {tab === "trocar" && <QuoteBadge quote={quote} price={pool.price} />}
-        {tab === "inicio" && <DollarCard quote={quote} price={pool.price} alert={alert} onAlert={() => setAlertOpen(true)} />}
-        {tab === "inicio" && (
-          <ChainCard
-            chain={chain}
-            balanceBRL={view.balance.BRL}
-            onActivate={activate}
-            onDeactivate={deactivate}
-            onLegal={setLegal}
-            onFaucet={async () => {
-              const sig = await claim();
-              record({ kind: "faucet", side: "BRL", amountIn: 1_000, sig });
-            }}
-          />
-        )}
         {tab === "inicio" && (
           <Home
             pool={viewPool}
@@ -335,6 +329,35 @@ export default function App() {
             onSimulateMarket={live ? undefined : handleMarket}
             onStatement={() => setStatement(true)}
             onDollars={() => setDollarsOpen(true)}
+            onAlert={() => setAlertOpen(true)}
+            name={profile.name.trim().split(/\s+/)[0] || undefined}
+            hidden={hideMoney}
+            onToggleHidden={() => {
+              setHideMoney((h) => {
+                try {
+                  localStorage.setItem("cambi-hide-v1", h ? "0" : "1");
+                } catch {
+                  /* sem armazenamento */
+                }
+                return !h;
+              });
+            }}
+            afterActions={
+              <>
+                <DollarCard quote={quote} price={pool.price} alert={alert} onAlert={() => setAlertOpen(true)} />
+                <ChainCard
+                  chain={chain}
+                  balanceBRL={view.balance.BRL}
+                  onActivate={activate}
+                  onDeactivate={deactivate}
+                  onLegal={setLegal}
+                  onFaucet={async () => {
+                    const sig = await claim();
+                    record({ kind: "faucet", side: "BRL", amountIn: 1_000, sig });
+                  }}
+                />
+              </>
+            }
           />
         )}
         {tab === "inicio" && <QuickSim pool={viewPool} wallet={view} onSwap={() => setTab("trocar")} />}
