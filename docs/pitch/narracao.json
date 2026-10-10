@@ -15,174 +15,132 @@
  },
  {
   "id": "002",
-  "texto": "No banco, o spread passa de cinco por cento. Na casa de câmbio, chega perto de quatro.",
-  "fala": "No banco, o isprédi passa de cinco por cento. Na casa de câmbio, chega perto de quatro.",
-  "en": "At a bank the spread is over 5%. At an exchange office, close to 4%.",
-  "speech_en": "At a bank the spread is over five percent. At an exchange office, close to four percent."
+  "texto": "No banco, o spread passa de cinco por cento. Na casa de câmbio, chega perto de quatro. E fica todo com o intermediário.",
+  "fala": "No banco, o isprédi passa de cinco por cento. Na casa de câmbio, chega perto de quatro. E fica todo com o intermediário.",
+  "en": "At a bank the spread is over 5%. At an exchange office, close to 4%. And the middleman keeps it all.",
+  "speech_en": "At a bank the spread is over five percent. At an exchange office, close to four percent. And the middleman keeps it all."
  },
  {
   "id": "003",
-  "texto": "E fica todo com o intermediário.",
-  "fala": "E fica todo com o intermediário.",
-  "en": "And the middleman keeps all of it.",
-  "speech_en": "And the middleman keeps all of it."
- },
- {
-  "id": "004",
   "texto": "Na cambI, de cada cem reais de taxa, sessenta voltam para quem é dono do pool.",
   "fala": "Na Câmbi, de cada cem reais de taxa, sessenta voltam para quem é dono do púl.",
   "en": "On cambI, out of every R$ 100 in fees, R$ 60 goes back to the pool's owners.",
   "speech_en": "On Cambee, out of every one hundred reals in fees, sixty goes back to the pool's owners."
  },
  {
-  "id": "005",
+  "id": "004",
   "texto": "Qualquer pessoa vira dona a partir de dez reais, na cambI Rende.",
   "fala": "Qualquer pessoa vira dona a partir de dez reais, na Câmbi Rende.",
   "en": "Anyone can become an owner from R$ 10, with cambI Rende.",
   "speech_en": "Anyone can become an owner from ten reals, with Cambee Rende."
  },
  {
-  "id": "006",
+  "id": "005",
   "texto": "É renda fixa mais uma parte da taxa de cada troca.",
   "fala": "É renda fixa mais uma parte da taxa de cada troca.",
   "en": "It's fixed income plus a share of every swap's fee.",
   "speech_en": "It's fixed income plus a share of every swap's fee."
  },
  {
-  "id": "007",
+  "id": "006",
   "texto": "Os grandes investidores, na Baleia, assumem o risco primeiro e ganham mais.",
   "fala": "Os grandes investidores, na Baleia, assumem o risco primeiro e ganham mais.",
   "en": "Large investors, in Baleia, take the risk first and earn more.",
   "speech_en": "Large investors, in Baleia, take the risk first and earn more."
  },
  {
-  "id": "008",
+  "id": "007",
   "texto": "E não é slide: na Solana, quem depositou vê o rendimento chegar ao vivo, troca por troca.",
   "fala": "E não é slide: na Solana, quem depositou vê o rendimento chegar ao vivo, troca por troca.",
   "en": "And it's not a slide: on Solana, depositors watch their earnings arrive live, swap by swap.",
   "speech_en": "And it's not a slide: on Solana, depositors watch their earnings arrive live, swap by swap."
  },
  {
-  "id": "009",
-  "texto": "Cada operação tem um comprovante público na blockchain.",
-  "fala": "Cada operação tem um comprovante público na blóqui chêin.",
-  "en": "Every operation has a public receipt on the blockchain.",
-  "speech_en": "Every operation has a public receipt on the blockchain."
- },
- {
-  "id": "010",
+  "id": "008",
   "texto": "Para quem só quer trocar, a taxa é de um por cento, ou meio por cento para quem é dono.",
   "fala": "Para quem só quer trocar, a taxa é de um por cento, ou meio por cento para quem é dono.",
   "en": "If you just want to swap, the fee is 1%, or 0.5% for owners.",
   "speech_en": "If you just want to swap, the fee is one percent, or half a percent for owners."
  },
  {
-  "id": "011",
+  "id": "009",
   "texto": "E o IOF e o custo total aparecem antes de confirmar.",
   "fala": "E o i ó éfe e o custo total aparecem antes de confirmar.",
   "en": "And the IOF tax and the total cost show up before you confirm.",
   "speech_en": "And the I O F tax and the total cost show up before you confirm."
  },
  {
-  "id": "012",
-  "texto": "O mercado é grande: os brasileiros gastaram vinte e um bilhões e setecentos milhões de dólares no exterior em 2025,",
-  "fala": "O mercado é grande: os brasileiros gastaram vinte e um bilhões e setecentos milhões de dólares no exterior em dois mil e vinte e cinco,",
-  "en": "The market is big: Brazilians spent US$ 21.7 billion abroad in 2025,",
-  "speech_en": "The market is big: Brazilians spent twenty one point seven billion dollars abroad in twenty twenty five,"
- },
- {
-  "id": "013",
-  "texto": "e cerca de oitenta por cento do volume cripto declarado no Brasil já é dólar digital.",
-  "fala": "e cerca de oitenta por cento do volume cripto declarado no Brasil já é dólar digital.",
-  "en": "and about 80% of the crypto volume declared in Brazil is already digital dollars.",
-  "speech_en": "and about eighty percent of the crypto volume declared in Brazil is already digital dollars."
- },
- {
-  "id": "014",
+  "id": "010",
   "texto": "Wise e Nomad baixaram o custo. Mas ninguém divide o lucro com quem usa.",
   "fala": "Uáise e Nômad baixaram o custo. Mas ninguém divide o lucro com quem usa.",
   "en": "Wise and Nomad lowered the cost. But nobody shares the profit with the people who use it.",
   "speech_en": "Wise and Nomad lowered the cost. But nobody shares the profit with the people who use it."
  },
  {
-  "id": "015",
+  "id": "011",
   "texto": "A cambI divide.",
   "fala": "A Câmbi divide.",
   "en": "cambI does.",
   "speech_en": "Cambee does."
  },
  {
-  "id": "016",
+  "id": "012",
   "texto": "E o momento é agora: desde fevereiro de 2026, stablecoin é câmbio no Brasil, feito por prestadoras autorizadas.",
   "fala": "E o momento é agora: desde fevereiro de dois mil e vinte e seis, stêibol cóin é câmbio no Brasil, feito por prestadoras autorizadas.",
   "en": "And the timing is now: since February 2026, stablecoins are foreign exchange in Brazil, through authorized providers.",
   "speech_en": "And the timing is now: since February twenty twenty six, stablecoins are foreign exchange in Brazil, through authorized providers."
  },
  {
-  "id": "017",
+  "id": "013",
   "texto": "Essas empresas vão precisar de liquidez entre real e dólar, vinte e quatro horas. O pool da cambI é essa liquidez.",
   "fala": "Essas empresas vão precisar de liquidez entre real e dólar, vinte e quatro horas. O púl da Câmbi é essa liquidez.",
   "en": "These companies will need BRL–USD liquidity around the clock. cambI's pool is that liquidity.",
   "speech_en": "These companies will need real to dollar liquidity around the clock. Cambee's pool is that liquidity."
  },
  {
-  "id": "018",
+  "id": "014",
   "texto": "Parceiros pagam zero vírgula quatro por cento por troca, e isso já funciona na devnet.",
   "fala": "Parceiros pagam zero vírgula quatro por cento por troca, e isso já funciona na devnet.",
   "en": "Partners pay 0.4% per swap, and it already works on devnet.",
   "speech_en": "Partners pay zero point four percent per swap, and it already works on devnet."
  },
  {
-  "id": "019",
+  "id": "015",
   "texto": "A cambI fica com vinte e cinco por cento da taxa líquida, e vinte por cento do que a Rende render acima do CDI.",
   "fala": "A Câmbi fica com vinte e cinco por cento da taxa líquida, e vinte por cento do que a Rende render acima do cê dê í.",
   "en": "cambI keeps 25% of net fees, and 20% of Rende returns above the CDI benchmark.",
   "speech_en": "Cambee keeps twenty five percent of net fees, and twenty percent of Rende returns above the C D I benchmark."
  },
  {
-  "id": "020",
+  "id": "016",
   "texto": "Só ganha mais quando o cliente ganha mais.",
   "fala": "Só ganha mais quando o cliente ganha mais.",
   "en": "It only earns more when the customer does.",
   "speech_en": "It only earns more when the customer does."
  },
  {
-  "id": "021",
+  "id": "017",
   "texto": "Os riscos, sem esconder: com pouco movimento, a Rende rende menos que o CDI, e o app mostra isso.",
   "fala": "Os riscos, sem esconder: com pouco movimento, a Rende rende menos que o cê dê í, e o app mostra isso.",
   "en": "The risks, upfront: with low volume, Rende earns less than the CDI benchmark, and the app says so.",
   "speech_en": "The risks, upfront: with low volume, Rende earns less than the C D I benchmark, and the app says so."
  },
  {
-  "id": "022",
+  "id": "018",
   "texto": "E rendimento para o público pode ser regulado pela CVM. Por isso, lançar só com parecer jurídico e parceiro autorizado.",
   "fala": "E rendimento para o público pode ser regulado pela CVM. Por isso, lançar só com parecer jurídico e parceiro autorizado.",
   "en": "And returns offered to the public may fall under securities rules, so we launch only with legal review and an authorized partner.",
   "speech_en": "And returns offered to the public may fall under securities rules, so we launch only with legal review and an authorized partner."
  },
  {
-  "id": "023",
-  "texto": "Perfil do cliente, limites, Travel Rule e revisão de segurança do programa.",
-  "fala": "Perfil do cliente, limites, trável rúl e revisão de segurança do programa.",
-  "en": "Customer profile, limits, the Travel Rule and a security review of the program.",
-  "speech_en": "Customer profile, limits, the Travel Rule and a security review of the program."
- },
- {
-  "id": "024",
-  "texto": "E um aviso claro: a Rende não tem garantia do FGC.",
-  "fala": "E um aviso claro: a Rende não tem garantia do éfe gê cê.",
-  "en": "And a clear warning: Rende has no FGC deposit insurance.",
-  "speech_en": "And a clear warning: Rende has no F G C deposit insurance."
- },
- {
-  "id": "025",
+  "id": "019",
   "texto": "Próximo passo: fechar a parceria regulada e abrir um piloto.",
   "fala": "Próximo passo: fechar a parceria regulada e abrir um piloto.",
   "en": "Next step: close the regulated partnership and open a pilot.",
   "speech_en": "Next step: close the regulated partnership and open a pilot."
  },
  {
-  "id": "026",
+  "id": "020",
   "texto": "cambI. O câmbio sou eu.",
   "fala": "Câmbi. O câmbio sou eu.",
   "en": "cambI. I am the exchange.",
