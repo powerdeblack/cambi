@@ -3,6 +3,11 @@ name: Prints do app (divulgação)
 # Rodado manualmente. Faz o mesmo percurso do teste de telas na devnet e publica os prints no branch "prints".
 on:
   workflow_dispatch:
+    inputs:
+      gravar:
+        description: "Gravar o percurso em vídeo (para o vídeo de demonstração)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -58,9 +63,11 @@ jobs:
       - name: Percorrer o app na devnet e tirar os prints
         env:
           ANCHOR_WALLET: .devnet-keys/deployer.json
+          GRAVAR: ${{ inputs.gravar }}
         run: |
           (cd app && npx vite preview --port 4173 --strictPort > /tmp/preview.log 2>&1 &)
           sleep 3
+          if [ "$GRAVAR" = "true" ]; then export RECORD_DIR=/tmp/prints/video; fi
           node scripts/ui-e2e.cjs http://localhost:4173/ /tmp/prints
           rm -rf .devnet-keys
 

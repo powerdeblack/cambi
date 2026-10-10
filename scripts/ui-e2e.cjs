@@ -1,6 +1,8 @@
 // Teste das TELAS do app contra a devnet real, num navegador de verdade (Chromium headless).
 // Cria a conta, troca, deposita na Rende e envia um Pix pela interface, esperando cada comprovante da blockchain.
 // Uso: node scripts/ui-e2e.cjs http://localhost:4173/ [pasta-de-prints]
+// Com RECORD_DIR=<pasta>, grava o percurso em vídeo (mais devagar, para dar para acompanhar) e salva os tempos de
+// cada passo em marks.json, para montar o vídeo de demonstração.
 const { chromium } = require("playwright");
 const fs = require("fs");
 const web3 = require("../app/node_modules/@solana/web3.js");
@@ -20,8 +22,16 @@ const out = process.argv[3] || "ui-e2e";
 fs.mkdirSync(out, { recursive: true });
 
 (async () => {
-  const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  const record = process.env.RECORD_DIR;
+  const browser = await chromium.launch(record ? { slowMo: 120 } : {});
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    ...(record ? { recordVideo: { dir: record, size: { width: 780, height: 1688 } } } : {}),
+  });
+  const page = await context.newPage();
+  const t0 = Date.now();
+  const marks = [];
   const errors = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && errors.push(`console: ${m.text()}`));
@@ -29,10 +39,13 @@ fs.mkdirSync(out, { recursive: true });
   // Os prints esperam a tela de abertura sair (ela volta a cada recarga, como num app de banco).
   const shot = async (name) => {
     await page.locator("#splash").waitFor({ state: "detached", timeout: 10_000 }).catch(() => {});
-    await page.waitForTimeout(700); // fim das animações de entrada (comprovantes aparecem com fade)
+    await page.waitForTimeout(record ? 2200 : 700); // fim das animações de entrada; no vídeo, tempo para ler a tela
     await page.screenshot({ path: `${out}/${String(++n).padStart(2, "0")}-${name}.png` });
   };
-  const step = (msg) => console.log(`✓ ${msg}`);
+  const step = (msg) => {
+    marks.push({ t: (Date.now() - t0) / 1000, msg });
+    console.log(`✓ ${msg}`);
+  };
   const CHAIN = 90_000;
 
   await page.goto(url);
@@ -142,6 +155,13 @@ fs.mkdirSync(out, { recursive: true });
   else console.log("! meus dólares sem histórico para marcar as compras");
   await shot("meus-dolares");
 
+  if (record) {
+    step("fim");
+    const video = page.video();
+    await context.close();
+    fs.renameSync(await video.path(), `${record}/demo.webm`);
+    fs.writeFileSync(`${record}/marks.json`, JSON.stringify(marks, null, 1));
+  }
   await browser.close();
   // Fontes externas de cotação e histórico podem limitar o IP do runner; o app trata isso e segue funcionando.
   const relevant = errors.filter((e) => !/favicon|429|Failed to load resource/i.test(e) && !(/CORS policy/i.test(e) && /awesomeapi|frankfurter|coinbase|er-api/i.test(e)));
