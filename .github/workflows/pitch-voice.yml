@@ -1,0 +1,50 @@
+name: Narração do pitch (voz sintética)
+
+# Rodado manualmente. Gera um áudio por frase de docs/pitch/narracao.json com o Piper (voz neural aberta, pt-BR)
+# e publica os arquivos no branch "voice", para montar o vídeo de apresentação.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: Instalar o Piper (versão fixa)
+        run: python3 -m pip install --quiet piper-tts==1.8.0
+      - name: Baixar a voz pt-BR (faber, médio)
+        run: |
+          mkdir -p /tmp/voz
+          base=https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/faber/medium
+          curl -sSfL "$base/pt_BR-faber-medium.onnx" -o /tmp/voz/voz.onnx
+          curl -sSfL "$base/pt_BR-faber-medium.onnx.json" -o /tmp/voz/voz.onnx.json
+          sha256sum /tmp/voz/*
+      - name: Gerar um áudio por frase
+        run: |
+          mkdir -p /tmp/out
+          python3 - <<'PY'
+          import json, subprocess
+          for x in json.load(open("docs/pitch/narracao.json")):
+              cmd = ["python3", "-m", "piper", "-m", "/tmp/voz/voz.onnx", "-f", f"/tmp/out/{x['id']}.wav"]
+              # Versões novas aceitam o texto como argumento; as antigas, pela entrada padrão.
+              if subprocess.run(cmd + ["--", x["fala"]]).returncode != 0:
+                  subprocess.run(cmd, input=x["fala"].encode(), check=True)
+          PY
+          ls -la /tmp/out | head -40
+      - name: Publicar no branch "voice"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd /tmp/out
+          git init -q -b voice
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -q -m "Narração do pitch [skip ci]"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:voice
