@@ -4,6 +4,12 @@ name: Narração do pitch (voz sintética)
 # e publica os arquivos no branch "voice", para montar o vídeo de apresentação.
 on:
   workflow_dispatch:
+    inputs:
+      idioma:
+        description: "pt (português) ou en (inglês)"
+        default: pt
+        type: choice
+        options: [pt, en]
 
 permissions:
   contents: write
@@ -18,28 +24,35 @@ jobs:
           persist-credentials: false
       - name: Instalar o Piper (versão fixa)
         run: python3 -m pip install --quiet piper-tts==1.8.0
-      - name: Baixar a voz pt-BR (faber, médio)
+      - name: Baixar a voz (pt-BR faber ou en-US ryan)
+        env:
+          IDIOMA: ${{ inputs.idioma }}
         run: |
           mkdir -p /tmp/voz
-          base=https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/faber/medium
-          curl -sSfL "$base/pt_BR-faber-medium.onnx" -o /tmp/voz/voz.onnx
-          curl -sSfL "$base/pt_BR-faber-medium.onnx.json" -o /tmp/voz/voz.onnx.json
+          if [ "$IDIOMA" = "en" ]; then path=en/en_US/ryan/high/en_US-ryan-high; else path=pt/pt_BR/faber/medium/pt_BR-faber-medium; fi
+          base=https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0
+          curl -sSfL "$base/$path.onnx" -o /tmp/voz/voz.onnx
+          curl -sSfL "$base/$path.onnx.json" -o /tmp/voz/voz.onnx.json
           sha256sum /tmp/voz/*
       - name: Gerar um áudio por frase
+        env:
+          IDIOMA: ${{ inputs.idioma }}
         run: |
           mkdir -p /tmp/out
           python3 - <<'PY'
-          import json, subprocess
+          import json, os, subprocess
+          campo = "speech_en" if os.environ["IDIOMA"] == "en" else "fala"
           for x in json.load(open("docs/pitch/narracao.json")):
               cmd = ["python3", "-m", "piper", "-m", "/tmp/voz/voz.onnx", "-f", f"/tmp/out/{x['id']}.wav"]
               # Versões novas aceitam o texto como argumento; as antigas, pela entrada padrão.
-              if subprocess.run(cmd + ["--", x["fala"]]).returncode != 0:
-                  subprocess.run(cmd, input=x["fala"].encode(), check=True)
+              if subprocess.run(cmd + ["--", x[campo]]).returncode != 0:
+                  subprocess.run(cmd, input=x[campo].encode(), check=True)
           PY
           ls -la /tmp/out | head -40
-      - name: Publicar no branch "voice"
+      - name: Publicar no branch "voice" (ou "voice-en")
         env:
           GH_TOKEN: ${{ github.token }}
+          IDIOMA: ${{ inputs.idioma }}
         run: |
           cd /tmp/out
           git init -q -b voice
@@ -47,4 +60,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -q -m "Narração do pitch [skip ci]"
-          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:voice
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:$([ "$IDIOMA" = "en" ] && echo voice-en || echo voice)
