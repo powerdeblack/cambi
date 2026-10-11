@@ -10,6 +10,11 @@ on:
         default: pt
         type: choice
         options: [pt, en]
+      roteiro:
+        description: "narracao (pitch) ou demo (vídeo de demonstração)"
+        default: narracao
+        type: choice
+        options: [narracao, demo]
 
 permissions:
   contents: write
@@ -37,12 +42,13 @@ jobs:
       - name: Gerar um áudio por frase
         env:
           IDIOMA: ${{ inputs.idioma }}
+          ROTEIRO: ${{ inputs.roteiro }}
         run: |
           mkdir -p /tmp/out
           python3 - <<'PY'
           import json, os, subprocess
           campo = "speech_en" if os.environ["IDIOMA"] == "en" else "fala"
-          for x in json.load(open("docs/pitch/narracao.json")):
+          for x in json.load(open(f"docs/pitch/{os.environ['ROTEIRO']}.json")):
               cmd = ["python3", "-m", "piper", "-m", "/tmp/voz/voz.onnx", "-f", f"/tmp/out/{x['id']}.wav"]
               # Versões novas aceitam o texto como argumento; as antigas, pela entrada padrão.
               if subprocess.run(cmd + ["--", x[campo]]).returncode != 0:
@@ -53,6 +59,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           IDIOMA: ${{ inputs.idioma }}
+          ROTEIRO: ${{ inputs.roteiro }}
         run: |
           cd /tmp/out
           git init -q -b voice
@@ -60,4 +67,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -q -m "Narração do pitch [skip ci]"
-          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:$([ "$IDIOMA" = "en" ] && echo voice-en || echo voice)
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:voice$([ "$ROTEIRO" = "demo" ] && echo -demo)$([ "$IDIOMA" = "en" ] && echo -en)

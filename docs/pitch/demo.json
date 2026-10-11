@@ -1,0 +1,65 @@
+[
+ {
+  "id": "000",
+  "texto": "Vou abrir a cambI no celular e criar uma conta grátis. A conta na Solana nasce aqui mesmo no aparelho, sem frase secreta e sem carteira. E o próprio programa me dá mil reais de teste.",
+  "fala": "Vou abrir a Câmbi no celular e criar uma conta grátis. A conta na Solana nasce aqui mesmo no aparelho, sem frase secreta e sem carteira. E o próprio programa me dá mil reais de teste.",
+  "en": "I'm opening cambI on my phone and creating a free account. The Solana account is created right here on the device, with no seed phrase and no wallet. And the program itself gives me a thousand test reais.",
+  "speech_en": "I'm opening Cambee on my phone and creating a free account. The Solana account is created right here on the device, with no seed phrase and no wallet. And the program itself gives me a thousand test reals."
+ },
+ {
+  "id": "001",
+  "texto": "Agora vou trocar cem reais por dólar. Antes de confirmar, vejo a cotação, a taxa, o IOF e o custo total. Confirmo, e a troca é registrada na Solana. O comprovante mostra quanto economizei em relação ao banco, e para onde foi cada centavo da taxa.",
+  "fala": "Agora vou trocar cem reais por dólar. Antes de confirmar, vejo a cotação, a taxa, o i ó éfe e o custo total. Confirmo, e a troca é registrada na Solana. O comprovante mostra quanto economizei em relação ao banco, e para onde foi cada centavo da taxa.",
+  "en": "Now I'll swap R$ 100 for dollars. Before confirming, I see the rate, the fee, the IOF tax and the total cost. I confirm, and the swap is recorded on Solana. The receipt shows how much I saved compared to a bank, and where every cent of the fee went.",
+  "speech_en": "Now I'll swap one hundred reals for dollars. Before confirming, I see the rate, the fee, the I O F tax and the total cost. I confirm, and the swap is recorded on Solana. The receipt shows how much I saved compared to a bank, and where every cent of the fee went."
+ },
+ {
+  "id": "002",
+  "texto": "Agora quero ser dono do pool. Antes de investir, o app pede o meu perfil de investidor, como as regras brasileiras exigem.",
+  "fala": "Agora quero ser dono do púl. Antes de investir, o app pede o meu perfil de investidor, como as regras brasileiras exigem.",
+  "en": "Now I want to become an owner of the pool. Before investing, the app asks for my investor profile, as Brazilian rules require.",
+  "speech_en": "Now I want to become an owner of the pool. Before investing, the app asks for my investor profile, as Brazilian rules require."
+ },
+ {
+  "id": "003",
+  "texto": "Deposito cem reais na cambI Rende. A partir de agora, cada troca feita no pool me paga uma parte da taxa.",
+  "fala": "Deposito cem reais na Câmbi Rende. A partir de agora, cada troca feita no púl me paga uma parte da taxa.",
+  "en": "I deposit R$ 100 in cambI Rende. From now on, every swap in the pool pays me part of the fee.",
+  "speech_en": "I deposit one hundred reals in Cambee Rende. From now on, every swap in the pool pays me part of the fee."
+ },
+ {
+  "id": "004",
+  "texto": "Também dá para mandar dinheiro. Escolho Pix, coloco a chave e o valor, reviso e envio. O comprovante fica registrado na Solana.",
+  "fala": "Também dá para mandar dinheiro. Escolho Píx, coloco a chave e o valor, reviso e envio. O comprovante fica registrado na Solana.",
+  "en": "I can also send money. I pick Pix, enter the key and the amount, review and send. The receipt is recorded on Solana.",
+  "speech_en": "I can also send money. I pick Pix, enter the key and the amount, review and send. The receipt is recorded on Solana."
+ },
+ {
+  "id": "005",
+  "texto": "No extrato, cada operação tem um link para a transação na blockchain. Qualquer pessoa pode conferir.",
+  "fala": "No extrato, cada operação tem um link para a transação na blóqui chêin. Qualquer pessoa pode conferir.",
+  "en": "In the statement, every operation links to its transaction on the blockchain. Anyone can check it.",
+  "speech_en": "In the statement, every operation links to its transaction on the blockchain. Anyone can check it."
+ },
+ {
+  "id": "006",
+  "texto": "Agora outra troca acontece no pool. E na aba Pool eu vejo o meu dinheiro trabalhando: o rendimento chega ao vivo, troca por troca, com o meu depósito marcado no gráfico. Mais abaixo, o pool inteiro, lido direto da Solana.",
+  "fala": "Agora outra troca acontece no púl. E na aba Púl eu vejo o meu dinheiro trabalhando: o rendimento chega ao vivo, troca por troca, com o meu depósito marcado no gráfico. Mais abaixo, o púl inteiro, lido direto da Solana.",
+  "en": "Now another swap happens in the pool. And in the Pool tab I can see my money working: the earnings arrive live, swap by swap, with my deposit marked on the chart. Further down, the whole pool, read straight from Solana.",
+  "speech_en": "Now another swap happens in the pool. And in the Pool tab I can see my money working: the earnings arrive live, swap by swap, with my deposit marked on the chart. Further down, the whole pool, read straight from Solana."
+ },
+ {
+  "id": "007",
+  "texto": "Por fim, em Meus dólares, vejo o meu preço médio contra o dólar de hoje, e quanto o pool já me pagou.",
+  "fala": "Por fim, em Meus dólares, vejo o meu preço médio contra o dólar de hoje, e quanto o púl já me pagou.",
+  "en": "Finally, in My dollars, I see my average price against today's dollar, and what the pool has paid me.",
+  "speech_en": "Finally, in My dollars, I see my average price against today's dollar, and what the pool has paid me."
+ },
+ {
+  "id": "008",
+  "texto": "Tudo isso é real, na Solana. Experimente a cambI.",
+  "fala": "Tudo isso é real, na Solana. Experimente a Câmbi.",
+  "en": "All of this is real, on Solana. Try cambI.",
+  "speech_en": "All of this is real, on Solana. Try Cambee."
+ }
+]
