@@ -1,0 +1,46 @@
+[
+ {
+  "t": 17.823,
+  "msg": "tela de SOL de teste apareceu (faucet público limitado); conta 7F8rN8Un8dSXjYzm67mHJp4iU1F1DJB3zjvWpF6E4jFv"
+ },
+ {
+  "t": 34.195,
+  "msg": "conta criada pela interface, com R$ 1.000 do faucet do programa"
+ },
+ {
+  "t": 34.199,
+  "msg": "gráfico do dólar carregou o histórico real"
+ },
+ {
+  "t": 61.662,
+  "msg": "troca real com comprovante na Solana"
+ },
+ {
+  "t": 76.377,
+  "msg": "perfil de investidor respondido (moderado)"
+ },
+ {
+  "t": 89.572,
+  "msg": "depósito real na Rende, com aviso da trava de resgate"
+ },
+ {
+  "t": 108.387,
+  "msg": "Pix com comprovante na Solana"
+ },
+ {
+  "t": 121.135,
+  "msg": "atividade com 4 links para a blockchain"
+ },
+ {
+  "t": 121.463,
+  "msg": "conta continua ativa depois de recarregar"
+ },
+ {
+  "t": 153.245,
+  "msg": "pool real: rendeu +R$ 0,000049, 1 depósito(s) marcado(s) no gráfico"
+ },
+ {
+  "t": 166.056,
+  "msg": "fim"
+ }
+]
