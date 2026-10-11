@@ -23,14 +23,14 @@ fs.mkdirSync(out, { recursive: true });
 
 (async () => {
   const record = process.env.RECORD_DIR;
-  const browser = await chromium.launch(record ? { slowMo: 120 } : {});
+  const browser = await chromium.launch(record ? { slowMo: 300 } : {});
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
     ...(record ? { recordVideo: { dir: record, size: { width: 780, height: 1688 } } } : {}),
   });
+  const t0 = Date.now(); // o vídeo começa junto com a página
   const page = await context.newPage();
-  const t0 = Date.now();
   const marks = [];
   const errors = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
@@ -41,6 +41,22 @@ fs.mkdirSync(out, { recursive: true });
     await page.locator("#splash").waitFor({ state: "detached", timeout: 10_000 }).catch(() => {});
     await page.waitForTimeout(record ? 2200 : 700); // fim das animações de entrada; no vídeo, tempo para ler a tela
     await page.screenshot({ path: `${out}/${String(++n).padStart(2, "0")}-${name}.png` });
+    if (record) await tour();
+  };
+  // No vídeo: pausa na tela e rola devagar até o fim e de volta, para mostrar o conteúdo inteiro.
+  const tour = async () => {
+    await page.waitForTimeout(1200);
+    await page.mouse.move(195, 420);
+    for (let i = 0; i < 9; i++) {
+      await page.mouse.wheel(0, 90);
+      await page.waitForTimeout(160);
+    }
+    await page.waitForTimeout(1300);
+    for (let i = 0; i < 6; i++) {
+      await page.mouse.wheel(0, -140);
+      await page.waitForTimeout(90);
+    }
+    await page.waitForTimeout(500);
   };
   const step = (msg) => {
     marks.push({ t: (Date.now() - t0) / 1000, msg });
@@ -73,7 +89,7 @@ fs.mkdirSync(out, { recursive: true });
   await page.getByRole("navigation").getByRole("button", { name: "Trocar" }).click();
   const input = page.getByLabel("Você envia");
   await input.click();
-  await input.pressSequentially("10000"); // R$ 100,00
+  await input.pressSequentially("10000", { delay: record ? 180 : 0 }); // R$ 100,00
   await page.getByText("Cotação do pool").waitFor();
   // Câmbio no Brasil registra a finalidade de cada troca.
   await page.getByLabel("Finalidade da troca").selectOption("viagem");
@@ -130,7 +146,7 @@ fs.mkdirSync(out, { recursive: true });
   await page.getByRole("navigation").getByRole("button", { name: "Trocar" }).click();
   const again = page.getByLabel("Você envia");
   await again.click();
-  await again.pressSequentially("5000"); // R$ 50,00
+  await again.pressSequentially("5000", { delay: record ? 180 : 0 }); // R$ 50,00
   await page.getByLabel("Finalidade da troca").selectOption("viagem");
   await page.getByRole("button", { name: /^Trocar R\$/ }).click();
   await page.getByText("Registrada na Solana").waitFor({ timeout: CHAIN });
