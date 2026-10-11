@@ -67,4 +67,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -q -m "Narração do pitch [skip ci]"
-          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:voice$([ "$ROTEIRO" = "demo" ] && echo -demo)$([ "$IDIOMA" = "en" ] && echo -en)
+          branch=voice
+          if [ "$ROTEIRO" = "demo" ]; then branch="$branch-demo"; fi
+          if [ "$IDIOMA" = "en" ]; then branch="$branch-en"; fi
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$branch"
