@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Side } from "../engine/pool";
 import { project } from "../engine/projection";
 import { money, pct } from "../format";
@@ -59,6 +59,15 @@ export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, 
   const [mismatchAck, setMismatchAck] = useState(false);
   const mismatch = rendeMismatch(suitability, side);
   const limit = amount > 0 && !over ? limitCheck(side, amount) : null;
+  const deposit = () => act("deposit", () => onDeposit(side, amount), "Depósito feito. Agora você ganha com as trocas do pool.");
+  // Voltou do questionário de perfil: segue com o depósito que a pessoa já tinha pedido (se nada mudou o caminho).
+  const [resume, setResume] = useState(false);
+  useEffect(() => {
+    if (!resume || !suitability) return;
+    setResume(false);
+    if (amount > 0 && !over && !limit && !mismatch) deposit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suitability, resume]);
 
   return (
     <>
@@ -181,11 +190,14 @@ export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, 
             <button
               className="primary"
               disabled={!(amount > 0) || over || !!busy || Boolean(limit) || (mismatch && !mismatchAck)}
-              onClick={() =>
-                suitability
-                  ? act("deposit", () => onDeposit(side, amount), "Depósito feito. Agora você ganha com as trocas do pool.")
-                  : onSuitability()
-              }
+              onClick={() => {
+                if (suitability) deposit();
+                else {
+                  // Sem perfil: faz o questionário e o depósito continua sozinho ao voltar.
+                  setResume(true);
+                  onSuitability();
+                }
+              }}
             >
               {busy === "deposit" ? (
                 <>

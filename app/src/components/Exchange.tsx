@@ -3,7 +3,7 @@ import { PoolState, Side, SwapResult, quote } from "../engine/pool";
 import { money, pct, pct2, rate, reais } from "../format";
 import { Wallet, isDepositor, kindFor } from "../wallet";
 import { Brand } from "./Brand";
-import { CheckIcon, SendIcon, SwapIcon } from "./Icons";
+import { CheckIcon, SendIcon, ShareIcon, SwapIcon } from "./Icons";
 import { MoneyInput } from "./MoneyInput";
 import { iofOnTrade, iofRate, vet } from "../taxes";
 import { PURPOSES, Purpose } from "../compliance";
@@ -184,6 +184,7 @@ function Receipt({ r, onClose, onSendOut }: { r: SwapResult; onClose: () => void
       <div className="saved-banner">
         Você economizou <strong>{reais(bank.cost - feeBRL)}</strong> em relação ao banco
       </div>
+      <ShareSaving saved={bank.cost - feeBRL} />
 
       <h3>Para onde foi a taxa de {money(c, r.feeTotal)}?</h3>
       <div className="bar" role="img" aria-label="Divisão da taxa">
@@ -228,5 +229,31 @@ function Receipt({ r, onClose, onSendOut }: { r: SwapResult; onClose: () => void
       </button>
       <button className="secondary gap-top" onClick={onClose}>Deixar na carteira</button>
     </section>
+  );
+}
+
+/** Compartilhar a economia (sem valores da troca nem dados pessoais): o melhor momento para indicar a cambI. */
+function ShareSaving({ saved }: { saved: number }) {
+  const [copied, setCopied] = useState(false);
+  if (!(saved > 0)) return null;
+  const text = `Troquei real por dólar na cambI e economizei ${reais(saved)} em relação ao banco. Câmbio peer-to-pool, 24 h, e quem deposita ganha com as trocas.`;
+  const url = "https://powerdeblack.github.io/cambi/";
+  async function share() {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "cambI", text, url });
+        return;
+      }
+      await navigator.clipboard.writeText(`${text} ${url}`);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* compartilhamento cancelado ou sem permissão */
+    }
+  }
+  return (
+    <button className="secondary share-saving" onClick={share}>
+      <ShareIcon /> {copied ? "Texto copiado!" : "Compartilhar minha economia"}
+    </button>
   );
 }

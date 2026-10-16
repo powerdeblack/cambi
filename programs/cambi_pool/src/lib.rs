@@ -62,6 +62,10 @@ pub const DEFAULT_WITHDRAW_NOTICE_SECS: i64 = 86_400; // acima disso, fila com 2
 pub const MAX_WITHDRAW_NOTICE_SECS: i64 = 30 * 86_400;
 /// Teto por operação (valor em reais, 6 casas) por nível de credencial: básico, completo, institucional (0 = sem teto).
 pub const DEFAULT_LEVEL_LIMITS: [u64; 3] = [10_000_000_000, 100_000_000_000, 0];
+/// Validade máxima de uma credencial emitida (renovação anual do cadastro).
+pub const MAX_CREDENTIAL_SECS: i64 = 400 * 86_400;
+/// Aviso prévio mínimo da fila de saque (com zero, a fila viraria saque imediato fora do disjuntor).
+pub const MIN_WITHDRAW_NOTICE_SECS: i64 = 60;
 #[cfg(feature = "devnet")]
 pub const DEVNET_CREDENTIAL_SECS: i64 = 30 * 86_400;
 
@@ -211,7 +215,7 @@ pub mod cambi_pool {
         require!((60..=86_400).contains(&breaker_window_secs), CambiError::InvalidConfig);
         require!((100..=10_000).contains(&breaker_bps), CambiError::InvalidConfig);
         require!(instant_withdraw_bps <= 10_000, CambiError::InvalidConfig);
-        require!((0..=MAX_WITHDRAW_NOTICE_SECS).contains(&withdraw_notice_secs), CambiError::InvalidConfig);
+        require!((MIN_WITHDRAW_NOTICE_SECS..=MAX_WITHDRAW_NOTICE_SECS).contains(&withdraw_notice_secs), CambiError::InvalidConfig);
         let pool = &mut ctx.accounts.pool;
         pool.breaker_window_secs = breaker_window_secs;
         pool.breaker_bps = breaker_bps;
@@ -225,8 +229,11 @@ pub mod cambi_pool {
     /// só o nível, a validade e quem emitiu.
     pub fn issue_credential(ctx: Context<IssueCredential>, level: u8, expires_at: i64) -> Result<()> {
         require!((1..=3).contains(&level), CambiError::InvalidConfig);
-        require!(expires_at > Clock::get()?.unix_timestamp, CambiError::InvalidConfig);
+        let now = Clock::get()?.unix_timestamp;
+        require!(expires_at > now && expires_at <= now.saturating_add(MAX_CREDENTIAL_SECS), CambiError::InvalidConfig);
         let c = &mut ctx.accounts.credential;
+        // Auditoria v2 (achado 7): revogada só volta pelo admin (restore_credential), não por reemissão.
+        require!(!c.revoked, CambiError::CredentialRevoked);
         c.pool = ctx.accounts.pool.key();
         c.user = ctx.accounts.user.key();
         c.issuer = ctx.accounts.issuer.key();
@@ -246,6 +253,19 @@ pub mod cambi_pool {
         let c = &mut ctx.accounts.credential;
         c.revoked = true;
         emit!(CredentialEvent { user: c.user, level: c.level, expires_at: c.expires_at, revoked: true });
+        Ok(())
+    }
+
+    /// Desfaz uma revogação (decisão do admin, ou seja, da multisig).
+    pub fn restore_credential(ctx: Context<RestoreCredential>) -> Result<()> {
+        let c = &mut ctx.accounts.credential;
+        c.revoked = false;
+        emit!(CredentialEvent { user: c.user, level: c.level, expires_at: c.expires_at, revoked: false });
+        Ok(())
+    }
+
+    /// Descredencia um app parceiro (B2B): fecha a conta e devolve o aluguel ao admin.
+    pub fn remove_partner(_ctx: Context<RemovePartner>) -> Result<()> {
         Ok(())
     }
 
@@ -471,8 +491,11 @@ pub mod cambi_pool {
                 available(pool, ctx.accounts.brl_vault.amount, BRL),
                 available(pool, ctx.accounts.usd_vault.amount, USD),
             ];
-            if kind != UserKind::B2b {
-                // App parceiro (B2B) já passou pelo KYB no cadastro feito pelo admin.
+            if kind == UserKind::B2b {
+                // App parceiro (B2B): KYB no cadastro feito pelo admin; teto institucional por operação.
+                let limit = pool.level_limit_brl[2];
+                require!(limit == 0 || value_in_brl(pool.price, s_in, amount_in)? <= limit as u128, CambiError::AboveKycLimit);
+            } else {
                 check_credential(
                     pool,
                     pool_key,
@@ -513,6 +536,7 @@ pub mod cambi_pool {
             pool.window_out[s_out] = out_total;
             // Disjuntor da janela longa (padrão: 1 hora), somando trocas e saques imediatos.
             breaker_take(pool, now, avail, s_out, q.amount_out)?;
+            breaker_inflow(pool, now, s_in, amount_in);
         }
 
         let (vault_in, vault_out, user_in, user_out) = match s_in {
@@ -601,6 +625,8 @@ pub mod cambi_pool {
             let i = idx(t, s);
             pool.principal[i] = pool.principal[i].checked_sub(amount).ok_or(CambiError::MathOverflow)?;
             pool.queued[s] = pool.queued[s].checked_add(amount).ok_or(CambiError::MathOverflow)?;
+            // O que entra na fila sai da base do disjuntor desta janela.
+            pool.breaker_base[s] = pool.breaker_base[s].saturating_sub(amount);
             sync_debt(pool, pos)?;
             pending
         };
@@ -802,10 +828,21 @@ pub fn breaker_take(pool: &mut Pool, now: i64, free: [u64; 2], s: usize, amount:
         pool.breaker_out = [0, 0];
     }
     let total = pool.breaker_out[s].checked_add(amount).ok_or(CambiError::MathOverflow)?;
-    let cap = (pool.breaker_base[s] as u128) * (pool.breaker_bps as u128) / BPS;
+    // Auditoria v2 (achado 1): a base nunca passa do que existe agora (livre + o que já saiu na janela).
+    // Assim um depósito grande que depois vai para a fila não infla o teto.
+    let base = pool.breaker_base[s].min(free[s].saturating_add(pool.breaker_out[s]));
+    let cap = (base as u128) * (pool.breaker_bps as u128) / BPS;
     require!((total as u128) <= cap, CambiError::CircuitBreaker);
     pool.breaker_out[s] = total;
     Ok(())
+}
+
+/// Entrada de uma moeda na janela do disjuntor abate a saída dela (conta a saída LÍQUIDA).
+/// Auditoria v2 (achado 2): trocas de ida e volta não enchem o disjuntor para travar os outros.
+pub fn breaker_inflow(pool: &mut Pool, now: i64, s: usize, amount: u64) {
+    if now.saturating_sub(pool.breaker_start) < pool.breaker_window_secs {
+        pool.breaker_out[s] = pool.breaker_out[s].saturating_sub(amount);
+    }
 }
 
 /// Confere a credencial KYC de quem troca ou deposita (quando o pool exige).
@@ -817,6 +854,9 @@ pub fn check_credential(pool: &Pool, pool_key: Pubkey, user: Pubkey, cred: Optio
     require!(c.pool == pool_key && c.user == user, CambiError::KycRequired);
     require!(!c.revoked, CambiError::CredentialRevoked);
     require!(now < c.expires_at, CambiError::CredentialExpired);
+    // Auditoria v2 (achado 3): só vale credencial do emissor ATUAL. Trocar o emissor (chave vazada) invalida as antigas.
+    let devnet_self = cfg!(feature = "devnet") && c.issuer == c.user && c.level == 1;
+    require!(c.issuer == pool.kyc_issuer || devnet_self, CambiError::KycRequired);
     require!((1..=3).contains(&c.level), CambiError::KycRequired);
     let limit = pool.level_limit_brl[(c.level - 1) as usize];
     require!(limit == 0 || value_brl <= limit as u128, CambiError::AboveKycLimit);
@@ -836,7 +876,7 @@ pub fn check_backing(pool: &Pool, pool_key: Pubkey, mints: [&Mint; 2], reserves:
     let expected = [pool.brl_mint, pool.usd_mint];
     for s in 0..2 {
         let r = reserves[s].ok_or(error!(CambiError::ReserveUnproven))?;
-        require!(r.pool == pool_key && r.mint == expected[s], CambiError::ReserveUnproven);
+        require!(r.pool == pool_key && r.mint == expected[s] && r.attester == pool.reserve_attester, CambiError::ReserveUnproven);
         require!(reserves_ok(mints[s].supply, r.reserves, r.attested_at, now, pool.reserve_max_age), CambiError::ReserveUnproven);
     }
     Ok(())
@@ -1305,6 +1345,25 @@ pub struct IssueCredential<'info> {
 }
 
 #[derive(Accounts)]
+pub struct RestoreCredential<'info> {
+    pub admin: Signer<'info>,
+    #[account(has_one = admin)]
+    pub pool: Account<'info, Pool>,
+    #[account(mut, has_one = pool)]
+    pub credential: Account<'info, Credential>,
+}
+
+#[derive(Accounts)]
+pub struct RemovePartner<'info> {
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    #[account(has_one = admin)]
+    pub pool: Account<'info, Pool>,
+    #[account(mut, has_one = pool, close = admin)]
+    pub partner: Account<'info, Partner>,
+}
+
+#[derive(Accounts)]
 pub struct RevokeCredential<'info> {
     pub authority: Signer<'info>,
     pub pool: Account<'info, Pool>,
@@ -1657,6 +1716,7 @@ mod tests {
     }
 
     fn cred(level: u8, expires_at: i64, revoked: bool) -> Credential {
+        // Emissor = Pubkey::default() = pool.kyc_issuer nos testes.
         Credential { pool: Pubkey::default(), user: Pubkey::default(), issuer: Pubkey::default(), level, expires_at, revoked, bump: 0 }
     }
 
@@ -1788,6 +1848,28 @@ mod tests {
         // Passada a janela, recomeça com a liquidez do momento.
         assert!(breaker_take(&mut p, 10_000 + DEFAULT_BREAKER_WINDOW_SECS, [500 * R, 200 * R], BRL, 150 * R).is_ok());
         assert!(breaker_take(&mut p, 10_000 + DEFAULT_BREAKER_WINDOW_SECS, [500 * R, 200 * R], BRL, 1).is_err());
+    }
+
+    #[test]
+    fn auditoria_base_do_disjuntor_nao_infla_e_ida_e_volta_nao_trava() {
+        // Achado 1: a janela começou com R$ 3.000 livres, mas R$ 2.000 foram para a fila; o teto cai junto.
+        let mut p = pool(5_000_000);
+        assert!(breaker_take(&mut p, 10_000, [3_000 * R, 600 * R], BRL, 1).is_ok());
+        assert!(breaker_take(&mut p, 10_010, [1_000 * R, 600 * R], BRL, 400 * R).is_err()); // 30% de ~1.000, não de 3.000
+        assert!(breaker_take(&mut p, 10_010, [1_000 * R, 600 * R], BRL, 290 * R).is_ok());
+        // Achado 2: a entrada de real abate a saída de real (ida e volta não enche o disjuntor).
+        breaker_inflow(&mut p, 10_020, BRL, 291 * R);
+        assert_eq!(p.breaker_out[BRL], 0);
+        assert!(breaker_take(&mut p, 10_030, [1_000 * R, 600 * R], BRL, 250 * R).is_ok());
+    }
+
+    #[test]
+    fn auditoria_credencial_de_emissor_antigo_nao_vale() {
+        let mut p = pool(5_000_000);
+        let k = Pubkey::default();
+        assert!(check_credential(&p, k, k, Some(&cred(3, 2_000, false)), 1, 1_000).is_ok());
+        p.kyc_issuer = Pubkey::new_unique(); // emissor trocado
+        assert!(check_credential(&p, k, k, Some(&cred(3, 2_000, false)), 1, 1_000).is_err());
     }
 
     #[test]

@@ -499,6 +499,43 @@ describe("cambi_pool", () => {
     );
   });
 
+  it("v2 auditoria: trocar o emissor de KYC invalida as credenciais antigas; reemitir não desfaz revogação", async () => {
+    const { m, ctx } = await freshPool();
+    const lp = await setupUser(connection, admin, m, { brl: 10_000, usd: 2_000 }, { airdropSol: 1 });
+    const fay = await setupUser(connection, admin, m, { brl: 1_000, usd: 0 }, { airdropSol: 1 });
+    await enroll(ctx, [lp, fay]);
+    await deposit(lp, BALEIA, USD, 2_000, ctx);
+    await swap(fay, BRL, 100, { ctx });
+    // Emissor trocado (ex.: chave vazada): a credencial antiga da Fay para de valer.
+    const newIssuer = Keypair.generate();
+    await program.methods.setKyc(newIssuer.publicKey, true).accountsPartial({ admin: admin.publicKey, pool: ctx.pool }).rpc();
+    await expectError(swap(fay, BRL, 100, { ctx }), "KycRequired");
+    await program.methods.setKyc(admin.publicKey, true).accountsPartial({ admin: admin.publicKey, pool: ctx.pool }).rpc();
+    // Revogada: o emissor não consegue "desrevogar" reemitindo; só o admin restaura.
+    const cred = credentialPda(pid, ctx.pool, fay.kp.publicKey);
+    await program.methods.revokeCredential().accountsPartial({ authority: admin.publicKey, pool: ctx.pool, credential: cred }).rpc();
+    await expectError(enroll(ctx, [fay]), "CredentialRevoked");
+    await program.methods.restoreCredential().accountsPartial({ admin: admin.publicKey, pool: ctx.pool, credential: cred }).rpc();
+    await swap(fay, BRL, 100, { ctx });
+  });
+
+  it("v2 auditoria: troca de ida e volta não enche o disjuntor", async () => {
+    const { m, ctx } = await freshPool();
+    const lp = await setupUser(connection, admin, m, { brl: 5_000, usd: 1_000 }, { airdropSol: 1 });
+    const trader = await setupUser(connection, admin, m, { brl: 2_000, usd: 0 }, { airdropSol: 1 });
+    await enroll(ctx, [lp, trader]);
+    await setSafety(ctx, { breakerBps: 1_000 }); // 10% por hora
+    await deposit(lp, BALEIA, BRL, 5_000, ctx);
+    await deposit(lp, BALEIA, USD, 1_000, ctx);
+    // Ida e volta várias vezes: a saída líquida fica perto de zero, então ninguém é travado.
+    for (let i = 0; i < 3; i++) {
+      await swap(trader, BRL, 400, { ctx });
+      const usd = await tokenBalance(connection, trader.usd);
+      await swap(trader, USD, Math.floor(usd * 100) / 100, { ctx });
+    }
+    await swap(lp, BRL, 300, { ctx });
+  });
+
   it("v2: guardião só pausa; despausar é do admin (multisig)", async () => {
     const { ctx } = await freshPool();
     const guard = Keypair.generate();
@@ -535,7 +572,7 @@ describe("cambi_pool", () => {
   it("v2: saque grande vai para a fila com aviso prévio, e o valor reservado não serve para trocas", async () => {
     const { m, ctx } = await freshPool();
     await setLimits(ctx, 3600, 1_000, 0);
-    await setSafety(ctx, { notice: 2, breakerBps: 10_000 });
+    await setSafety(ctx, { notice: 60, breakerBps: 10_000 }); // aviso prévio mínimo do programa: 60 s
     const lp = await setupUser(connection, admin, m, { brl: 1_000, usd: 0 }, { airdropSol: 1 });
     await enroll(ctx, [lp]);
     await deposit(lp, RENDE, BRL, 1_000, ctx);
@@ -560,7 +597,7 @@ describe("cambi_pool", () => {
     expect((await program.account.pool.fetch(ctx.pool)).queued[BRL].toString()).to.equal(u(800).toString());
     const claim = () => program.methods.claimWithdraw().accountsPartial({ ...accounts, ticket }).signers([lp.kp]).rpc();
     await expectError(claim(), "WithdrawNotReady");
-    await new Promise((r) => setTimeout(r, 3_000));
+    await new Promise((r) => setTimeout(r, 62_000));
     const before = await tokenBalance(connection, lp.brl);
     await claim();
     expect((await tokenBalance(connection, lp.brl)) - before).to.equal(800);

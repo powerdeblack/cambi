@@ -33,8 +33,8 @@ jobs:
       - name: Versão de produção não tem faucet
         run: |
           cargo build-sbf --manifest-path programs/cambi_pool/Cargo.toml --sbf-out-dir /tmp/prod
-          ! grep -a -q "faucet_claim\|FaucetClaim" /tmp/prod/cambi_pool.so
-          echo "OK: binário de produção sem instruções de faucet"
+          ! grep -a -q "faucet_claim\|FaucetClaim\|devnet_credential\|DevnetCredential\|admin_mint\|AdminMint" /tmp/prod/cambi_pool.so
+          echo "OK: binário de produção sem faucet, sem credencial de teste e sem emissão pelo admin"
       - name: Conferir IDs
         run: |
           echo "chave:    $(solana address -k target/deploy/cambi_pool-keypair.json)"
