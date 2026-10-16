@@ -1,0 +1,2645 @@
+{
+  "address": "3xdkEsUvcgRDKyqN8rY3RVVP6CRrtcuvLYz9iNE7rdhE",
+  "metadata": {
+    "name": "cambi_pool",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "cambI: casa de câmbio on-chain em que quem deposita ganha com as trocas"
+  },
+  "instructions": [
+    {
+      "name": "accept_admin",
+      "discriminator": [
+        112,
+        42,
+        45,
+        90,
+        116,
+        181,
+        13,
+        170
+      ],
+      "accounts": [
+        {
+          "name": "new_admin",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "add_partner",
+      "discriminator": [
+        180,
+        111,
+        45,
+        157,
+        241,
+        187,
+        234,
+        88
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "partner_authority"
+        },
+        {
+          "name": "partner",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  114,
+                  116,
+                  110,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "partner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "admin_mint",
+      "docs": [
+        "SÓ DEVNET (feature `devnet`): o admin emite moedas de teste para repor liquidez da demonstração."
+      ],
+      "discriminator": [
+        137,
+        144,
+        88,
+        222,
+        36,
+        159,
+        250,
+        217
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "mint",
+          "writable": true
+        },
+        {
+          "name": "destination",
+          "writable": true
+        },
+        {
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "side",
+          "type": "u8"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "attest_reserves",
+      "docs": [
+        "O custodiante publica a reserva que lastreia uma das moedas do pool (em unidades do token)."
+      ],
+      "discriminator": [
+        68,
+        20,
+        40,
+        240,
+        165,
+        2,
+        146,
+        10
+      ],
+      "accounts": [
+        {
+          "name": "attester",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "reserve",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  115,
+                  101,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "reserves",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "claim_withdraw",
+      "docs": [
+        "Resgata o saque da fila depois do aviso prévio. O valor já estava reservado: não passa pelo disjuntor."
+      ],
+      "discriminator": [
+        232,
+        89,
+        154,
+        117,
+        16,
+        204,
+        182,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "relations": [
+            "ticket"
+          ]
+        },
+        {
+          "name": "ticket",
+          "writable": true
+        },
+        {
+          "name": "brl_vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "usd_vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "user_brl",
+          "writable": true
+        },
+        {
+          "name": "user_usd",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "collect_fees",
+      "docs": [
+        "Admin retira as taxas da operação e do parceiro regulado de uma moeda."
+      ],
+      "discriminator": [
+        164,
+        152,
+        207,
+        99,
+        30,
+        186,
+        19,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "destination",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "side",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "deposit",
+      "discriminator": [
+        242,
+        35,
+        198,
+        137,
+        82,
+        225,
+        242,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true
+        },
+        {
+          "name": "brl_vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "usd_vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "user_brl",
+          "writable": true
+        },
+        {
+          "name": "user_usd",
+          "writable": true
+        },
+        {
+          "name": "credential",
+          "docs": [
+            "Credencial KYC da carteira (exigida quando `pool.require_kyc`)."
+          ],
+          "optional": true
+        },
+        {
+          "name": "brl_mint"
+        },
+        {
+          "name": "usd_mint"
+        },
+        {
+          "name": "brl_reserve",
+          "docs": [
+            "Atestados de reserva das duas moedas (exigidos quando a prova de reserva está ligada)."
+          ],
+          "optional": true
+        },
+        {
+          "name": "usd_reserve",
+          "optional": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "tranche",
+          "type": "u8"
+        },
+        {
+          "name": "side",
+          "type": "u8"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "devnet_credential",
+      "docs": [
+        "SÓ DEVNET: credencial básica de teste, para quem quiser experimentar o app sem o parceiro de KYC.",
+        "Na mainnet esta instrução não existe: só o emissor regulado cria credenciais."
+      ],
+      "discriminator": [
+        54,
+        62,
+        76,
+        183,
+        91,
+        191,
+        107,
+        122
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "credential",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "faucet_claim",
+      "docs": [
+        "SÓ DEVNET (feature `devnet`): dá moedas de teste (cBRL) para quem pede, com regras on-chain:",
+        "uma vez por hora por carteira, só para quem tem pouco saldo, e um teto global por hora.",
+        "Substitui a carteira patrocinadora: nenhuma chave com poder de emissão fica no app."
+      ],
+      "discriminator": [
+        37,
+        228,
+        249,
+        8,
+        75,
+        106,
+        198,
+        114
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "brl_mint",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "user_brl",
+          "writable": true
+        },
+        {
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "guardian_pause",
+      "docs": [
+        "Guardião: chave de emergência (pode ficar num celular de plantão) que só consegue PAUSAR.",
+        "Não mexe em preço, taxas, cofres nem despausa: se vazar, o pior que faz é pausar trocas."
+      ],
+      "discriminator": [
+        184,
+        93,
+        27,
+        13,
+        127,
+        100,
+        198,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "guardian",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize",
+      "docs": [
+        "Cria o pool de um par de moedas. Só a autoridade de upgrade do programa pode chamar (evita que alguém",
+        "\"tome\" o endereço do pool de um par antes do time)."
+      ],
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "brl_mint"
+        },
+        {
+          "name": "usd_mint"
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "brl_mint"
+              },
+              {
+                "kind": "account",
+                "path": "usd_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "brl_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "brl_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usd_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "usd_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "program",
+          "address": "3xdkEsUvcgRDKyqN8rY3RVVP6CRrtcuvLYz9iNE7rdhE"
+        },
+        {
+          "name": "program_data"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "price",
+          "type": "u64"
+        },
+        {
+          "name": "max_price_age",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "issue_credential",
+      "docs": [
+        "O emissor de KYC registra (ou renova) a credencial de uma carteira. Nada de dado pessoal on-chain:",
+        "só o nível, a validade e quem emitiu."
+      ],
+      "discriminator": [
+        255,
+        193,
+        171,
+        224,
+        68,
+        171,
+        194,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "issuer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "user"
+        },
+        {
+          "name": "credential",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "level",
+          "type": "u8"
+        },
+        {
+          "name": "expires_at",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "propose_admin",
+      "docs": [
+        "Troca de admin em dois passos: o atual propõe, o novo aceita (evita entregar o pool para uma chave errada)."
+      ],
+      "discriminator": [
+        121,
+        214,
+        199,
+        212,
+        87,
+        39,
+        117,
+        234
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_admin",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "request_withdraw",
+      "docs": [
+        "Pede um saque grande: o valor sai da posição agora (para de render), fica reservado no cofre",
+        "(trocas não usam) e pode ser resgatado depois do aviso prévio. Funciona com o pool pausado."
+      ],
+      "discriminator": [
+        137,
+        95,
+        187,
+        96,
+        250,
+        138,
+        31,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "position",
+          "writable": true
+        },
+        {
+          "name": "ticket",
+          "docs": [
+            "Um pedido por posição de cada vez."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "brl_vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "usd_vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "user_brl",
+          "writable": true
+        },
+        {
+          "name": "user_usd",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "revoke_credential",
+      "docs": [
+        "Revoga a credencial (sanção, fraude, pedido do regulador). A pessoa ainda consegue sacar o que é dela."
+      ],
+      "discriminator": [
+        38,
+        123,
+        95,
+        95,
+        223,
+        158,
+        169,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "relations": [
+            "credential"
+          ]
+        },
+        {
+          "name": "credential",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_guardian",
+      "discriminator": [
+        147,
+        243,
+        50,
+        121,
+        154,
+        164,
+        50,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "guardian",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "set_kyc",
+      "docs": [
+        "Quem emite as credenciais (o parceiro regulado que faz o KYC) e se elas são exigidas."
+      ],
+      "discriminator": [
+        143,
+        253,
+        67,
+        18,
+        64,
+        198,
+        83,
+        190
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "issuer",
+          "type": "pubkey"
+        },
+        {
+          "name": "require_kyc",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "set_limits",
+      "docs": [
+        "Validade máxima da cotação, variação máxima por atualização do oráculo e trava mínima dos depósitos."
+      ],
+      "discriminator": [
+        207,
+        50,
+        250,
+        67,
+        211,
+        33,
+        70,
+        91
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "max_price_age",
+          "type": "i64"
+        },
+        {
+          "name": "max_price_move_bps",
+          "type": "u16"
+        },
+        {
+          "name": "lockup_secs",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "set_oracle",
+      "discriminator": [
+        186,
+        128,
+        81,
+        104,
+        74,
+        79,
+        18,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "oracle",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "set_paused",
+      "docs": [
+        "Pausa trocas e depósitos. Saques continuam liberados para ninguém ficar preso."
+      ],
+      "discriminator": [
+        91,
+        60,
+        125,
+        192,
+        176,
+        225,
+        166,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "set_price",
+      "docs": [
+        "Atualiza a cotação (reais por dólar, escala 1e6). Só a autoridade de oráculo.",
+        "A variação por atualização é limitada (`max_price_move_bps`): uma chave de oráculo comprometida não",
+        "consegue saltar o preço para drenar os cofres numa tacada."
+      ],
+      "discriminator": [
+        16,
+        19,
+        182,
+        8,
+        149,
+        83,
+        72,
+        181
+      ],
+      "accounts": [
+        {
+          "name": "oracle",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_reserve_policy",
+      "docs": [
+        "Quem atesta as reservas das moedas tokenizadas (custodiante/auditor) e a validade máxima do atestado.",
+        "`max_age = 0` desliga a exigência (ex.: moedas de teste sem custodiante)."
+      ],
+      "discriminator": [
+        98,
+        32,
+        252,
+        242,
+        97,
+        99,
+        226,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "attester",
+          "type": "pubkey"
+        },
+        {
+          "name": "max_age",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "set_safety",
+      "docs": [
+        "Disjuntor, fila de saque e tetos por nível de credencial, sempre dentro de limites fixos no código."
+      ],
+      "discriminator": [
+        136,
+        169,
+        156,
+        29,
+        124,
+        135,
+        169,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "breaker_window_secs",
+          "type": "i64"
+        },
+        {
+          "name": "breaker_bps",
+          "type": "u16"
+        },
+        {
+          "name": "instant_withdraw_bps",
+          "type": "u16"
+        },
+        {
+          "name": "withdraw_notice_secs",
+          "type": "i64"
+        },
+        {
+          "name": "level_limit_brl",
+          "type": {
+            "array": [
+              "u64",
+              3
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "swap",
+      "docs": [
+        "Troca `amount_in` da moeda `side_in` pela outra moeda, ao preço do oráculo.",
+        "O tipo de cliente é provado por contas opcionais:",
+        "- `depositor_position` com saldo do próprio usuário => taxa de depositante;",
+        "- `partner` registrado para o usuário => taxa B2B;",
+        "- nenhum => taxa de varejo."
+      ],
+      "discriminator": [
+        248,
+        198,
+        158,
+        145,
+        225,
+        117,
+        135,
+        200
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true
+        },
+        {
+          "name": "brl_vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "usd_vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "user_brl",
+          "writable": true
+        },
+        {
+          "name": "user_usd",
+          "writable": true
+        },
+        {
+          "name": "depositor_position",
+          "optional": true
+        },
+        {
+          "name": "partner",
+          "optional": true
+        },
+        {
+          "name": "credential",
+          "docs": [
+            "Credencial KYC da carteira (exigida quando `pool.require_kyc`, exceto para app parceiro)."
+          ],
+          "optional": true
+        },
+        {
+          "name": "brl_mint"
+        },
+        {
+          "name": "usd_mint"
+        },
+        {
+          "name": "brl_reserve",
+          "docs": [
+            "Atestados de reserva das duas moedas (exigidos quando a prova de reserva está ligada)."
+          ],
+          "optional": true
+        },
+        {
+          "name": "usd_reserve",
+          "optional": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "side_in",
+          "type": "u8"
+        },
+        {
+          "name": "amount_in",
+          "type": "u64"
+        },
+        {
+          "name": "min_out",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_fees",
+      "discriminator": [
+        225,
+        27,
+        13,
+        6,
+        69,
+        84,
+        172,
+        191
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "fees",
+          "type": {
+            "defined": {
+              "name": "FeeConfig"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "withdraw",
+      "docs": [
+        "Saca principal da posição (na moeda depositada) e recebe as taxas acumuladas nas duas moedas.",
+        "`amount = 0` só colhe as taxas (permitido a qualquer momento, inclusive com o pool pausado)."
+      ],
+      "discriminator": [
+        183,
+        18,
+        70,
+        156,
+        148,
+        109,
+        161,
+        34
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "position",
+          "writable": true
+        },
+        {
+          "name": "brl_vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "usd_vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "user_brl",
+          "writable": true
+        },
+        {
+          "name": "user_usd",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Credential",
+      "discriminator": [
+        145,
+        44,
+        68,
+        220,
+        67,
+        46,
+        100,
+        135
+      ]
+    },
+    {
+      "name": "FaucetClaimState",
+      "discriminator": [
+        146,
+        14,
+        63,
+        173,
+        4,
+        56,
+        65,
+        183
+      ]
+    },
+    {
+      "name": "Partner",
+      "discriminator": [
+        122,
+        43,
+        246,
+        239,
+        141,
+        56,
+        243,
+        182
+      ]
+    },
+    {
+      "name": "Pool",
+      "discriminator": [
+        241,
+        154,
+        109,
+        4,
+        17,
+        177,
+        109,
+        188
+      ]
+    },
+    {
+      "name": "Position",
+      "discriminator": [
+        170,
+        188,
+        143,
+        228,
+        122,
+        64,
+        247,
+        208
+      ]
+    },
+    {
+      "name": "ReserveAttestation",
+      "discriminator": [
+        105,
+        212,
+        95,
+        216,
+        140,
+        42,
+        205,
+        75
+      ]
+    },
+    {
+      "name": "WithdrawTicket",
+      "discriminator": [
+        237,
+        23,
+        164,
+        58,
+        53,
+        248,
+        240,
+        94
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "CredentialEvent",
+      "discriminator": [
+        93,
+        2,
+        192,
+        0,
+        143,
+        176,
+        245,
+        202
+      ]
+    },
+    {
+      "name": "DepositEvent",
+      "discriminator": [
+        120,
+        248,
+        61,
+        83,
+        31,
+        142,
+        107,
+        144
+      ]
+    },
+    {
+      "name": "PauseEvent",
+      "discriminator": [
+        32,
+        51,
+        61,
+        169,
+        156,
+        104,
+        130,
+        43
+      ]
+    },
+    {
+      "name": "ReserveEvent",
+      "discriminator": [
+        78,
+        121,
+        178,
+        145,
+        225,
+        99,
+        5,
+        93
+      ]
+    },
+    {
+      "name": "SwapEvent",
+      "discriminator": [
+        64,
+        198,
+        205,
+        232,
+        38,
+        8,
+        113,
+        226
+      ]
+    },
+    {
+      "name": "WithdrawEvent",
+      "discriminator": [
+        22,
+        9,
+        133,
+        26,
+        160,
+        44,
+        71,
+        192
+      ]
+    },
+    {
+      "name": "WithdrawRequestedEvent",
+      "discriminator": [
+        21,
+        86,
+        249,
+        76,
+        80,
+        238,
+        207,
+        154
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidPrice",
+      "msg": "Preço inválido"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidConfig",
+      "msg": "Configuração inválida"
+    },
+    {
+      "code": 6002,
+      "name": "StalePrice",
+      "msg": "Cotação desatualizada"
+    },
+    {
+      "code": 6003,
+      "name": "ZeroAmount",
+      "msg": "Valor precisa ser maior que zero"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidSide",
+      "msg": "Moeda inválida"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidTranche",
+      "msg": "Camada inválida"
+    },
+    {
+      "code": 6006,
+      "name": "WrongVault",
+      "msg": "Cofre não corresponde à moeda"
+    },
+    {
+      "code": 6007,
+      "name": "InsufficientLiquidity",
+      "msg": "Liquidez insuficiente no pool"
+    },
+    {
+      "code": 6008,
+      "name": "BaleiaJuniorLiquidity",
+      "msg": "A Baleia só saca se o cofre continuar cobrindo o principal da Rende"
+    },
+    {
+      "code": 6009,
+      "name": "TradeTooLarge",
+      "msg": "Troca maior que o limite por operação"
+    },
+    {
+      "code": 6010,
+      "name": "Paused",
+      "msg": "Pool pausado: trocas e depósitos suspensos"
+    },
+    {
+      "code": 6011,
+      "name": "InsufficientPosition",
+      "msg": "Saldo da posição insuficiente"
+    },
+    {
+      "code": 6012,
+      "name": "SlippageExceeded",
+      "msg": "Recebido abaixo do mínimo aceito"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidPartner",
+      "msg": "Parceiro inválido"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidPosition",
+      "msg": "Posição inválida"
+    },
+    {
+      "code": 6015,
+      "name": "MathOverflow",
+      "msg": "Estouro numérico"
+    },
+    {
+      "code": 6016,
+      "name": "PriceMoveTooLarge",
+      "msg": "Variação da cotação acima do limite por atualização"
+    },
+    {
+      "code": 6017,
+      "name": "PositionLocked",
+      "msg": "Depósito ainda no período mínimo antes do resgate"
+    },
+    {
+      "code": 6018,
+      "name": "OutflowLimit",
+      "msg": "Limite de saída do pool neste minuto atingido; tente em instantes"
+    },
+    {
+      "code": 6019,
+      "name": "DepositTooSmall",
+      "msg": "Depósito mínimo de R$ 10"
+    },
+    {
+      "code": 6020,
+      "name": "NotPendingAdmin",
+      "msg": "Esta carteira não é o admin proposto"
+    },
+    {
+      "code": 6021,
+      "name": "MintDecimalsMismatch",
+      "msg": "As duas moedas precisam ter as mesmas casas decimais"
+    },
+    {
+      "code": 6022,
+      "name": "Unauthorized",
+      "msg": "Só a autoridade de upgrade do programa pode fazer isso"
+    },
+    {
+      "code": 6023,
+      "name": "FaucetCooldown",
+      "msg": "Moedas de teste: aguarde 1 hora entre pedidos"
+    },
+    {
+      "code": 6024,
+      "name": "FaucetBalanceTooHigh",
+      "msg": "Moedas de teste só para quem tem menos de R$ 100"
+    },
+    {
+      "code": 6025,
+      "name": "FaucetHourlyCap",
+      "msg": "Limite de moedas de teste desta hora atingido; tente mais tarde"
+    },
+    {
+      "code": 6026,
+      "name": "KycRequired",
+      "msg": "Carteira sem credencial de identidade (KYC) neste pool"
+    },
+    {
+      "code": 6027,
+      "name": "CredentialRevoked",
+      "msg": "Credencial de identidade revogada"
+    },
+    {
+      "code": 6028,
+      "name": "CredentialExpired",
+      "msg": "Credencial de identidade vencida; renove a verificação"
+    },
+    {
+      "code": 6029,
+      "name": "AboveKycLimit",
+      "msg": "Valor acima do limite do seu nível de verificação"
+    },
+    {
+      "code": 6030,
+      "name": "CircuitBreaker",
+      "msg": "Disjuntor: o pool atingiu o teto de saída desta janela; tente mais tarde"
+    },
+    {
+      "code": 6031,
+      "name": "UseWithdrawQueue",
+      "msg": "Saque grande: use a fila de saque (aviso prévio)"
+    },
+    {
+      "code": 6032,
+      "name": "WithdrawNotReady",
+      "msg": "Saque da fila ainda no prazo de aviso prévio"
+    },
+    {
+      "code": 6033,
+      "name": "ReserveUnproven",
+      "msg": "Lastro sem prova: reserva atestada menor que o emitido ou atestado vencido"
+    }
+  ],
+  "types": [
+    {
+      "name": "Credential",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "issuer",
+            "type": "pubkey"
+          },
+          {
+            "name": "level",
+            "docs": [
+              "1 = básico, 2 = completo, 3 = institucional"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "revoked",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CredentialEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "level",
+            "type": "u8"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "revoked",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DepositEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "tranche",
+            "type": "u8"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FaucetClaimState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "last_claim_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeeConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "depositor_bps",
+            "type": "u16"
+          },
+          {
+            "name": "retail_bps",
+            "type": "u16"
+          },
+          {
+            "name": "b2b_bps",
+            "type": "u16"
+          },
+          {
+            "name": "depositor_pix_bps",
+            "type": "u16"
+          },
+          {
+            "name": "retail_pix_bps",
+            "type": "u16"
+          },
+          {
+            "name": "b2b_pix_bps",
+            "type": "u16"
+          },
+          {
+            "name": "partner_cost_bps",
+            "type": "u16"
+          },
+          {
+            "name": "platform_share_bps",
+            "type": "u16"
+          },
+          {
+            "name": "baleia_share_bps",
+            "type": "u16"
+          },
+          {
+            "name": "dynamic_min_bps",
+            "type": "u16"
+          },
+          {
+            "name": "dynamic_max_bps",
+            "type": "u16"
+          },
+          {
+            "name": "max_trade_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Partner",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PauseEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "by",
+            "type": "pubkey"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Pool",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "brl_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "usd_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "brl_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "usd_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "price_updated_at",
+            "type": "i64"
+          },
+          {
+            "name": "max_price_age",
+            "type": "i64"
+          },
+          {
+            "name": "fees",
+            "type": {
+              "defined": {
+                "name": "FeeConfig"
+              }
+            }
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "principal",
+            "docs": [
+              "Principal por camada e moeda: [rende_brl, rende_usd, baleia_brl, baleia_usd]"
+            ],
+            "type": {
+              "array": [
+                "u64",
+                4
+              ]
+            }
+          },
+          {
+            "name": "shares",
+            "docs": [
+              "Shares (valor em reais no depósito) por camada: [rende, baleia]"
+            ],
+            "type": {
+              "array": [
+                "u128",
+                2
+              ]
+            }
+          },
+          {
+            "name": "acc_fee_per_share",
+            "docs": [
+              "Taxas acumuladas por share, por camada e moeda da taxa: [rende_brl, rende_usd, baleia_brl, baleia_usd]"
+            ],
+            "type": {
+              "array": [
+                "u128",
+                4
+              ]
+            }
+          },
+          {
+            "name": "lp_fees_unclaimed",
+            "docs": [
+              "Por moeda: [brl, usd]"
+            ],
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "platform_fees",
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "partner_fees",
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "swap_count",
+            "type": "u64"
+          },
+          {
+            "name": "volume_brl",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "pending_admin",
+            "docs": [
+              "Admin proposto (troca em dois passos); `default` quando não há proposta."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "lockup_secs",
+            "docs": [
+              "Tempo mínimo entre o último depósito e o resgate do principal."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "max_price_move_bps",
+            "docs": [
+              "Variação máxima da cotação por atualização do oráculo."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "window_start",
+            "docs": [
+              "Limite de saída acumulado: início da janela, liquidez livre no início e quanto já saiu, por moeda."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "window_base",
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "window_out",
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "faucet_window_start",
+            "docs": [
+              "Faucet de devnet: teto global por hora."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "faucet_window_minted",
+            "type": "u64"
+          },
+          {
+            "name": "guardian",
+            "docs": [
+              "Chave de emergência que só pausa."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "kyc_issuer",
+            "docs": [
+              "Quem emite as credenciais KYC (parceiro regulado) e se elas são exigidas."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "require_kyc",
+            "type": "bool"
+          },
+          {
+            "name": "level_limit_brl",
+            "docs": [
+              "Teto por operação, em reais (6 casas), por nível de credencial; 0 = sem teto."
+            ],
+            "type": {
+              "array": [
+                "u64",
+                3
+              ]
+            }
+          },
+          {
+            "name": "breaker_window_secs",
+            "docs": [
+              "Disjuntor: janela, teto (bps da liquidez livre no início da janela), base e saída somada por moeda."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "breaker_bps",
+            "type": "u16"
+          },
+          {
+            "name": "breaker_start",
+            "type": "i64"
+          },
+          {
+            "name": "breaker_base",
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "breaker_out",
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "instant_withdraw_bps",
+            "docs": [
+              "Saque imediato até esta fração da liquidez livre; acima, fila com aviso prévio."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "withdraw_notice_secs",
+            "type": "i64"
+          },
+          {
+            "name": "queued",
+            "docs": [
+              "Valor na fila de saque, reservado nos cofres (fora da liquidez das trocas)."
+            ],
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "reserve_attester",
+            "docs": [
+              "Prova de reserva: quem atesta e validade máxima do atestado (0 = desligada)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "reserve_max_age",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Position",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "tranche",
+            "type": "u8"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Principal na moeda depositada"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "shares",
+            "docs": [
+              "Participação nas taxas da camada (valor em reais no momento do depósito)"
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "reward_debt",
+            "docs": [
+              "Taxas já contabilizadas, por moeda da taxa"
+            ],
+            "type": {
+              "array": [
+                "u128",
+                2
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "last_deposit_at",
+            "docs": [
+              "Momento do último depósito (para a trava de resgate)."
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReserveAttestation",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "reserves",
+            "docs": [
+              "Reserva atestada, em unidades do token (mesmas casas decimais)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "attested_at",
+            "type": "i64"
+          },
+          {
+            "name": "attester",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReserveEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "reserves",
+            "type": "u64"
+          },
+          {
+            "name": "supply",
+            "type": "u64"
+          },
+          {
+            "name": "at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwapEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "side_in",
+            "type": "u8"
+          },
+          {
+            "name": "amount_in",
+            "type": "u64"
+          },
+          {
+            "name": "amount_out",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          },
+          {
+            "name": "to_rende",
+            "type": "u64"
+          },
+          {
+            "name": "to_baleia",
+            "type": "u64"
+          },
+          {
+            "name": "to_platform",
+            "type": "u64"
+          },
+          {
+            "name": "to_partner",
+            "type": "u64"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "tranche",
+            "type": "u8"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fees",
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawRequestedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "tranche",
+            "type": "u8"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "ready_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawTicket",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "requested_at",
+            "type": "i64"
+          },
+          {
+            "name": "ready_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
