@@ -1,0 +1,113 @@
+name: Upgrade governado do programa v2 (devnet, branch v2)
+
+# Atualiza o programa v2 SÓ pela multisig de upgrade: o deployer grava o binário num buffer e passa o buffer para o
+# cofre da multisig; 7 de 10 Baleias aprovam; a execução só passa depois do prazo de espera (1 h).
+# Para rodar: altere deployments/program-v2-upgrade-round.txt no branch v2 (a primeira linha vira o motivo).
+on:
+  push:
+    branches: [v2]
+    paths:
+      - deployments/program-v2-upgrade-round.txt
+
+permissions:
+  contents: write
+
+concurrency:
+  group: program-v2-devnet
+  cancel-in-progress: false
+
+env:
+  AGAVE_VERSION: "4.3.0"
+  AGAVE_INSTALL_SHA256: de7be8bb4fdf52751680c967d05bac435affadbdbfb0efd0d6e33c365bd84fff
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: v2
+          persist-credentials: false
+      - uses: ./.github/actions/solana-setup
+      - run: npm ci --ignore-scripts
+      - name: Restaurar chave do deployer (devnet)
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .devnet-keys
+          key: devnet-keys-v2
+      - name: Restaurar chaves das 10 Baleias
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .consortium-keys
+          key: consortium-keys-v1
+      - name: Restaurar chave do programa v2
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .program-v2-keys
+          key: program-v2-key-v1
+      - name: Configurar
+        run: |
+          test -f .program-v2-keys/program.json || { echo "::error::Chave do programa v2 não encontrada"; exit 1; }
+          mkdir -p ~/.config/solana target/deploy
+          cp .devnet-keys/deployer.json ~/.config/solana/id.json
+          cp .program-v2-keys/program.json target/deploy/cambi_pool-keypair.json
+          solana config set --url https://api.devnet.solana.com
+          echo "PROGRAM_ID=$(solana address -k target/deploy/cambi_pool-keypair.json)" >> "$GITHUB_ENV"
+          echo "UPGRADE_VAULT=$(node -p "require('./deployments/devnet-v2.json').consortium.upgrade.vault")" >> "$GITHUB_ENV"
+          echo "REASON=$(head -n1 deployments/program-v2-upgrade-round.txt)" >> "$GITHUB_ENV"
+      - name: Compilar (versão devnet, mesmo endereço)
+        run: |
+          test "$PROGRAM_ID" = "$(node -p "require('./deployments/devnet-v2.json').programId")"
+          anchor keys sync
+          sed -i "s/^cambi_pool = \".*\"/cambi_pool = \"$PROGRAM_ID\"/" Anchor.toml
+          anchor build -- --features devnet
+          cp target/idl/cambi_pool.json idl/cambi_pool_v2.json
+          echo "NEW_SIZE=$(stat -c%s target/deploy/cambi_pool.so)" >> "$GITHUB_ENV"
+      - name: Mesmo binário? (nada a fazer)
+        id: same
+        run: |
+          if solana program dump "$PROGRAM_ID" /tmp/onchain.so && cmp -s -n "$NEW_SIZE" target/deploy/cambi_pool.so /tmp/onchain.so; then
+            echo "same=1" >> "$GITHUB_OUTPUT"; echo "Programa já está com este binário."
+          fi
+      - name: Gravar o novo binário num buffer e entregar o buffer à multisig
+        if: steps.same.outputs.same != '1'
+        timeout-minutes: 120
+        run: |
+          solana program close --buffers --bypass-warning || true
+          solana-keygen new --no-bip39-passphrase --silent --force -o /tmp/buffer.json
+          BUFFER=$(solana address -k /tmp/buffer.json)
+          ok=0
+          for i in 1 2 3 4 5 6; do
+            MODE=""; [ $((i % 2)) -eq 1 ] && MODE="--use-rpc"
+            if timeout 25m solana program write-buffer target/deploy/cambi_pool.so --buffer /tmp/buffer.json \
+                 --with-compute-unit-price 100000 --max-sign-attempts 100 $MODE; then ok=1; break; fi
+            sleep 20
+          done
+          [ "$ok" = 1 ] || { echo "::error::Não foi possível gravar o buffer"; exit 1; }
+          solana program set-buffer-authority "$BUFFER" --new-buffer-authority "$UPGRADE_VAULT"
+          echo "BUFFER=$BUFFER" >> "$GITHUB_ENV"
+      - name: Proposta, 7 aprovações, prazo de espera e execução
+        if: steps.same.outputs.same != '1'
+        env:
+          ANCHOR_WALLET: .devnet-keys/deployer.json
+        run: npx tsx scripts/upgrade-v2.ts
+      - name: Conferir o binário na rede
+        if: steps.same.outputs.same != '1'
+        run: |
+          solana program dump "$PROGRAM_ID" /tmp/after.so
+          cmp -s -n "$NEW_SIZE" target/deploy/cambi_pool.so /tmp/after.so && echo "OK: programa na rede = binário compilado"
+      - name: Publicar no branch v2
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf .devnet-keys .consortium-keys .program-v2-keys target/deploy/cambi_pool-keypair.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add idl/cambi_pool_v2.json deployments/devnet-v2.json app/src/devnet.json 2>/dev/null || true
+          git commit -q -m "Upgrade governado do programa v2: $REASON [skip ci]" || exit 0
+          git checkout -- .
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git pull -q --rebase "$url" v2
+          git push -q "$url" HEAD:v2

@@ -548,6 +548,21 @@ describe("cambi_pool", () => {
     await swap(trader, BRL, 300, { ctx });
   });
 
+  it("v2: prêmio de escassez dá mais cotas a quem deposita a moeda que falta", async () => {
+    const { m, ctx } = await freshPool();
+    const lp = await setupUser(connection, admin, m, { brl: 10_000, usd: 0 }, { airdropSol: 1 });
+    const saver = await setupUser(connection, admin, m, { brl: 1_000, usd: 100 }, { airdropSol: 1 });
+    await enroll(ctx, [lp, saver]);
+    await deposit(lp, BALEIA, BRL, 10_000, ctx); // sobra real: falta dólar
+    await deposit(saver, RENDE, USD, 100, ctx); // traz dólar: cotas a mais
+    const pos = await program.account.position.fetch(positionPda(pid, ctx.pool, saver.kp.publicKey, RENDE, USD));
+    expect(Number(pos.shares.toString())).to.be.greaterThan(Number(u(100 * PRICE).toString()));
+    // Real, a moeda que sobra: cota pelo valor exato, sem prêmio.
+    await deposit(saver, RENDE, BRL, 1_000, ctx);
+    const brlPos = await program.account.position.fetch(positionPda(pid, ctx.pool, saver.kp.publicKey, RENDE, BRL));
+    expect(brlPos.shares.toString()).to.equal(u(1_000).toString());
+  });
+
   it("v2: guardião só pausa; despausar é do admin (multisig)", async () => {
     const { ctx } = await freshPool();
     const guard = Keypair.generate();

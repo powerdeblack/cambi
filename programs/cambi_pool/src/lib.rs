@@ -68,6 +68,10 @@ pub const DEFAULT_LEVEL_LIMITS: [u64; 3] = [10_000_000_000, 100_000_000_000, 0];
 pub const DEFAULT_DAILY_LIMITS: [u64; 3] = [30_000_000_000, 300_000_000_000, 0];
 /// Desconto de preço para quem reequilibra, por 100% de desequilíbrio restante (2%).
 pub const DEFAULT_REBALANCE_K_BPS: u16 = 200;
+/// Prêmio de escassez no depósito: cotas a mais para quem deposita a moeda que falta, k × 5 por 100% de
+/// desequilíbrio restante (com k = 2%: 10% de cotas a mais num pool 100% desequilibrado), no máximo 10%.
+pub const DEPOSIT_PREMIUM_MULT: u128 = 5;
+pub const MAX_DEPOSIT_PREMIUM_BPS: u128 = 1_000;
 /// Validade máxima de uma credencial emitida (renovação anual do cadastro).
 pub const MAX_CREDENTIAL_SECS: i64 = 400 * 86_400;
 /// Aviso prévio mínimo da fila de saque (com zero, a fila viraria saque imediato fora do disjuntor).
@@ -380,7 +384,15 @@ pub mod cambi_pool {
                 pos.bump = ctx.bumps.position;
             }
             let pending = harvest(pool, pos)?;
-            let added = value_in_brl(pool.price, s, amount)?;
+            // Prêmio de escassez: quem traz a moeda que falta ganha mais cotas (mais participação nas taxas).
+            let premium = deposit_premium_bps(
+                pool,
+                s,
+                amount,
+                available(pool, ctx.accounts.brl_vault.amount, BRL),
+                available(pool, ctx.accounts.usd_vault.amount, USD),
+            );
+            let added = value_in_brl(pool.price, s, amount)? * (BPS + premium) / BPS;
             pos.amount = pos.amount.checked_add(amount).ok_or(CambiError::MathOverflow)?;
             pos.shares = pos.shares.checked_add(added).ok_or(CambiError::MathOverflow)?;
             pool.shares[t] = pool.shares[t].checked_add(added).ok_or(CambiError::MathOverflow)?;
@@ -862,6 +874,36 @@ pub fn price_move_ok(old: u64, new: u64, max_move_bps: u16) -> bool {
 /// A Baleia só pode sacar se, depois do saque, a liquidez continuar cobrindo o principal da Rende.
 pub fn baleia_can_withdraw(available: u64, amount: u64, rende_principal: u64) -> bool {
     available.checked_sub(amount).map_or(false, |left| left >= rende_principal)
+}
+
+/// Prêmio de escassez do depósito, em bps de cotas a mais. Só para a moeda que falta, calculado pelo desequilíbrio
+/// que SOBRA depois do depósito (sem prêmio se o depósito passar do ponto), limitado a MAX_DEPOSIT_PREMIUM_BPS.
+/// O principal continua nominal: o prêmio só aumenta a participação nas taxas enquanto o dinheiro fica no pool.
+pub fn deposit_premium_bps(pool: &Pool, s: usize, amount: u64, brl_avail: u64, usd_avail: u64) -> u128 {
+    let k = (pool.rebalance_k_bps as u128) * DEPOSIT_PREMIUM_MULT;
+    let price = pool.price as u128;
+    if k == 0 || price == 0 {
+        return 0;
+    }
+    let brl = brl_avail as u128;
+    let usd = (usd_avail as u128) * price / PRICE_SCALE;
+    let total = brl + usd;
+    if total == 0 {
+        return 0;
+    }
+    let imb = ((brl as i128) - (usd as i128)) * (BPS as i128) / (total as i128);
+    // Falta dólar (imb > 0): prêmio para depósito em dólar; falta real (imb < 0): para depósito em real.
+    let scarce = if imb > 0 { USD } else if imb < 0 { BRL } else { return 0 };
+    if s != scarce {
+        return 0;
+    }
+    let add = if s == BRL { amount as u128 } else { (amount as u128) * price / PRICE_SCALE };
+    let (brl2, usd2) = if s == BRL { (brl + add, usd) } else { (brl, usd + add) };
+    let imb2 = ((brl2 as i128) - (usd2 as i128)) * (BPS as i128) / ((brl2 + usd2) as i128);
+    if imb2.signum() != imb.signum() {
+        return 0;
+    }
+    (k * imb2.unsigned_abs() / BPS).min(MAX_DEPOSIT_PREMIUM_BPS)
 }
 
 /// Saque imediato só até uma fração da liquidez livre; acima disso, fila com aviso prévio.
@@ -2019,6 +2061,26 @@ mod tests {
         breaker_inflow(&mut p, 10_020, [710 * R, 600 * R], BRL, 291 * R);
         assert_eq!(p.breaker_out[BRL], 0);
         assert!(breaker_take(&mut p, 10_030, [1_000 * R, 600 * R], BRL, 250 * R).is_ok());
+    }
+
+    #[test]
+    fn premio_de_escassez_so_para_a_moeda_que_falta() {
+        let mut p = pool(5_000_000);
+        p.rebalance_k_bps = 200;
+        // Sobra real (R$ 150 mil x US$ 20 mil = R$ 100 mil): quem deposita dólar ganha cotas a mais.
+        let dolar = deposit_premium_bps(&p, USD, 1_000 * R, 150_000 * R, 20_000 * R);
+        assert!(dolar > 0 && dolar <= MAX_DEPOSIT_PREMIUM_BPS);
+        // ~20% de desequilíbrio depois do depósito, k × 5 = 10% por 100%: ~2% de cotas a mais.
+        assert!((150..=250).contains(&dolar));
+        // Real (a moeda que sobra) não ganha prêmio.
+        assert_eq!(deposit_premium_bps(&p, BRL, 1_000 * R, 150_000 * R, 20_000 * R), 0);
+        // Depósito que passa do ponto (inverte o lado) não ganha prêmio.
+        assert_eq!(deposit_premium_bps(&p, USD, 100_000 * R, 150_000 * R, 20_000 * R), 0);
+        // Pool equilibrado: sem prêmio.
+        assert_eq!(deposit_premium_bps(&p, USD, 1_000 * R, 100_000 * R, 20_000 * R), 0);
+        // Desligado com k = 0.
+        p.rebalance_k_bps = 0;
+        assert_eq!(deposit_premium_bps(&p, USD, 1_000 * R, 150_000 * R, 20_000 * R), 0);
     }
 
     #[test]
