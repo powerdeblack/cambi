@@ -1,0 +1,60 @@
+name: Teste de ecossistema v2 (devnet, branch v2)
+
+# Só no branch v2. Usuários de teste usam o pool v2 de verdade (cadastro, KYC, trocas, Rende, fila de saque,
+# guardião + multisig) e o relatório com as medições vai para deployments/ecosystem-v2-report.json.
+# Para rodar: altere deployments/ecosystem-round.txt no branch v2.
+on:
+  push:
+    branches: [v2]
+    paths:
+      - deployments/ecosystem-round.txt
+
+permissions:
+  contents: write
+
+concurrency:
+  group: program-v2-devnet
+  cancel-in-progress: false
+
+jobs:
+  ecosystem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: v2
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Restaurar chave do deployer (devnet)
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .devnet-keys
+          key: devnet-keys-v2
+      - name: Restaurar chaves das 10 Baleias
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .consortium-keys
+          key: consortium-keys-v1
+      - name: Teste de ecossistema
+        env:
+          ANCHOR_WALLET: .devnet-keys/deployer.json
+        run: npx tsx scripts/ecosystem-v2.ts
+      - name: Publicar o relatório no branch v2
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf .devnet-keys .consortium-keys
+          [ -f deployments/ecosystem-v2-report.json ] || exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deployments/ecosystem-v2-report.json
+          git commit -q -m "Teste de ecossistema v2: relatório [skip ci]" || exit 0
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git pull -q --rebase "$url" v2
+          git push -q "$url" HEAD:v2
