@@ -66,6 +66,8 @@ pub const MAX_WITHDRAW_NOTICE_SECS: i64 = 30 * 86_400;
 pub const DEFAULT_LEVEL_LIMITS: [u64; 3] = [10_000_000_000, 100_000_000_000, 0];
 /// Teto ACUMULADO em 24 h por nível (auditoria: o teto por operação sozinho não limita nada para PLD).
 pub const DEFAULT_DAILY_LIMITS: [u64; 3] = [30_000_000_000, 300_000_000_000, 0];
+/// Desconto de preço para quem reequilibra, por 100% de desequilíbrio restante (2%).
+pub const DEFAULT_REBALANCE_K_BPS: u16 = 200;
 /// Validade máxima de uma credencial emitida (renovação anual do cadastro).
 pub const MAX_CREDENTIAL_SECS: i64 = 400 * 86_400;
 /// Aviso prévio mínimo da fila de saque (com zero, a fila viraria saque imediato fora do disjuntor).
@@ -106,6 +108,7 @@ pub mod cambi_pool {
         pool.withdraw_notice_secs = DEFAULT_WITHDRAW_NOTICE_SECS;
         pool.level_limit_brl = DEFAULT_LEVEL_LIMITS;
         pool.level_daily_brl = DEFAULT_DAILY_LIMITS;
+        pool.rebalance_k_bps = DEFAULT_REBALANCE_K_BPS;
         Ok(())
     }
 
@@ -178,6 +181,13 @@ pub mod cambi_pool {
         let pool = &mut ctx.accounts.pool;
         pool.kyc_issuer = issuer;
         pool.require_kyc = require_kyc;
+        Ok(())
+    }
+
+    /// Desconto para quem reequilibra (0 desliga; no máximo 5%).
+    pub fn set_rebalance(ctx: Context<AdminOnly>, k_bps: u16) -> Result<()> {
+        require!(k_bps <= 500, CambiError::InvalidConfig);
+        ctx.accounts.pool.rebalance_k_bps = k_bps;
         Ok(())
     }
 
@@ -574,7 +584,7 @@ pub mod cambi_pool {
             pool.window_out[s_out] = out_total;
             // Disjuntor da janela longa (padrão: 1 hora), somando trocas e saques imediatos.
             breaker_take(pool, now, avail, s_out, q.amount_out)?;
-            breaker_inflow(pool, now, s_in, amount_in);
+            breaker_inflow(pool, now, avail, s_in, amount_in);
         }
 
         let (vault_in, vault_out, user_in, user_out) = match s_in {
@@ -859,22 +869,39 @@ pub fn instant_withdraw_ok(available: u64, amount: u64, instant_bps: u16) -> boo
     (amount as u128) * BPS <= (available as u128) * (instant_bps as u128)
 }
 
-/// Disjuntor: soma a saída da moeda `s` na janela atual e recusa se passar do teto.
-/// A janela recomeça sozinha depois de `breaker_window_secs`, com a liquidez livre daquele momento como base.
-pub fn breaker_take(pool: &mut Pool, now: i64, free: [u64; 2], s: usize, amount: u64) -> Result<()> {
-    if now.saturating_sub(pool.breaker_start) >= pool.breaker_window_secs {
-        pool.breaker_start = now;
-        pool.breaker_base = free;
-        pool.breaker_out = [0, 0];
+/// Disjuntor com janela DESLIZANTE (painel de dados: a janela fixa deixava sair ~2× o teto na virada).
+/// A saída somada "escoa" linearmente ao longo da janela. A base (liquidez de referência) cai na hora quando a
+/// liquidez cai (ex.: valor que foi para a fila) e só sobe devagar, na velocidade da janela: um depósito grande
+/// não infla o teto de uma vez (auditoria, achado 1).
+pub fn breaker_roll(pool: &mut Pool, now: i64, free: [u64; 2]) {
+    let w = pool.breaker_window_secs.max(1) as u128;
+    let e = now.saturating_sub(pool.breaker_start).clamp(0, pool.breaker_window_secs.max(1)) as u128;
+    for s in 0..2 {
+        let out = (pool.breaker_out[s] as u128) * (w - e) / w;
+        pool.breaker_out[s] = out as u64;
+        let current = (free[s] as u128) + out;
+        let base = pool.breaker_base[s] as u128;
+        let next = if current >= base { base + (current - base) * e / w } else { current };
+        pool.breaker_base[s] = u64::try_from(next).unwrap_or(u64::MAX);
     }
+    pool.breaker_start = now;
+}
+
+/// Soma a saída da moeda `s` e recusa se passar do teto (bps da base).
+pub fn breaker_take(pool: &mut Pool, now: i64, free: [u64; 2], s: usize, amount: u64) -> Result<()> {
+    breaker_roll(pool, now, free);
     let total = pool.breaker_out[s].checked_add(amount).ok_or(CambiError::MathOverflow)?;
-    // Auditoria v2 (achado 1): a base nunca passa do que existe agora (livre + o que já saiu na janela).
-    // Assim um depósito grande que depois vai para a fila não infla o teto.
-    let base = pool.breaker_base[s].min(free[s].saturating_add(pool.breaker_out[s]));
-    let cap = (base as u128) * (pool.breaker_bps as u128) / BPS;
+    let cap = (pool.breaker_base[s] as u128) * (pool.breaker_bps as u128) / BPS;
     require!((total as u128) <= cap, CambiError::CircuitBreaker);
     pool.breaker_out[s] = total;
     Ok(())
+}
+
+/// Entrada de uma moeda abate a saída dela (conta a saída LÍQUIDA).
+/// Auditoria v2 (achado 2): trocas de ida e volta não enchem o disjuntor para travar os outros.
+pub fn breaker_inflow(pool: &mut Pool, now: i64, free: [u64; 2], s: usize, amount: u64) {
+    breaker_roll(pool, now, free);
+    pool.breaker_out[s] = pool.breaker_out[s].saturating_sub(amount);
 }
 
 /// Saques: a credencial da carteira (endereço fixo por seeds, então não dá para omitir) não pode estar bloqueada.
@@ -887,14 +914,6 @@ pub fn ensure_not_frozen(acc: &UncheckedAccount) -> Result<()> {
     let c = Credential::try_deserialize(&mut &data[..])?;
     require!(!c.frozen, CambiError::AssetsFrozen);
     Ok(())
-}
-
-/// Entrada de uma moeda na janela do disjuntor abate a saída dela (conta a saída LÍQUIDA).
-/// Auditoria v2 (achado 2): trocas de ida e volta não enchem o disjuntor para travar os outros.
-pub fn breaker_inflow(pool: &mut Pool, now: i64, s: usize, amount: u64) {
-    if now.saturating_sub(pool.breaker_start) < pool.breaker_window_secs {
-        pool.breaker_out[s] = pool.breaker_out[s].saturating_sub(amount);
-    }
 }
 
 /// Confere a credencial KYC de quem troca ou deposita (quando o pool exige).
@@ -992,7 +1011,25 @@ pub fn quote(pool: &Pool, s_in: usize, amount_in: u64, kind: UserKind, brl_avail
     let amount = amount_in as u128;
     let fee = amount * fee_bps / BPS;
     let net = amount - fee;
-    let amount_out = if s_in == BRL { net * PRICE_SCALE / price } else { net * price / PRICE_SCALE };
+    let mut amount_out = if s_in == BRL { net * PRICE_SCALE / price } else { net * price / PRICE_SCALE };
+
+    // Desconto para quem REEQUILIBRA (painel de economia e dados): preço melhor proporcional ao desequilíbrio que
+    // sobra DEPOIS da troca. Sem desconto se a troca passar do ponto (inverte o lado), e limitado a taxa desta troca
+    // + taxa base: a volta (que piora o pool e paga pelo menos a base) nunca dá lucro numa ida e volta.
+    let k = pool.rebalance_k_bps as u128;
+    if k > 0 && worsens < 0 && total > 0 {
+        let (brl2, usd2) = if s_in == BRL {
+            (brl + net, usd_in_brl.saturating_sub(amount_out * price / PRICE_SCALE))
+        } else {
+            (brl.saturating_sub(amount_out), usd_in_brl + net)
+        };
+        let total2 = brl2 + usd2;
+        let imb2: i128 = if total2 == 0 { 0 } else { ((brl2 as i128) - (usd2 as i128)) * (BPS as i128) / (total2 as i128) };
+        if imb2.signum() == imb.signum() {
+            let bonus_bps = (k * imb2.unsigned_abs() / BPS).min(fee_bps + base_bps);
+            amount_out = amount_out * (BPS + bonus_bps) / BPS;
+        }
+    }
 
     let to_partner = (amount * pix_bps * (f.partner_cost_bps as u128) / BPS / BPS).min(fee);
     let after_partner = fee - to_partner;
@@ -1198,6 +1235,8 @@ pub struct Pool {
     pub reserve_max_age: i64,
     /// Teto acumulado em 24 h por nível de credencial, em reais (6 casas); 0 = sem teto.
     pub level_daily_brl: [u64; 3],
+    /// Desconto para quem reequilibra: bps de preço por 100% de desequilíbrio restante (200 = até 2%).
+    pub rebalance_k_bps: u16,
 }
 
 #[account]
@@ -1811,6 +1850,7 @@ mod tests {
             reserve_attester: Pubkey::default(),
             reserve_max_age: 0,
             level_daily_brl: DEFAULT_DAILY_LIMITS,
+            rebalance_k_bps: 0,
         }
     }
 
@@ -1935,29 +1975,48 @@ mod tests {
     }
 
     #[test]
-    fn disjuntor_soma_trocas_e_saques_na_janela_e_reabre_depois() {
+    fn disjuntor_janela_deslizante() {
         let mut p = pool(5_000_000);
-        let free = [1_000 * R, 200 * R];
-        // 30% por hora: até R$ 300 de saída em reais.
-        assert!(breaker_take(&mut p, 10_000, free, BRL, 200 * R).is_ok());
-        assert!(breaker_take(&mut p, 10_100, free, BRL, 100 * R).is_ok());
-        assert!(breaker_take(&mut p, 10_200, free, BRL, 1).is_err());
+        // 30% de R$ 1.000 livres: R$ 300 saem; o próximo real é recusado.
+        assert!(breaker_take(&mut p, 10_000, [1_000 * R, 200 * R], BRL, 300 * R).is_ok());
+        assert!(breaker_take(&mut p, 10_000, [700 * R, 200 * R], BRL, 1).is_err());
         // A outra moeda tem o próprio teto.
-        assert!(breaker_take(&mut p, 10_200, free, USD, 60 * R).is_ok());
-        // Passada a janela, recomeça com a liquidez do momento.
-        assert!(breaker_take(&mut p, 10_000 + DEFAULT_BREAKER_WINDOW_SECS, [500 * R, 200 * R], BRL, 150 * R).is_ok());
-        assert!(breaker_take(&mut p, 10_000 + DEFAULT_BREAKER_WINDOW_SECS, [500 * R, 200 * R], BRL, 1).is_err());
+        assert!(breaker_take(&mut p, 10_000, [700 * R, 200 * R], USD, 60 * R).is_ok());
+        // Meia janela depois, metade da saída "escoou": cabe só mais um pouco, não um teto inteiro novo.
+        let half = 10_000 + DEFAULT_BREAKER_WINDOW_SECS / 2;
+        assert!(breaker_take(&mut p, half, [700 * R, 140 * R], BRL, 100 * R).is_ok());
+        assert!(breaker_take(&mut p, half, [600 * R, 140 * R], BRL, 10 * R).is_err());
+    }
+
+    #[test]
+    fn desconto_para_quem_reequilibra_sem_lucro_na_ida_e_volta() {
+        let mut p = pool(5_000_000);
+        p.rebalance_k_bps = 200;
+        // Sobra real (R$ 900 mil x US$ 50 mil = R$ 250 mil): quem traz dólar recebe preço melhor.
+        let sem = { let mut q = pool(5_000_000); q.rebalance_k_bps = 0; quote(&q, USD, 1_000 * R, UserKind::Retail, 900_000 * R, 50_000 * R).unwrap() };
+        let com = quote(&p, USD, 1_000 * R, UserKind::Retail, 900_000 * R, 50_000 * R).unwrap();
+        assert!(com.amount_out > sem.amount_out);
+        // Quem piora o pool não ganha desconto.
+        let piora_sem = { let mut q = pool(5_000_000); q.rebalance_k_bps = 0; quote(&q, BRL, 1_000 * R, UserKind::Retail, 900_000 * R, 50_000 * R).unwrap() };
+        let piora = quote(&p, BRL, 1_000 * R, UserKind::Retail, 900_000 * R, 50_000 * R).unwrap();
+        assert_eq!(piora.amount_out, piora_sem.amount_out);
+        // Ida e volta: entra US$ 1.000, sai em real, volta para dólar. Termina com menos dólar.
+        let ida = quote(&p, USD, 1_000 * R, UserKind::Depositor, 900_000 * R, 50_000 * R).unwrap();
+        let volta = quote(&p, BRL, ida.amount_out, UserKind::Depositor, 900_000 * R - ida.amount_out, 51_000 * R).unwrap();
+        assert!(volta.amount_out < 1_000 * R);
     }
 
     #[test]
     fn auditoria_base_do_disjuntor_nao_infla_e_ida_e_volta_nao_trava() {
-        // Achado 1: a janela começou com R$ 3.000 livres, mas R$ 2.000 foram para a fila; o teto cai junto.
+        // Achado 1: base cai na hora quando a liquidez cai (R$ 2.000 foram para a fila) e só sobe devagar.
         let mut p = pool(5_000_000);
         assert!(breaker_take(&mut p, 10_000, [3_000 * R, 600 * R], BRL, 1).is_ok());
-        assert!(breaker_take(&mut p, 10_010, [1_000 * R, 600 * R], BRL, 400 * R).is_err()); // 30% de ~1.000, não de 3.000
+        assert!(breaker_take(&mut p, 10_010, [1_000 * R, 600 * R], BRL, 400 * R).is_err());
         assert!(breaker_take(&mut p, 10_010, [1_000 * R, 600 * R], BRL, 290 * R).is_ok());
+        // Depósito grande (de R$ 710 para R$ 10.000 livres) não infla o teto no mesmo instante.
+        assert!(breaker_take(&mut p, 10_010, [10_000 * R, 600 * R], BRL, 100 * R).is_err());
         // Achado 2: a entrada de real abate a saída de real (ida e volta não enche o disjuntor).
-        breaker_inflow(&mut p, 10_020, BRL, 291 * R);
+        breaker_inflow(&mut p, 10_020, [710 * R, 600 * R], BRL, 291 * R);
         assert_eq!(p.breaker_out[BRL], 0);
         assert!(breaker_take(&mut p, 10_030, [1_000 * R, 600 * R], BRL, 250 * R).is_ok());
     }

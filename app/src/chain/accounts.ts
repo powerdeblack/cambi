@@ -63,6 +63,8 @@ export interface PoolSafety {
   withdrawNoticeSecs: number;
   queued: bigint[];
   reserveMaxAge: number;
+  levelDailyBrl: bigint[];
+  rebalanceKBps: bigint; // desconto para quem reequilibra (0 = desligado)
 }
 
 export interface PositionRaw {
@@ -172,7 +174,13 @@ export function decodePoolRaw(data: Uint8Array): PoolRaw {
     const queued = [r.u64(), r.u64()];
     r.skip(32); // reserve_attester
     const reserveMaxAge = r.i64();
-    safety = { requireKyc, levelLimitBrl, breakerWindowSecs, breakerBps, breakerStart, breakerBase, breakerOut, instantWithdrawBps, withdrawNoticeSecs, queued, reserveMaxAge };
+    const more = data.length >= r.offset + 24 + 2;
+    const levelDailyBrl = more ? [r.u64(), r.u64(), r.u64()] : [0n, 0n, 0n];
+    const rebalanceKBps = more ? r.u16() : 0n;
+    safety = {
+      requireKyc, levelLimitBrl, breakerWindowSecs, breakerBps, breakerStart, breakerBase, breakerOut, instantWithdrawBps,
+      withdrawNoticeSecs, queued, reserveMaxAge, levelDailyBrl, rebalanceKBps,
+    };
   }
   return {
     price, priceUpdatedAt, maxPriceAge, fees, paused, principal, shares, accFeePerShare, lpFeesUnclaimed, platformFees,
@@ -226,7 +234,23 @@ export function chainQuote(pool: PoolRaw, sIn: number, amountIn: bigint, kind: K
   const feeBps = (baseBps * mult) / BPS;
   const fee = (amountIn * feeBps) / BPS;
   const net = amountIn - fee;
-  const amountOut = sIn === BRL ? (net * PRICE_SCALE) / pool.price : (net * pool.price) / PRICE_SCALE;
+  let amountOut = sIn === BRL ? (net * PRICE_SCALE) / pool.price : (net * pool.price) / PRICE_SCALE;
+  // Desconto para quem reequilibra (programa v2): igual ao `quote` em Rust, divisões inteiras truncadas.
+  const k = pool.safety?.rebalanceKBps ?? 0n;
+  if (k > 0n && worsens < 0n && total > 0n) {
+    const sub = (a: bigint, b: bigint) => (a > b ? a - b : 0n);
+    const [brl2, usd2] =
+      sIn === BRL ? [brlAvail + net, sub(usdInBrl, (amountOut * pool.price) / PRICE_SCALE)] : [sub(brlAvail, amountOut), usdInBrl + net];
+    const total2 = brl2 + usd2;
+    const imb2 = total2 === 0n ? 0n : ((brl2 - usd2) * BPS) / total2;
+    const sign = (x: bigint) => (x > 0n ? 1 : x < 0n ? -1 : 0);
+    if (sign(imb2) === sign(imb)) {
+      const abs = imb2 < 0n ? -imb2 : imb2;
+      let bonus = (k * abs) / BPS;
+      if (bonus > feeBps + baseBps) bonus = feeBps + baseBps;
+      amountOut = (amountOut * (BPS + bonus)) / BPS;
+    }
+  }
   let toPartner = (amountIn * pixBps * f.partnerCostBps) / BPS / BPS;
   if (toPartner > fee) toPartner = fee;
   const afterPartner = fee - toPartner;
@@ -251,10 +275,14 @@ export function swapBlocker(pool: PoolRaw, sIn: number, q: ChainQuote, brlAvail:
   const sf = pool.safety;
   if (sf) {
     // Disjuntor: mesma conta do programa (a janela recomeça sozinha depois do prazo).
+    // Janela deslizante, igual a `breaker_roll`: a saída escoa ao longo da janela; a base cai na hora e sobe devagar.
     const sOut = 1 - sIn;
-    const fresh = nowSec - sf.breakerStart >= sf.breakerWindowSecs;
-    const base = fresh ? availOut : sf.breakerBase[sOut];
-    const out = fresh ? 0n : sf.breakerOut[sOut];
+    const w = BigInt(Math.max(1, sf.breakerWindowSecs));
+    const e = BigInt(Math.min(Math.max(0, nowSec - sf.breakerStart), Math.max(1, sf.breakerWindowSecs)));
+    const out = (sf.breakerOut[sOut] * (w - e)) / w;
+    const current = availOut + out;
+    const base0 = sf.breakerBase[sOut];
+    const base = current >= base0 ? base0 + ((current - base0) * e) / w : current;
     if (out + q.amountOut > (base * sf.breakerBps) / BPS) return "Disjuntor de segurança: o pool atingiu o teto de saída desta hora. Tente mais tarde ou um valor menor.";
   }
   return null;
