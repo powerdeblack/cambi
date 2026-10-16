@@ -58,3 +58,15 @@ câmbio", turistas pagando QR Pix), medição sem dado pessoal (LGPD).
 2. Oráculo por desvio (pelo menos fora do agendador do GitHub) e desconto para quem reequilibra.
 3. "Receber do exterior" (freelancer) e "Adicionar via Pix" (simulado) no app; medição sem dado pessoal.
 4. Rende só para investidor qualificado até haver parecer; contrato-modelo com parceiro autorizado.
+
+## Segunda rodada: compliance, marketing, UI/UX, arquitetura de dados e ciência de dados
+
+| Especialista | Principal achado | Aplicado no v2 |
+|---|---|---|
+| Compliance PLD-FT | Bens de sancionado precisam ser **bloqueados** (Lei 13.810), inclusive saque; Baleia só institucional; tetos por titular, não por carteira; 11 regras de monitoramento | `set_frozen` (trava troca, depósito e saque), depósito na Baleia só nível 3, teto diário por credencial. Pendente: teto por titular (hash do CPF com o parceiro), envio externo pelo programa, motor de regras |
+| Marketing | Posicionamento: taxa aberta, sem estranho do outro lado, dólar útil; tirar promessa de rendimento e jargão | Textos do app revisados (Home, Trocar, Rende, QR); "Receber do exterior" |
+| UI/UX | Faixa "Baleia" sem cor (conflito de CSS), contraste dos botões verdes abaixo de AA, botão desabilitado sem motivo, erro técnico em inglês | Corrigidos; alvos de toque maiores; aviso de finalidade e de declaração |
+| Arquitetura de dados | Indexador barato em GitHub Actions, transações com erro também (disjuntor e limites não emitem evento), separação LGPD em 3 zonas | Plano registrado; indexador é o próximo passo |
+| Ciência de dados | Disjuntor de 30% é bom; janela fixa deixa sair 44%; o desconto para quem reequilibra reduz recusas ~10× num dia de estresse; A/B de taxa precisa de ~470 carteiras por braço para detectar 8 p.p. | Janela deslizante e desconto k = 2% no programa v2.4 (ida e volta sem lucro, testado) |
+
+Plano de equipe com pessoas reais (e o que exige registro profissional): [VAGAS.md](VAGAS.md).
