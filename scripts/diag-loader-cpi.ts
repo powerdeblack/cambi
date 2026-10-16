@@ -6,7 +6,12 @@
 // cria uma multisig 1 de 1 descartável, um buffer pequeno e pede ao cofre, por CPI, que mude a autoridade do buffer.
 // Controle: o mesmo cofre faz uma transferência do System Program por CPI.
 //
-// Uso (GitHub Actions): ANCHOR_WALLET=.devnet-keys/deployer.json npx tsx scripts/diag-loader-cpi.ts
+// Rodada 2 (com um programa vazio de teste, diag/noop, cuja autoridade de upgrade é o cofre): Upgrade por CPI,
+// ExtendProgramChecked por CPI e ExtendProgram (sem autoridade) direto, fora da multisig.
+//
+// Uso (GitHub Actions): ANCHOR_WALLET=.devnet-keys/deployer.json npx tsx scripts/diag-loader-cpi.ts setup
+//   (o workflow faz deploy do programa vazio e passa a autoridade ao cofre) e depois
+//   NOOP_PROGRAM=… NOOP_BUFFER=… npx tsx scripts/diag-loader-cpi.ts run
 import { ComputeBudgetProgram, Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction, TransactionMessage } from "@solana/web3.js";
 import * as multisig from "@sqds/multisig";
 import { appendFileSync, readFileSync, writeFileSync } from "fs";
@@ -40,8 +45,11 @@ function logsOf(e: unknown): string[] {
   return err.logs ?? err.transactionLogs ?? [err.message.split("\n")[0]];
 }
 
+const STATE = "/tmp/diag-loader-cpi.json";
+
 async function main() {
   const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(process.env.ANCHOR_WALLET!, "utf8"))));
+  if (process.argv[2] === "run") return run(payer);
 
   // Multisig 1 de 1, sem prazo de espera.
   const createKey = Keypair.generate();
@@ -62,69 +70,110 @@ async function main() {
         createKey: createKey.publicKey,
         rentCollector: null,
       }),
-      SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: vault, lamports: 0.01 * LAMPORTS_PER_SOL }),
+      SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: vault, lamports: 0.05 * LAMPORTS_PER_SOL }),
     ],
     [payer, createKey],
   );
   console.log(`Multisig de teste ${msPda.toBase58()} · cofre ${vault.toBase58()}`);
+  writeFileSync(STATE, JSON.stringify({ multisig: msPda.toBase58(), vault: vault.toBase58() }));
+  if (process.env.GITHUB_ENV) appendFileSync(process.env.GITHUB_ENV, `DIAG_VAULT=${vault.toBase58()}\n`);
+}
 
-  // Buffer pequeno do loader, com autoridade = cofre.
-  const buffer = Keypair.generate();
-  const space = 37 + 8;
+// Cada teste: proposta, aprovação e execução (1,4 mi de unidades) pelo cofre da multisig de teste.
+async function viaVault(payer: Keypair, msPda: PublicKey, name: string, ixs: TransactionInstruction[]) {
+  const info = await multisig.accounts.Multisig.fromAccountAddress(connection, msPda, "confirmed");
+  const index = BigInt(info.transactionIndex.toString()) + 1n;
+  const [vault] = multisig.getVaultPda({ multisigPda: msPda, index: 0 });
+  const { blockhash } = await connection.getLatestBlockhash("confirmed");
   await send(
     [
-      SystemProgram.createAccount({ fromPubkey: payer.publicKey, newAccountPubkey: buffer.publicKey, lamports: await connection.getMinimumBalanceForRentExemption(space), space, programId: LOADER }),
-      new TransactionInstruction({ programId: LOADER, keys: [{ pubkey: buffer.publicKey, isSigner: false, isWritable: true }, { pubkey: vault, isSigner: false, isWritable: false }], data: u32(0) }),
+      multisig.instructions.vaultTransactionCreate({ multisigPda: msPda, transactionIndex: index, creator: payer.publicKey, vaultIndex: 0, ephemeralSigners: 0, transactionMessage: new TransactionMessage({ payerKey: vault, recentBlockhash: blockhash, instructions: ixs }) }),
+      multisig.instructions.proposalCreate({ multisigPda: msPda, transactionIndex: index, creator: payer.publicKey }),
+      multisig.instructions.proposalApprove({ multisigPda: msPda, transactionIndex: index, member: payer.publicKey }),
     ],
-    [payer, buffer],
+    [payer],
   );
-  console.log(`Buffer de teste ${buffer.publicKey.toBase58()} (autoridade: cofre)`);
+  const { instruction } = await multisig.instructions.vaultTransactionExecute({ connection, multisigPda: msPda, transactionIndex: index, member: payer.publicKey });
+  return attempt(name, [ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }), instruction], [payer]);
+}
 
-  // Cada teste: proposta, aprovação, simulação da execução (1,4 mi de unidades) e, se passar, execução.
-  let index = 0n;
-  async function viaVault(name: string, ixs: TransactionInstruction[]) {
-    index += 1n;
-    const { blockhash } = await connection.getLatestBlockhash("confirmed");
-    await send(
-      [
-        multisig.instructions.vaultTransactionCreate({ multisigPda: msPda, transactionIndex: index, creator: payer.publicKey, vaultIndex: 0, ephemeralSigners: 0, transactionMessage: new TransactionMessage({ payerKey: vault, recentBlockhash: blockhash, instructions: ixs }) }),
-        multisig.instructions.proposalCreate({ multisigPda: msPda, transactionIndex: index, creator: payer.publicKey }),
-        multisig.instructions.proposalApprove({ multisigPda: msPda, transactionIndex: index, member: payer.publicKey }),
-      ],
-      [payer],
-    );
-    const { instruction } = await multisig.instructions.vaultTransactionExecute({ connection, multisigPda: msPda, transactionIndex: index, member: payer.publicKey });
-    try {
-      const sig = await send([ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }), instruction], [payer]);
-      console.log(`OK  ${name}: ${sig}`);
-      return { name, ok: true, signature: sig };
-    } catch (e) {
-      const logs = logsOf(e);
-      console.log(`NÃO ${name}:\n  ${logs.slice(-6).join("\n  ")}`);
-      return { name, ok: false, logs: logs.slice(-6) };
-    }
+async function attempt(name: string, ixs: TransactionInstruction[], signers: Keypair[]) {
+  try {
+    const sig = await send(ixs, signers);
+    console.log(`OK  ${name}: ${sig}`);
+    return { name, ok: true, signature: sig };
+  } catch (e) {
+    const logs = logsOf(e);
+    console.log(`NÃO ${name}:\n  ${logs.slice(-6).join("\n  ")}`);
+    return { name, ok: false, logs: logs.slice(-6) };
   }
+}
 
+async function report(results: { name: string; ok: boolean; logs?: string[] }[], extra: Record<string, string>) {
+  const file = "deployments/diag-loader-cpi.json";
+  const prev = (() => { try { return JSON.parse(readFileSync(file, "utf8")); } catch { return {}; } })();
+  const out = { ...prev, at: new Date().toISOString(), ...extra, results: [...(prev.results ?? []), ...results] };
+  writeFileSync(file, JSON.stringify(out, null, 2) + "\n");
+  const md = `## Diagnóstico: loader por CPI na devnet\n\n${results.map((r) => `- ${r.ok ? "✅" : "❌"} ${r.name}${r.ok ? "" : `\n  - ${r.logs?.at(-1)}`}`).join("\n")}\n`;
+  console.log(md);
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
+}
+
+// Rodada 2: o programa vazio já tem o cofre como autoridade de upgrade, e o buffer também.
+async function run(payer: Keypair) {
+  const st = JSON.parse(readFileSync(STATE, "utf8"));
+  const msPda = new PublicKey(st.multisig);
+  const vault = new PublicKey(st.vault);
+  const program = new PublicKey(process.env.NOOP_PROGRAM!);
+  const buffer = new PublicKey(process.env.NOOP_BUFFER!);
+  const [programData] = PublicKey.findProgramAddressSync([program.toBuffer()], LOADER);
   const results = [
-    await viaVault("controle: System Program por CPI (transferência do cofre)", [SystemProgram.transfer({ fromPubkey: vault, toPubkey: payer.publicKey, lamports: 1000 })]),
-    await viaVault("loader por CPI: SetAuthority do buffer (cofre → deployer)", [
+    await viaVault(payer, msPda, "Upgrade por CPI (cofre é a autoridade)", [
       new TransactionInstruction({
         programId: LOADER,
         keys: [
-          { pubkey: buffer.publicKey, isSigner: false, isWritable: true },
+          { pubkey: programData, isSigner: false, isWritable: true },
+          { pubkey: program, isSigner: false, isWritable: true },
+          { pubkey: buffer, isSigner: false, isWritable: true },
+          { pubkey: payer.publicKey, isSigner: false, isWritable: true },
+          { pubkey: new PublicKey("SysvarRent111111111111111111111111111111111"), isSigner: false, isWritable: false },
+          { pubkey: new PublicKey("SysvarC1ock11111111111111111111111111111111"), isSigner: false, isWritable: false },
           { pubkey: vault, isSigner: true, isWritable: false },
-          { pubkey: payer.publicKey, isSigner: false, isWritable: false },
         ],
-        data: u32(4),
+        data: u32(3),
       }),
     ]),
+    await viaVault(payer, msPda, "ExtendProgramChecked por CPI (+1 KB)", [
+      new TransactionInstruction({
+        programId: LOADER,
+        keys: [
+          { pubkey: programData, isSigner: false, isWritable: true },
+          { pubkey: program, isSigner: false, isWritable: true },
+          { pubkey: vault, isSigner: true, isWritable: false },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+          { pubkey: vault, isSigner: true, isWritable: true },
+        ],
+        data: Buffer.concat([u32(9), u32(1024)]),
+      }),
+    ]),
+    await attempt(
+      "ExtendProgram sem autoridade, direto (fora da multisig, +1 KB)",
+      [
+        new TransactionInstruction({
+          programId: LOADER,
+          keys: [
+            { pubkey: programData, isSigner: false, isWritable: true },
+            { pubkey: program, isSigner: false, isWritable: true },
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+            { pubkey: payer.publicKey, isSigner: true, isWritable: true },
+          ],
+          data: Buffer.concat([u32(6), u32(1024)]),
+        }),
+      ],
+      [payer],
+    ),
   ];
-
-  const out = { at: new Date().toISOString(), multisig: msPda.toBase58(), vault: vault.toBase58(), buffer: buffer.publicKey.toBase58(), results };
-  writeFileSync("deployments/diag-loader-cpi.json", JSON.stringify(out, null, 2) + "\n");
-  const md = `## Diagnóstico: loader por CPI na devnet\n\n${results.map((r) => `- ${r.ok ? "✅" : "❌"} ${r.name}${r.ok ? "" : `\n  - ${(r as { logs: string[] }).logs.at(-1)}`}`).join("\n")}\n`;
-  console.log(md);
-  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
+  await report(results, { noopProgram: program.toBase58() });
 }
 
 main().catch((e) => {
