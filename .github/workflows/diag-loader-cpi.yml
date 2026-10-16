@@ -1,0 +1,54 @@
+name: Diagnóstico do loader por CPI (devnet, branch v2)
+
+# Testa se a devnet aceita instruções do BPF Loader Upgradeable feitas pelo cofre de uma multisig (CPI), com uma
+# multisig 1 de 1 e um buffer descartáveis. Não toca o programa nem o pool.
+# Para rodar: altere deployments/diag-round.txt no branch v2.
+on:
+  push:
+    branches: [v2]
+    paths:
+      - deployments/diag-round.txt
+
+permissions:
+  contents: write
+
+concurrency:
+  group: program-v2-devnet
+  cancel-in-progress: false
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: v2
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Restaurar chave do deployer (devnet)
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .devnet-keys
+          key: devnet-keys-v2
+      - name: Diagnóstico
+        env:
+          ANCHOR_WALLET: .devnet-keys/deployer.json
+        run: npx tsx scripts/diag-loader-cpi.ts
+      - name: Publicar o resultado no branch v2
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf .devnet-keys
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -f deployments/diag-loader-cpi.json ]; then git add deployments/diag-loader-cpi.json; fi
+          git commit -q -m "Diagnóstico do loader por CPI [skip ci]" || exit 0
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git pull -q --rebase "$url" v2
+          git push -q "$url" HEAD:v2
