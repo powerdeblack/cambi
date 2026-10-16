@@ -62,7 +62,9 @@ function errorText(e: unknown, logLines = 0): string {
 }
 
 // Proposta de upgrade aprovada e ainda não executada que grava ESTE binário (target/deploy/cambi_pool.so)?
-async function findPending(msPda: PublicKey, vault: PublicKey): Promise<{ index: bigint; buffer: PublicKey } | null> {
+// Se a proposta também estende o programa (recusado por CPI na rede), ela não executa: devolve só o buffer, que pode
+// ser reaproveitado numa proposta nova.
+async function findPending(msPda: PublicKey, vault: PublicKey): Promise<{ index: bigint | null; buffer: PublicKey } | null> {
   const info = await multisig.accounts.Multisig.fromAccountAddress(connection, msPda, "confirmed");
   const index = BigInt(info.transactionIndex.toString());
   if (index === 0n) return null;
@@ -82,6 +84,11 @@ async function findPending(msPda: PublicKey, vault: PublicKey): Promise<{ index:
   if (!acc.data.subarray(37, 37 + bin.length).equals(bin)) {
     console.log(`Proposta #${index} aprovada, mas o buffer ${buffer.toBase58()} tem outro binário: não será reaproveitada.`);
     return null;
+  }
+  const extends_ = vtx.message.instructions.some((ix) => keys[ix.programIdIndex].equals(LOADER) && Buffer.from(ix.data).subarray(0, 4).equals(u32(9)));
+  if (extends_) {
+    console.log(`Proposta #${index} inclui extensão do programa (a rede recusa por CPI): só o buffer ${buffer.toBase58()} será reaproveitado.`);
+    return { index: null, buffer };
   }
   return { index, buffer };
 }
@@ -105,9 +112,11 @@ async function main() {
 
   if (process.argv.includes("--pending")) {
     const p = await findPending(msPda, vault);
-    if (p) {
+    if (p?.index) {
       console.log(`Proposta #${p.index} já aprovada para este binário (buffer ${p.buffer.toBase58()}): só falta executar.`);
       if (process.env.GITHUB_ENV) appendFileSync(process.env.GITHUB_ENV, `PENDING_INDEX=${p.index}\nBUFFER=${p.buffer.toBase58()}\n`);
+    } else if (p) {
+      if (process.env.GITHUB_ENV) appendFileSync(process.env.GITHUB_ENV, `BUFFER=${p.buffer.toBase58()}\n`);
     } else console.log("Nenhuma proposta pendente para este binário.");
     return;
   }
@@ -124,22 +133,26 @@ async function main() {
   const ixs: TransactionInstruction[] = [];
   const extra = newSize - currentLen;
   if (extra > 0) {
-    // Mais espaço para o binário maior: ExtendProgramChecked (autoridade = cofre, que também paga o aluguel).
-    const rent = await connection.getMinimumBalanceForRentExemption(extra);
-    await send([SystemProgram.transfer({ fromPubkey: deployer.publicKey, toPubkey: vault, lamports: rent + 0.01 * LAMPORTS_PER_SOL })], [deployer]);
-    ixs.push(
-      new TransactionInstruction({
-        programId: LOADER,
-        keys: [
-          { pubkey: programData, isSigner: false, isWritable: true },
-          { pubkey: program, isSigner: false, isWritable: true },
-          { pubkey: vault, isSigner: true, isWritable: false },
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: vault, isSigner: true, isWritable: true },
-        ],
-        data: Buffer.concat([u32(9), u32(extra)]),
-      }),
+    // Mais espaço para o binário maior. A rede recusa extensão por CPI ("not supported by inner instructions"), então
+    // ela não vai na proposta: o deployer estende direto com ExtendProgram, que não exige autoridade (só paga o
+    // aluguel do espaço) e não muda nada do programa. Mínimo de 10 KB por extensão.
+    const bytes = Math.max(extra, 10_240);
+    const sig = await send(
+      [
+        new TransactionInstruction({
+          programId: LOADER,
+          keys: [
+            { pubkey: programData, isSigner: false, isWritable: true },
+            { pubkey: program, isSigner: false, isWritable: true },
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+            { pubkey: deployer.publicKey, isSigner: true, isWritable: true },
+          ],
+          data: Buffer.concat([u32(6), u32(bytes)]),
+        }),
+      ],
+      [deployer],
     );
+    console.log(`Espaço do programa estendido em ${bytes} bytes (sem autoridade, fora da multisig): ${sig}`);
   }
   ixs.push(
     new TransactionInstruction({

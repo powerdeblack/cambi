@@ -1,2 +1,2 @@
 Prêmio de escassez no depósito (v2.5)
-2026-10-16T14:38:35Z retomada: executar a proposta já aprovada (correção do modo --pending)
+2026-10-16T15:16:22Z

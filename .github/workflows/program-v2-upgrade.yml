@@ -3,7 +3,9 @@ name: Upgrade governado do programa v2 (devnet, branch v2)
 # Atualiza o programa v2 SÓ pela multisig de upgrade: o deployer grava o binário num buffer e passa o buffer para o
 # cofre da multisig; 7 de 10 Baleias aprovam; a execução só passa depois do prazo de espera (1 h).
 # Para rodar: altere deployments/program-v2-upgrade-round.txt no branch v2 (a primeira linha vira o motivo).
-# Se uma rodada anterior já aprovou este mesmo binário e só a execução falhou, a nova rodada só executa.
+# Se uma rodada anterior já aprovou este mesmo binário e só a execução falhou, a nova rodada só executa; se o buffer
+# na rede já tem este binário, ele é reaproveitado. A extensão do espaço do programa é feita direto pelo deployer
+# (ExtendProgram não exige autoridade): a rede recusa extensão por CPI, então ela não pode ir na proposta.
 on:
   push:
     branches: [v2]
@@ -77,7 +79,7 @@ jobs:
           ANCHOR_WALLET: .devnet-keys/deployer.json
         run: npx tsx scripts/upgrade-v2.ts --pending
       - name: Gravar o novo binário num buffer e entregar o buffer à multisig
-        if: steps.same.outputs.same != '1' && env.PENDING_INDEX == ''
+        if: steps.same.outputs.same != '1' && env.PENDING_INDEX == '' && env.BUFFER == ''
         timeout-minutes: 120
         run: |
           solana program close --buffers --bypass-warning || true

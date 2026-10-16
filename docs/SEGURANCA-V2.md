@@ -62,3 +62,11 @@ Uma revisão independente do código v2 encontrou 8 pontos (nenhum crítico). Co
 
 Em aberto (próximas versões): teto **acumulado** por dia por credencial (hoje é por operação) e janela
 deslizante no disjuntor (hoje é fixa: no virar da janela dá para sair ~2× o teto em pouco tempo).
+
+## Upgrade governado na devnet: o que a rede aceita (16/10/2026)
+
+Teste com multisig e programa descartáveis (`scripts/diag-loader-cpi.ts`, resultado em
+`deployments/diag-loader-cpi.json`): o cofre da multisig **consegue** fazer `Upgrade` e `SetAuthority` por CPI, mas
+a rede **recusa** `ExtendProgramChecked` por CPI ("not supported by inner instructions"). Por isso a extensão de
+espaço (quando o binário cresce) é feita direto pelo deployer com `ExtendProgram`, que não exige autoridade e não
+muda o código; a proposta da multisig leva só o `Upgrade`, com 7 de 10 aprovações e 1 h de espera.
