@@ -46,6 +46,11 @@ export function Exchange({ pool, wallet, onSwap, limitCheck, onVerify, preview, 
     setError("");
     try {
       setReceipt(await onSwap(side, amount, purpose as Purpose));
+      // Recibo abre do topo, com o título anunciado pelo leitor de tela.
+      window.setTimeout(() => {
+        window.scrollTo({ top: 0 });
+        document.getElementById("receipt-title")?.focus();
+      }, 0);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -172,7 +177,7 @@ function Receipt({ r, onClose, onSendOut }: { r: SwapResult; onClose: () => void
   return (
     <section className="card receipt">
       <div className="done-icon"><CheckIcon /></div>
-      <h2>Troca concluída</h2>
+      <h2 id="receipt-title" tabIndex={-1}>Troca concluída</h2>
       {r.signature && (
         <a className="chain-badge" href={`https://explorer.solana.com/tx/${encodeURIComponent(r.signature)}?cluster=devnet`} target="_blank" rel="noreferrer">
           <span className="live-dot" aria-hidden /> Registrada na Solana · ver transação ↗

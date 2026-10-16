@@ -722,3 +722,10 @@ button.link, .proofs a, .v-links a { color: var(--green-strong); }
 .kpi { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .spark { display: flex; align-items: flex-end; gap: 3px; height: 56px; margin: 4px 0 12px; }
 .spark span { flex: 1; background: var(--green); border-radius: 3px 3px 0 0; min-height: 3px; }
+/* Modo escuro (painel UI/UX) */
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark; }
+  .segmented button.on { background: var(--green-strong); }
+  .qa-icon.danger { background: #3a1513; color: #ff9a8f; }
+}
+#receipt-title:focus { outline: none; }
