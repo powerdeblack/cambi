@@ -675,3 +675,24 @@ textarea.paste:focus { outline: none; border-color: var(--green); }
 .ok-badge svg { width: 28px; height: 28px; }
 .receipt .chain-badge { display: inline-block; margin: 0 4px 10px; }
 .receipt .ok-badge + h3 { text-align: center; }
+
+/* Consórcio de Baleias (multisig) */
+.consortium .sub { margin: 16px 0 6px; font-size: 0.9rem; }
+.gov-check { padding: 10px 12px; border-radius: 12px; background: var(--bg); font-size: 0.85rem; font-weight: 600; }
+.gov-check.ok { background: var(--green-soft); color: var(--green); }
+.gov-check.differs { color: var(--error); }
+.baleias { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 4px 0 10px; }
+.baleia {
+  display: grid; justify-items: center; gap: 2px; padding: 8px 2px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--card); color: var(--ink); text-decoration: none;
+}
+.baleia-n { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 800; font-size: 0.85rem; }
+.baleia small { font-size: 0.68rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.validations li { align-items: flex-start; }
+.validations li > span:nth-child(2) { gap: 4px; }
+.validations strong { font-size: 0.88rem; line-height: 1.3; }
+.v-idx { font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 24px; }
+.v-links { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.8rem; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .baleia-n { background: var(--green); } }
+.v-links a, .consortium .proofs a { color: var(--green); text-decoration: none; }
+.gov-check.error { color: var(--muted); font-weight: 500; }

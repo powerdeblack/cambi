@@ -397,3 +397,13 @@ export async function sendOut(signer: ChainSigner, side: number, amount: bigint,
   ];
   return sendTx(ixs, owner, signer.signTransaction);
 }
+
+/** Quem governa o pool hoje: admin e oráculo gravados na conta do pool (lidos direto da blockchain). */
+export async function poolAuthorities(): Promise<{ admin: string; oracle: string }> {
+  const info = await conn().getAccountInfo(ids().pool);
+  if (!info) throw new Error("Pool não encontrado na devnet");
+  return {
+    admin: new PublicKey(info.data.subarray(8, 40)).toBase58(),
+    oracle: new PublicKey(info.data.subarray(40, 72)).toBase58(),
+  };
+}
