@@ -166,10 +166,14 @@ async function main() {
 
   let price = 5.0;
   let source = "reserva fixa";
+  let spread = 0;
   try {
     const q = await fetchConsensusQuote();
     price = q.price;
     source = q.used.map((x) => `${x.source} ${x.price.toFixed(4)}`).join(", ");
+    // Pelo menos 2 fontes a até 0,3% do consenso (uma fonte lenta isolada não trava, mas preço sem confirmação sim).
+    const close = q.used.filter((x) => Math.abs(x.price / q.price - 1) <= 0.003).length;
+    spread = close >= 2 ? 0 : 1;
   } catch (e) {
     console.log(`Consenso indisponível, usando ${price}: ${(e as Error).message}`);
   }
@@ -181,6 +185,8 @@ async function main() {
     const pool = new PublicKey(dep.pool);
     const msPda = new PublicKey(dep.consortium.multisig);
     const vault = new PublicKey(dep.consortium.vault);
+    // Painel de economia: com fontes divergindo mais de 0,3%, não propõe cotação (preço errado vira arbitragem).
+    if (spread > 0) throw new Error(`Menos de 2 fontes concordam a até 0,3%; cotação não proposta: ${source}`);
     const before = await (program.account as any).pool.fetch(pool);
     const old = Number(before.price.toString()) / PRICE_SCALE;
     if (Math.abs(price / old - 1) > 0.1) throw new Error(`Variação acima de 10% (${old} → ${price}); cotação não proposta.`);

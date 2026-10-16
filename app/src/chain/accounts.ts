@@ -280,9 +280,18 @@ export interface PreviewInput {
   positions: { side: number; raw: PositionRaw }[];
 }
 
+/**
+ * Posição que dá o desconto de depositante, com a mesma regra do programa: valor em reais de pelo menos R$ 10 (v1)
+ * ou R$ 1.000 (v2).
+ */
+export function discountPosition(s: PreviewInput) {
+  const min = (s.pool.safety ? 1_000n : 10n) * 1_000_000n;
+  return s.positions.find((p) => (p.side === BRL ? p.raw.amount : (p.raw.amount * s.pool.price) / PRICE_SCALE) >= min);
+}
+
 /** Prévia exata da troca, com o tipo de cliente que o programa vai reconhecer (depositante se tem posição na Rende). */
 export function previewSwap(s: PreviewInput, sideIn: number, amountIn: bigint, nowSec = Math.floor(Date.now() / 1000)) {
-  const kind: Kind = s.positions.some((p) => p.raw.amount > 0n) ? "depositor" : "retail";
+  const kind: Kind = discountPosition(s) ? "depositor" : "retail";
   const q = chainQuote(s.pool, sideIn, amountIn, kind, s.avail[0], s.avail[1]);
   const blocker = amountIn > 0n ? swapBlocker(s.pool, sideIn, q, s.avail[0], s.avail[1], nowSec) : null;
   return { kind, q, blocker };

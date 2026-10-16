@@ -49,6 +49,8 @@ pub const BALEIA: usize = 1;
 
 /// Depósito mínimo e posição mínima para o desconto de depositante: R$ 10 (6 casas).
 pub const MIN_DEPOSIT_BRL: u128 = 10_000_000;
+/// Desconto de depositante só para quem deixou pelo menos R$ 1.000 (painel de economia: R$ 10 vazava o desconto).
+pub const DISCOUNT_MIN_BRL: u128 = 1_000_000_000;
 /// Janela do limite de saída acumulada por moeda.
 pub const WINDOW_SECS: i64 = 60;
 pub const DEFAULT_LOCKUP_SECS: i64 = 600;
@@ -62,6 +64,8 @@ pub const DEFAULT_WITHDRAW_NOTICE_SECS: i64 = 86_400; // acima disso, fila com 2
 pub const MAX_WITHDRAW_NOTICE_SECS: i64 = 30 * 86_400;
 /// Teto por operação (valor em reais, 6 casas) por nível de credencial: básico, completo, institucional (0 = sem teto).
 pub const DEFAULT_LEVEL_LIMITS: [u64; 3] = [10_000_000_000, 100_000_000_000, 0];
+/// Teto ACUMULADO em 24 h por nível (auditoria: o teto por operação sozinho não limita nada para PLD).
+pub const DEFAULT_DAILY_LIMITS: [u64; 3] = [30_000_000_000, 300_000_000_000, 0];
 /// Validade máxima de uma credencial emitida (renovação anual do cadastro).
 pub const MAX_CREDENTIAL_SECS: i64 = 400 * 86_400;
 /// Aviso prévio mínimo da fila de saque (com zero, a fila viraria saque imediato fora do disjuntor).
@@ -101,6 +105,7 @@ pub mod cambi_pool {
         pool.instant_withdraw_bps = DEFAULT_INSTANT_WITHDRAW_BPS;
         pool.withdraw_notice_secs = DEFAULT_WITHDRAW_NOTICE_SECS;
         pool.level_limit_brl = DEFAULT_LEVEL_LIMITS;
+        pool.level_daily_brl = DEFAULT_DAILY_LIMITS;
         Ok(())
     }
 
@@ -173,6 +178,12 @@ pub mod cambi_pool {
         let pool = &mut ctx.accounts.pool;
         pool.kyc_issuer = issuer;
         pool.require_kyc = require_kyc;
+        Ok(())
+    }
+
+    /// Teto acumulado em 24 h por nível de credencial (0 = sem teto).
+    pub fn set_daily_limits(ctx: Context<AdminOnly>, level_daily_brl: [u64; 3]) -> Result<()> {
+        ctx.accounts.pool.level_daily_brl = level_daily_brl;
         Ok(())
     }
 
@@ -320,6 +331,12 @@ pub mod cambi_pool {
             value_in_brl(ctx.accounts.pool.price, s, amount)?,
             now,
         )?;
+        if ctx.accounts.pool.require_kyc {
+            let value = value_in_brl(ctx.accounts.pool.price, s, amount)?;
+            if let Some(c) = ctx.accounts.credential.as_deref_mut() {
+                use_daily(c, &ctx.accounts.pool, now, value)?;
+            }
+        }
         check_backing(
             &ctx.accounts.pool,
             ctx.accounts.pool.key(),
@@ -479,7 +496,7 @@ pub mod cambi_pool {
                 require!(pos.owner == user_key && pos.pool == pool_key && pos.amount > 0, CambiError::InvalidPosition);
                 // Desconto só para quem deixou pelo menos R$ 10 (não vale "depositar 1 centavo" para pagar metade).
                 require!(
-                    value_in_brl(pool.price, side_idx(pos.side)?, pos.amount)? >= MIN_DEPOSIT_BRL,
+                    value_in_brl(pool.price, side_idx(pos.side)?, pos.amount)? >= DISCOUNT_MIN_BRL,
                     CambiError::InvalidPosition
                 );
                 UserKind::Depositor
@@ -518,9 +535,15 @@ pub mod cambi_pool {
             require!(q.amount_out <= avail[s_out], CambiError::InsufficientLiquidity);
             let max_out = (avail[s_out] as u128) * (pool.fees.max_trade_bps as u128) / BPS;
             require!((q.amount_out as u128) <= max_out, CambiError::TradeTooLarge);
-            (q, avail, now)
+            (q, avail, now, kind)
         };
-        let (q, avail, now) = q;
+        let (q, avail, now, kind) = q;
+        if ctx.accounts.pool.require_kyc && kind != UserKind::B2b {
+            let value = value_in_brl(ctx.accounts.pool.price, s_in, amount_in)?;
+            if let Some(c) = ctx.accounts.credential.as_deref_mut() {
+                use_daily(c, &ctx.accounts.pool, now, value)?;
+            }
+        }
 
         // Limite de saída acumulado por minuto (várias trocas na mesma transação ou em sequência não drenam o cofre).
         {
@@ -882,6 +905,20 @@ pub fn check_backing(pool: &Pool, pool_key: Pubkey, mints: [&Mint; 2], reserves:
     Ok(())
 }
 
+/// Soma a operação no teto acumulado de 24 h da credencial (a janela recomeça sozinha).
+pub fn use_daily(c: &mut Credential, pool: &Pool, now: i64, value_brl: u128) -> Result<()> {
+    if now.saturating_sub(c.day_start) >= 86_400 {
+        c.day_start = now;
+        c.day_used_brl = 0;
+    }
+    let value = u64::try_from(value_brl).map_err(|_| error!(CambiError::MathOverflow))?;
+    let used = c.day_used_brl.checked_add(value).ok_or(CambiError::MathOverflow)?;
+    let limit = pool.level_daily_brl[((c.level.max(1) - 1) as usize).min(2)];
+    require!(limit == 0 || used <= limit, CambiError::AboveDailyLimit);
+    c.day_used_brl = used;
+    Ok(())
+}
+
 /// Taxas pendentes de uma posição, nas duas moedas.
 pub fn pending_fees(shares: u128, acc: [u128; 2], debt: [u128; 2]) -> Result<[u64; 2]> {
     let mut out = [0u64; 2];
@@ -1129,6 +1166,8 @@ pub struct Pool {
     /// Prova de reserva: quem atesta e validade máxima do atestado (0 = desligada).
     pub reserve_attester: Pubkey,
     pub reserve_max_age: i64,
+    /// Teto acumulado em 24 h por nível de credencial, em reais (6 casas); 0 = sem teto.
+    pub level_daily_brl: [u64; 3],
 }
 
 #[account]
@@ -1154,6 +1193,9 @@ pub struct Credential {
     pub expires_at: i64,
     pub revoked: bool,
     pub bump: u8,
+    /// Uso acumulado da janela de 24 h (teto diário por nível).
+    pub day_start: i64,
+    pub day_used_brl: u64,
 }
 
 #[account]
@@ -1478,7 +1520,8 @@ pub struct Deposit<'info> {
     pub user_brl: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
     pub user_usd: Box<Account<'info, TokenAccount>>,
-    /// Credencial KYC da carteira (exigida quando `pool.require_kyc`).
+    /// Credencial KYC da carteira (exigida quando `pool.require_kyc`); guarda o uso acumulado do dia.
+    #[account(mut)]
     pub credential: Option<Box<Account<'info, Credential>>>,
     #[account(address = pool.brl_mint)]
     pub brl_mint: Box<Account<'info, Mint>>,
@@ -1529,7 +1572,8 @@ pub struct Swap<'info> {
     pub user_usd: Box<Account<'info, TokenAccount>>,
     pub depositor_position: Option<Box<Account<'info, Position>>>,
     pub partner: Option<Box<Account<'info, Partner>>>,
-    /// Credencial KYC da carteira (exigida quando `pool.require_kyc`, exceto para app parceiro).
+    /// Credencial KYC da carteira (exigida quando `pool.require_kyc`, exceto para app parceiro); guarda o uso do dia.
+    #[account(mut)]
     pub credential: Option<Box<Account<'info, Credential>>>,
     #[account(address = pool.brl_mint)]
     pub brl_mint: Box<Account<'info, Mint>>,
@@ -1662,6 +1706,8 @@ pub enum CambiError {
     WithdrawNotReady,
     #[msg("Lastro sem prova: reserva atestada menor que o emitido ou atestado vencido")]
     ReserveUnproven,
+    #[msg("Limite diário do seu nível de verificação atingido; tente amanhã ou suba de nível")]
+    AboveDailyLimit,
 }
 
 #[cfg(test)]
@@ -1712,12 +1758,13 @@ mod tests {
             queued: [0; 2],
             reserve_attester: Pubkey::default(),
             reserve_max_age: 0,
+            level_daily_brl: DEFAULT_DAILY_LIMITS,
         }
     }
 
     fn cred(level: u8, expires_at: i64, revoked: bool) -> Credential {
         // Emissor = Pubkey::default() = pool.kyc_issuer nos testes.
-        Credential { pool: Pubkey::default(), user: Pubkey::default(), issuer: Pubkey::default(), level, expires_at, revoked, bump: 0 }
+        Credential { pool: Pubkey::default(), user: Pubkey::default(), issuer: Pubkey::default(), level, expires_at, revoked, bump: 0, day_start: 0, day_used_brl: 0 }
     }
 
     const R: u64 = 1_000_000; // 1 unidade com 6 casas
@@ -1861,6 +1908,18 @@ mod tests {
         breaker_inflow(&mut p, 10_020, BRL, 291 * R);
         assert_eq!(p.breaker_out[BRL], 0);
         assert!(breaker_take(&mut p, 10_030, [1_000 * R, 600 * R], BRL, 250 * R).is_ok());
+    }
+
+    #[test]
+    fn teto_diario_soma_operacoes_e_reabre_em_24h() {
+        let p = pool(5_000_000);
+        let mut c = cred(1, 1_000_000, false);
+        // Nível básico: R$ 30 mil por dia, mesmo em operações de R$ 10 mil.
+        for _ in 0..3 {
+            assert!(use_daily(&mut c, &p, 1_000, (10_000 * R) as u128).is_ok());
+        }
+        assert!(use_daily(&mut c, &p, 2_000, 1).is_err());
+        assert!(use_daily(&mut c, &p, 1_000 + 86_400, (10_000 * R) as u128).is_ok());
     }
 
     #[test]

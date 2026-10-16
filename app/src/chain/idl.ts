@@ -47,4 +47,5 @@ export const PROGRAM_ERRORS: Record<number, string> = {
   6031: "Saque grande: use a fila de saque (aviso prévio)",
   6032: "Saque da fila ainda no prazo de aviso prévio",
   6033: "Lastro sem prova: reserva atestada menor que o emitido ou atestado vencido",
+  6034: "Limite diário do seu nível de verificação atingido; tente amanhã ou suba de nível",
 };

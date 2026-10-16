@@ -13,6 +13,7 @@ import {
   available,
   decodePoolRaw,
   decodePositionRaw,
+  discountPosition,
   pendingFees,
   previewSwap,
 } from "./accounts";
@@ -289,7 +290,7 @@ function devnetCredentialIx(owner: PublicKey) {
 /** Contas extras de troca e depósito no programa v2: credencial, moedas e atestados de reserva (ausentes). */
 function v2Accounts(owner: PublicKey) {
   const { mint, program } = ids();
-  return [r(credentialPda(owner)), r(mint[BRL]), r(mint[USD]), r(program), r(program)];
+  return [w(credentialPda(owner)), r(mint[BRL]), r(mint[USD]), r(program), r(program)];
 }
 
 export function mintAuthorityPda() {
@@ -366,7 +367,7 @@ export async function swap(signer: ChainSigner, s: ChainState, sideIn: number, a
   const minOut = (confirmedOut * 995n) / 1000n;
   if (q.amountOut < minOut) throw new Error("A cotação mudou desde a prévia. Confira o novo valor e confirme de novo.");
   const owner = signer.publicKey;
-  const pos = kind === "depositor" ? positionPda(owner, RENDE, s.positions.find((p) => p.raw.amount > 0n)!.side) : program;
+  const pos = kind === "depositor" ? positionPda(owner, RENDE, discountPosition(s)!.side) : program;
   const ix = programIx("swap", [Uint8Array.of(sideIn), u64le(amountIn), u64le(minOut)], [
     { pubkey: owner, isSigner: true, isWritable: false },
     w(pool),

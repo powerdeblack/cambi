@@ -528,8 +528,10 @@ describe("cambi_pool", () => {
     await deposit(lp, BALEIA, BRL, 5_000, ctx);
     await deposit(lp, BALEIA, USD, 1_000, ctx);
     // Ida e volta várias vezes: a saída líquida fica perto de zero, então ninguém é travado.
+    // Trocas de R$ 200 (~US$ 39): dentro do limite por minuto (bruto), mas 3 idas somam mais que os 10%/h do disjuntor
+    // se ele contasse a saída bruta.
     for (let i = 0; i < 3; i++) {
-      await swap(trader, BRL, 400, { ctx });
+      await swap(trader, BRL, 200, { ctx });
       const usd = await tokenBalance(connection, trader.usd);
       await swap(trader, USD, Math.floor(usd * 100) / 100, { ctx });
     }
