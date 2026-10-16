@@ -1,12 +1,43 @@
 {
-  "updatedAt": null,
-  "northStar": { "activeWallets7d": 0, "activeWallets30d": 0 },
-  "swaps": 0,
-  "volumeBRL": 0,
-  "volume7dBRL": 0,
-  "feesBRL": { "total": 0, "rende": 0, "baleia": 0, "platform": 0, "partner": 0 },
-  "rende": { "deposits": 0, "withdrawals": 0, "queueRequests": 0, "queueClaims": 0 },
-  "compliance": { "credentialsIssued": 0, "credentialsRevoked": 0, "freezes": 0 },
-  "safety": { "pauses": 0, "rejectsByReason": {} },
-  "daily": []
+  "updatedAt": "2026-10-16T04:41:13.938Z",
+  "program": "3xdkEsUvcgRDKyqN8rY3RVVP6CRrtcuvLYz9iNE7rdhE",
+  "pool": "2jpkRKaQULxp6BMjuDxu3KhEBsaiDgmWbpe4JmiMkQbP",
+  "transactionsRead": 43,
+  "northStar": {
+    "activeWallets7d": 8,
+    "activeWallets30d": 8
+  },
+  "swaps": 13,
+  "volumeBRL": null,
+  "volume7dBRL": null,
+  "feesBRL": {
+    "total": 181.69,
+    "rende": null,
+    "baleia": null,
+    "platform": null,
+    "partner": null
+  },
+  "rende": {
+    "deposits": 22,
+    "withdrawals": 3,
+    "queueRequests": 0,
+    "queueClaims": 0
+  },
+  "compliance": {
+    "credentialsIssued": 19,
+    "credentialsRevoked": 0,
+    "freezes": 0
+  },
+  "safety": {
+    "pauses": 1,
+    "rejectsByReason": {}
+  },
+  "daily": [
+    {
+      "day": "2026-10-16",
+      "swaps": 13,
+      "volumeBRL": null
+    }
+  ],
+  "note": "Rede de testes: moedas sem valor real. Só agregados; nenhum endereço de carteira é publicado."
 }

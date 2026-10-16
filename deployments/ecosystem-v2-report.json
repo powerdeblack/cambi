@@ -1,0 +1,530 @@
+{
+  "at": "2026-10-16T04:40:19.054Z",
+  "program": "3xdkEsUvcgRDKyqN8rY3RVVP6CRrtcuvLYz9iNE7rdhE",
+  "pool": "2jpkRKaQULxp6BMjuDxu3KhEBsaiDgmWbpe4JmiMkQbP",
+  "users": 8,
+  "summary": {
+    "steps": 33,
+    "passed": 33,
+    "failed": [],
+    "confirmLatencyMs": {
+      "p50": 2745,
+      "p95": 4660,
+      "max": 10037
+    },
+    "avgFeeSol": 0.000004827586206896553,
+    "computeUnits": {
+      "cadastro": 63973,
+      "troca": 21843,
+      "deposito": 25948,
+      "filaDeSaque": null
+    },
+    "effectiveFeePct": [
+      {
+        "user": 1,
+        "side": "BRL→USD",
+        "amountIn": 100,
+        "out": 19.382148,
+        "feePct": 1.19
+      },
+      {
+        "user": 2,
+        "side": "BRL→USD",
+        "amountIn": 237,
+        "out": 45.931043,
+        "feePct": 1.2
+      },
+      {
+        "user": 3,
+        "side": "BRL→USD",
+        "amountIn": 374,
+        "out": 72.481899,
+        "feePct": 1.2
+      },
+      {
+        "user": 4,
+        "side": "BRL→USD",
+        "amountIn": 511,
+        "out": 99.032756,
+        "feePct": 1.2
+      },
+      {
+        "user": 5,
+        "side": "BRL→USD",
+        "amountIn": 648,
+        "out": 125.583612,
+        "feePct": 1.2
+      },
+      {
+        "user": 6,
+        "side": "BRL→USD",
+        "amountIn": 185,
+        "out": 35.849717,
+        "feePct": 1.21
+      },
+      {
+        "user": 7,
+        "side": "BRL→USD",
+        "amountIn": 322,
+        "out": 62.397886,
+        "feePct": 1.21
+      },
+      {
+        "user": 8,
+        "side": "BRL→USD",
+        "amountIn": 459,
+        "out": 88.946055,
+        "feePct": 1.21
+      },
+      {
+        "user": 1,
+        "side": "USD→BRL",
+        "amountIn": 9.69,
+        "out": 49.23482999999999,
+        "feePct": 0.33
+      },
+      {
+        "user": 2,
+        "side": "USD→BRL",
+        "amountIn": 22.96,
+        "out": 116.65961900000002,
+        "feePct": 0.33
+      },
+      {
+        "user": 3,
+        "side": "USD→BRL",
+        "amountIn": 36.24,
+        "out": 184.135218,
+        "feePct": 0.33
+      },
+      {
+        "user": 4,
+        "side": "USD→BRL",
+        "amountIn": 49.51,
+        "out": 251.50961299999994,
+        "feePct": 0.35
+      }
+    ],
+    "solSpentByDeployer": 0.18
+  },
+  "poolBefore": {
+    "at": "2026-10-16T04:27:56.457Z",
+    "price": 5.09799,
+    "paused": false,
+    "freeBRL": 150000,
+    "freeUSD": 19616,
+    "tvlBRL": 250002.17,
+    "imbalance": 20,
+    "breakerUsedPct": {
+      "BRL": 0,
+      "USD": 0
+    },
+    "queued": {
+      "BRL": 0,
+      "USD": 0
+    },
+    "swapCount": 0,
+    "volumeBRL": 0
+  },
+  "poolAfter": {
+    "at": "2026-10-16T04:40:18.452Z",
+    "price": 5.09799,
+    "paused": false,
+    "freeBRL": 152249.74,
+    "freeUSD": 19174.19,
+    "tvlBRL": 249999.56,
+    "imbalance": 21.8,
+    "breakerUsedPct": {
+      "BRL": 2.2,
+      "USD": 6.1
+    },
+    "queued": {
+      "BRL": 0,
+      "USD": 0
+    },
+    "swapCount": 13,
+    "volumeBRL": 3489.602014
+  },
+  "steps": [
+    {
+      "scenario": "preparo",
+      "name": "SOL de taxas para 9 carteiras de teste",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2743,
+      "signature": "242c5UrDLozvi15tvooYnB3KnvMwMRDLx42eCRVH3mrDZb93FskhKa5G6ZYkLmKprbQqET1NuT2y2cLF3PxiDs47",
+      "feeSol": 0.000005,
+      "computeUnits": 1350,
+      "url": "https://explorer.solana.com/tx/242c5UrDLozvi15tvooYnB3KnvMwMRDLx42eCRVH3mrDZb93FskhKa5G6ZYkLmKprbQqET1NuT2y2cLF3PxiDs47?cluster=devnet"
+    },
+    {
+      "scenario": "cadastro",
+      "name": "Usuário 1: credencial de teste + R$ 1.000 do faucet",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2739,
+      "signature": "UnavUHJbSsxA3J4hTQ89HDEf1T1sooovrUYSdQstzFPgF2RhPnoUigiBLzrPCqxP6HNucubmKhMHZrG1vgzTFu4",
+      "feeSol": 0.000005,
+      "computeUnits": 63786,
+      "url": "https://explorer.solana.com/tx/UnavUHJbSsxA3J4hTQ89HDEf1T1sooovrUYSdQstzFPgF2RhPnoUigiBLzrPCqxP6HNucubmKhMHZrG1vgzTFu4?cluster=devnet"
+    },
+    {
+      "scenario": "cadastro",
+      "name": "Usuário 2: credencial de teste + R$ 1.000 do faucet",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2736,
+      "signature": "5zYaMHHZ82CZ5HoeaNniDQtG8uTxobAGUtnYFJtbSKdyS6KsATdbLttEVqx5RTzh6brnXamAjpWYMpKQBWsgwhuy",
+      "feeSol": 0.000005,
+      "computeUnits": 74285,
+      "url": "https://explorer.solana.com/tx/5zYaMHHZ82CZ5HoeaNniDQtG8uTxobAGUtnYFJtbSKdyS6KsATdbLttEVqx5RTzh6brnXamAjpWYMpKQBWsgwhuy?cluster=devnet"
+    },
+    {
+      "scenario": "cadastro",
+      "name": "Usuário 3: credencial de teste + R$ 1.000 do faucet",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 4497,
+      "signature": "5RnAq5dHWEJKo5jwQ1tpAAHHajAs9MLtWBAgfDvptHKEgu9tL8RU69zHCZBysiWu8kaJHhdZFcijDKRcW8TADnfh",
+      "feeSol": 0.000005,
+      "computeUnits": 68285,
+      "url": "https://explorer.solana.com/tx/5RnAq5dHWEJKo5jwQ1tpAAHHajAs9MLtWBAgfDvptHKEgu9tL8RU69zHCZBysiWu8kaJHhdZFcijDKRcW8TADnfh?cluster=devnet"
+    },
+    {
+      "scenario": "cadastro",
+      "name": "Usuário 4: credencial de teste + R$ 1.000 do faucet",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2743,
+      "signature": "4ZhjwisanNNSaXgeHYaJ8r2Rjo8hFrS5hmAiZbFAWsnSTJo4JPoBTZngYxe6ngubzVqTgUW89chrj58hPKhcL8nj",
+      "feeSol": 0.000005,
+      "computeUnits": 69785,
+      "url": "https://explorer.solana.com/tx/4ZhjwisanNNSaXgeHYaJ8r2Rjo8hFrS5hmAiZbFAWsnSTJo4JPoBTZngYxe6ngubzVqTgUW89chrj58hPKhcL8nj?cluster=devnet"
+    },
+    {
+      "scenario": "cadastro",
+      "name": "Usuário 5: credencial de teste + R$ 1.000 do faucet",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2744,
+      "signature": "2Bc6hAqM4jUBLqBA3mXqLMCZPbusXyFvRQXbDaSZXomsgDMtnDhaeuuivmEHz7oxV6Lx9xwGVZKFRRoyquSEup4j",
+      "feeSol": 0.000005,
+      "computeUnits": 59285,
+      "url": "https://explorer.solana.com/tx/2Bc6hAqM4jUBLqBA3mXqLMCZPbusXyFvRQXbDaSZXomsgDMtnDhaeuuivmEHz7oxV6Lx9xwGVZKFRRoyquSEup4j?cluster=devnet"
+    },
+    {
+      "scenario": "cadastro",
+      "name": "Usuário 6: credencial de teste + R$ 1.000 do faucet",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2742,
+      "signature": "5umGcQkoz5mxAtBxZgL5YsEsST1yVtQeWRrrjWcKK2ZuMG2edHnXdUZf5x7EdUZmJGeaDb3ikiYDw5zskRgPGCbs",
+      "feeSol": 0.000005,
+      "computeUnits": 59285,
+      "url": "https://explorer.solana.com/tx/5umGcQkoz5mxAtBxZgL5YsEsST1yVtQeWRrrjWcKK2ZuMG2edHnXdUZf5x7EdUZmJGeaDb3ikiYDw5zskRgPGCbs?cluster=devnet"
+    },
+    {
+      "scenario": "cadastro",
+      "name": "Usuário 7: credencial de teste + R$ 1.000 do faucet",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2741,
+      "signature": "W5UPLZ2z512F5SDY4rBshLXA8KLV1wpdyW6FDys8U7rsnywEszTN8TWsQYAY9GQWhck3C4Dug5AMyJyxDz76zMm",
+      "feeSol": 0.000005,
+      "computeUnits": 60785,
+      "url": "https://explorer.solana.com/tx/W5UPLZ2z512F5SDY4rBshLXA8KLV1wpdyW6FDys8U7rsnywEszTN8TWsQYAY9GQWhck3C4Dug5AMyJyxDz76zMm?cluster=devnet"
+    },
+    {
+      "scenario": "cadastro",
+      "name": "Usuário 8: credencial de teste + R$ 1.000 do faucet",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2741,
+      "signature": "4z7kv2GZSRTZDQsXQjFzWTMnXpxM5JgA1iLEbWa5MpyX2iGSdZHcAV9SCetSGaasb1ix2hgeQGuUedtwGFDgL9m5",
+      "feeSol": 0.000005,
+      "computeUnits": 56285,
+      "url": "https://explorer.solana.com/tx/4z7kv2GZSRTZDQsXQjFzWTMnXpxM5JgA1iLEbWa5MpyX2iGSdZHcAV9SCetSGaasb1ix2hgeQGuUedtwGFDgL9m5?cluster=devnet"
+    },
+    {
+      "scenario": "kyc",
+      "name": "Carteira sem credencial: contas de token + faucet",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2741,
+      "signature": "52qa7bPZSS6UWFbUkCTairsaZE4LWVnxG5jaHE3MRGThEi6vAYEkXSaqcFNwh6hprTHsQKvaBqjJQxkB26LXdbhL",
+      "feeSol": 0.000005,
+      "computeUnits": 54518,
+      "url": "https://explorer.solana.com/tx/52qa7bPZSS6UWFbUkCTairsaZE4LWVnxG5jaHE3MRGThEi6vAYEkXSaqcFNwh6hprTHsQKvaBqjJQxkB26LXdbhL?cluster=devnet"
+    },
+    {
+      "scenario": "kyc",
+      "name": "Carteira sem credencial tenta trocar",
+      "expect": "KycRequired",
+      "result": "KycRequired",
+      "pass": true,
+      "ms": 1198
+    },
+    {
+      "scenario": "trocas",
+      "name": "Usuário 1: R$ 100 → dólar",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2747,
+      "signature": "2hTrodkQtSCUyGw2HEwKmEMRTZP6EP4GFL3NcVp9zLMU3GRKxPEqZq7JVWjqv9ia5j3oDau2vRJpiqTFVcLp43fb",
+      "feeSol": 0.000005,
+      "computeUnits": 21266,
+      "url": "https://explorer.solana.com/tx/2hTrodkQtSCUyGw2HEwKmEMRTZP6EP4GFL3NcVp9zLMU3GRKxPEqZq7JVWjqv9ia5j3oDau2vRJpiqTFVcLp43fb?cluster=devnet"
+    },
+    {
+      "scenario": "trocas",
+      "name": "Usuário 2: R$ 237 → dólar",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2744,
+      "signature": "2DkoQzKBSdAAgZcirbANny4gKSQNSaZtPo78b632GJAQ9mAnj3hzPKj4PQwQvt78kmTVbWRGEvsiwtABDfjGrt3G",
+      "feeSol": 0.000005,
+      "computeUnits": 21036,
+      "url": "https://explorer.solana.com/tx/2DkoQzKBSdAAgZcirbANny4gKSQNSaZtPo78b632GJAQ9mAnj3hzPKj4PQwQvt78kmTVbWRGEvsiwtABDfjGrt3G?cluster=devnet"
+    },
+    {
+      "scenario": "trocas",
+      "name": "Usuário 3: R$ 374 → dólar",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2746,
+      "signature": "5pNX1RhDJk1rJiv6j1wJq4YMzxqutpD3WXRSPzzX6X6WQHTUwEWYJM8VLnmqJvogq8omDxiQ6yaLeNrpnnZQvvTu",
+      "feeSol": 0.000005,
+      "computeUnits": 21036,
+      "url": "https://explorer.solana.com/tx/5pNX1RhDJk1rJiv6j1wJq4YMzxqutpD3WXRSPzzX6X6WQHTUwEWYJM8VLnmqJvogq8omDxiQ6yaLeNrpnnZQvvTu?cluster=devnet"
+    },
+    {
+      "scenario": "trocas",
+      "name": "Usuário 4: R$ 511 → dólar",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2745,
+      "signature": "5NAMNFNugGaeYt5rTpQqNKbkHfWCMBEq9rnkytBF3RwfzQ1uHLNZTmdYxKsrNKMCiFdaA8qMMF1GuVULXuwULYAy",
+      "feeSol": 0.000005,
+      "computeUnits": 21036,
+      "url": "https://explorer.solana.com/tx/5NAMNFNugGaeYt5rTpQqNKbkHfWCMBEq9rnkytBF3RwfzQ1uHLNZTmdYxKsrNKMCiFdaA8qMMF1GuVULXuwULYAy?cluster=devnet"
+    },
+    {
+      "scenario": "trocas",
+      "name": "Usuário 5: R$ 648 → dólar",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2747,
+      "signature": "5NNfahVz7jndZzKXjDrbGgN9b6dpeUMz5W8kuRMtCxYxdfku4EhBEbGYPCBzV7D5iGeHuHES3JCqVq7Lb2W8QnFV",
+      "feeSol": 0.000005,
+      "computeUnits": 21036,
+      "url": "https://explorer.solana.com/tx/5NNfahVz7jndZzKXjDrbGgN9b6dpeUMz5W8kuRMtCxYxdfku4EhBEbGYPCBzV7D5iGeHuHES3JCqVq7Lb2W8QnFV?cluster=devnet"
+    },
+    {
+      "scenario": "trocas",
+      "name": "Usuário 6: R$ 185 → dólar",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2746,
+      "signature": "2pS9xH3TZEEEU36Eqbdiy56KXSiyXMPfMeu9zjgQSGRz5fJUqQEnmKY8Jei5YmnXYtUyyM7XmjULqyiRKuJxNGof",
+      "feeSol": 0.000005,
+      "computeUnits": 21036,
+      "url": "https://explorer.solana.com/tx/2pS9xH3TZEEEU36Eqbdiy56KXSiyXMPfMeu9zjgQSGRz5fJUqQEnmKY8Jei5YmnXYtUyyM7XmjULqyiRKuJxNGof?cluster=devnet"
+    },
+    {
+      "scenario": "trocas",
+      "name": "Usuário 7: R$ 322 → dólar",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2747,
+      "signature": "4UH6VpWpSG5mbjMitJDB6wpfiWAfeR7Hq2FgbUcQdUVjwqNSkpgnFNN4Nf1dqEHUpc82gQMp4bUTJawtw9Ddr8Ma",
+      "feeSol": 0.000005,
+      "computeUnits": 21036,
+      "url": "https://explorer.solana.com/tx/4UH6VpWpSG5mbjMitJDB6wpfiWAfeR7Hq2FgbUcQdUVjwqNSkpgnFNN4Nf1dqEHUpc82gQMp4bUTJawtw9Ddr8Ma?cluster=devnet"
+    },
+    {
+      "scenario": "trocas",
+      "name": "Usuário 8: R$ 459 → dólar",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2746,
+      "signature": "4JzZJpbEJXip98qnQuWi8ZWKffpnGJWYPnYHm7NR5vAMG2Nqf6rUJkyuHCWyBvnF3QHQMUpCCZxYntmMX1UZqLut",
+      "feeSol": 0.000005,
+      "computeUnits": 21036,
+      "url": "https://explorer.solana.com/tx/4JzZJpbEJXip98qnQuWi8ZWKffpnGJWYPnYHm7NR5vAMG2Nqf6rUJkyuHCWyBvnF3QHQMUpCCZxYntmMX1UZqLut?cluster=devnet"
+    },
+    {
+      "scenario": "trocas",
+      "name": "Usuário 1: US$ 9.69 → real",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2748,
+      "signature": "fVjf7esbYReLbHTVf4yCeKUv4jhH9r3BXhZfND3tDLNgct3QNPE7Qp4kvWsZq6NdXNGsw23FHiYV1AhbRHnrv5n",
+      "feeSol": 0.000005,
+      "computeUnits": 23372,
+      "url": "https://explorer.solana.com/tx/fVjf7esbYReLbHTVf4yCeKUv4jhH9r3BXhZfND3tDLNgct3QNPE7Qp4kvWsZq6NdXNGsw23FHiYV1AhbRHnrv5n?cluster=devnet"
+    },
+    {
+      "scenario": "trocas",
+      "name": "Usuário 2: US$ 22.96 → real",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2745,
+      "signature": "4wPgoT3ySEkHuZDMypwA7c7ynzS64XpcttQ7dcSLCfgNL5ep4QBkeZSaxa6gHz2MLDPshXtxyHYCp7zQmd8h7gjx",
+      "feeSol": 0.000005,
+      "computeUnits": 23410,
+      "url": "https://explorer.solana.com/tx/4wPgoT3ySEkHuZDMypwA7c7ynzS64XpcttQ7dcSLCfgNL5ep4QBkeZSaxa6gHz2MLDPshXtxyHYCp7zQmd8h7gjx?cluster=devnet"
+    },
+    {
+      "scenario": "trocas",
+      "name": "Usuário 3: US$ 36.24 → real",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2747,
+      "signature": "cPHJrLsaFvfjJdmnj3jJimP2BPFQ5FMoK7pQCj7kQ46mtCtBsBGhvYMBoaX9XxSgKt8BmKZsbJmhgc47MAYsoUS",
+      "feeSol": 0.000005,
+      "computeUnits": 23410,
+      "url": "https://explorer.solana.com/tx/cPHJrLsaFvfjJdmnj3jJimP2BPFQ5FMoK7pQCj7kQ46mtCtBsBGhvYMBoaX9XxSgKt8BmKZsbJmhgc47MAYsoUS?cluster=devnet"
+    },
+    {
+      "scenario": "trocas",
+      "name": "Usuário 4: US$ 49.51 → real",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2747,
+      "signature": "5fq5R2P1rVMM4hE37D2SuNtGGwgoyJrXih2nNmThjoi5uz5AWBcKkXkB7q8BcgtLdMcrXu3DymHrHkJEsCDJGGnB",
+      "feeSol": 0.000005,
+      "computeUnits": 23410,
+      "url": "https://explorer.solana.com/tx/5fq5R2P1rVMM4hE37D2SuNtGGwgoyJrXih2nNmThjoi5uz5AWBcKkXkB7q8BcgtLdMcrXu3DymHrHkJEsCDJGGnB?cluster=devnet"
+    },
+    {
+      "scenario": "rende",
+      "name": "Depósito na Rende: R$ 540",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2745,
+      "signature": "5mr18nytWEnVNqu2FXPm29g1Nhiq5bu2FHcYhP2MaYu1Ev7vQBqT3DUd1cTL416VjfE25N87m8EUcJPEt8ZWZJog",
+      "feeSol": 0.000005,
+      "computeUnits": 25948,
+      "url": "https://explorer.solana.com/tx/5mr18nytWEnVNqu2FXPm29g1Nhiq5bu2FHcYhP2MaYu1Ev7vQBqT3DUd1cTL416VjfE25N87m8EUcJPEt8ZWZJog?cluster=devnet"
+    },
+    {
+      "scenario": "rende",
+      "name": "Saque logo após depositar (trava de depósito)",
+      "expect": "PositionLocked",
+      "result": "PositionLocked",
+      "pass": true,
+      "ms": 1200
+    },
+    {
+      "scenario": "rende",
+      "name": "Colher rendimento (saque zero)",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 4660,
+      "signature": "3oqmNyaiT199fhPq4D6MfBc3KUApWVTsPpAKDxR8J4TWR75Wm7uMwb9aGR6y8GVHDQ3g5d7koBCTUQjxHRC7s4oV",
+      "feeSol": 0.000005,
+      "computeUnits": 16076,
+      "url": "https://explorer.solana.com/tx/3oqmNyaiT199fhPq4D6MfBc3KUApWVTsPpAKDxR8J4TWR75Wm7uMwb9aGR6y8GVHDQ3g5d7koBCTUQjxHRC7s4oV?cluster=devnet"
+    },
+    {
+      "scenario": "rende",
+      "name": "Saque imediato pequeno (R$ 10)",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2744,
+      "signature": "5dvavdP7YXyVd8ZtEC2KmCzLFhHiegMMQySnT59FGcfipotcx8JMfeuyaFVh9c417DGZ2KqqfL2xJrxL3aLPUijG",
+      "feeSol": 0.000005,
+      "computeUnits": 19572,
+      "url": "https://explorer.solana.com/tx/5dvavdP7YXyVd8ZtEC2KmCzLFhHiegMMQySnT59FGcfipotcx8JMfeuyaFVh9c417DGZ2KqqfL2xJrxL3aLPUijG?cluster=devnet"
+    },
+    {
+      "scenario": "rende",
+      "name": "Saque imediato de R$ 530",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2747,
+      "signature": "5bb8RjxCR9TqkoEFtiq56g1LTHRB3daa39GL3idRTKLZTCgaPAAiwd1qWTEHc6jAaep2ZHYMUKsFeRxhGQuMNdxs",
+      "note": "abaixo de 10%: sai na hora",
+      "feeSol": 0.000005,
+      "computeUnits": 19496,
+      "url": "https://explorer.solana.com/tx/5bb8RjxCR9TqkoEFtiq56g1LTHRB3daa39GL3idRTKLZTCgaPAAiwd1qWTEHc6jAaep2ZHYMUKsFeRxhGQuMNdxs?cluster=devnet"
+    },
+    {
+      "scenario": "guardiao",
+      "name": "Guardião de plantão pausa o pool",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2743,
+      "signature": "4Drxx45hGWS64pFcKEmEwbiafLvDDZx8n3zhKCz1mYWaG3pav1D7bZe6BD8wvQ5GGYQDVwDwDvvVtAQyNnZ7HxWK",
+      "feeSol": 0.000005,
+      "computeUnits": 5837,
+      "url": "https://explorer.solana.com/tx/4Drxx45hGWS64pFcKEmEwbiafLvDDZx8n3zhKCz1mYWaG3pav1D7bZe6BD8wvQ5GGYQDVwDwDvvVtAQyNnZ7HxWK?cluster=devnet"
+    },
+    {
+      "scenario": "guardiao",
+      "name": "Troca com o pool pausado",
+      "expect": "Paused",
+      "result": "Paused",
+      "pass": true,
+      "ms": 1196
+    },
+    {
+      "scenario": "guardiao",
+      "name": "Guardião tenta despausar (não pode)",
+      "expect": "ConstraintHasOne",
+      "result": "ConstraintHasOne",
+      "pass": true,
+      "ms": 1199
+    },
+    {
+      "scenario": "guardiao",
+      "name": "Multisig 7 de 10 despausa o pool",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 10037,
+      "signature": "4aHGfhnhNofEkyfxguZQBTxEaUUWNbkpLiRyVdAqJQve2ZWwTkV1h1K2A9Mnf6vRQVtY31Dr79THUwqHF3MjBf3E",
+      "note": "proposta 4RbhwPf39WpBVVjAFUZJ9VPR7uoxjjefv8omCz12L1ih6CRFJtDY9RMhsTn4oFXCyzZk7ZUfjZUY5AvoK5BjCc3D; aprovações t53jPdWAYXLn5thS9FUouZ9gd3giUgwAVgwxCQZnWNpvqZbrvX2JDGGetKmgMK2UrP7vdMzHr1CaBrgw5yBzHnF",
+      "url": "https://explorer.solana.com/tx/4aHGfhnhNofEkyfxguZQBTxEaUUWNbkpLiRyVdAqJQve2ZWwTkV1h1K2A9Mnf6vRQVtY31Dr79THUwqHF3MjBf3E?cluster=devnet"
+    },
+    {
+      "scenario": "guardiao",
+      "name": "Troca depois de despausar",
+      "expect": "ok",
+      "result": "ok",
+      "pass": true,
+      "ms": 2784,
+      "signature": "4d3ZFoMi1tnLRLf22MtnTzcfLph2anVoB5kkcNYxzBKhvXsrRrKfmnp8fgtSapXqpaf4qmJYUHNhxUGR72e912Te",
+      "feeSol": 0.000005,
+      "computeUnits": 21123,
+      "url": "https://explorer.solana.com/tx/4d3ZFoMi1tnLRLf22MtnTzcfLph2anVoB5kkcNYxzBKhvXsrRrKfmnp8fgtSapXqpaf4qmJYUHNhxUGR72e912Te?cluster=devnet"
+    }
+  ]
+}
