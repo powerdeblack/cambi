@@ -198,3 +198,36 @@ describe("TransferChecked montado à mão (igual à spl-token)", async () => {
     expect(ix.keys.map((k) => [k.isSigner, k.isWritable])).toEqual([[false, true], [false, false], [false, true], [true, false]]);
   });
 });
+
+describe("programa v2: instruções e erros iguais ao IDL publicado", () => {
+  const v2 = JSON.parse(readFileSync(new URL("../../../idl/cambi_pool_v2.json", import.meta.url), "utf8"));
+  const names = (n: string) => v2.instructions.find((i: { name: string }) => i.name === n).accounts.map((a: { name: string }) => a.name);
+
+  it("discriminadores das instruções v2 conferem", () => {
+    for (const name of ["swap", "deposit", "withdraw", "faucet_claim", "devnet_credential", "request_withdraw", "claim_withdraw"] as const) {
+      const ix = v2.instructions.find((i: { name: string }) => i.name === name);
+      expect(Array.from(DISCRIMINATOR[name])).toEqual(ix.discriminator);
+    }
+  });
+
+  it("mensagens de erro v2 conferem", () => {
+    for (const e of v2.errors) expect(PROGRAM_ERRORS[e.code]).toBe(e.msg);
+  });
+
+  it("ordem das contas que o cliente monta", () => {
+    expect(names("swap")).toEqual([
+      "user", "pool", "brl_vault", "usd_vault", "user_brl", "user_usd", "depositor_position", "partner",
+      "credential", "brl_mint", "usd_mint", "brl_reserve", "usd_reserve", "token_program",
+    ]);
+    expect(names("deposit")).toEqual([
+      "user", "pool", "position", "brl_vault", "usd_vault", "user_brl", "user_usd",
+      "credential", "brl_mint", "usd_mint", "brl_reserve", "usd_reserve", "token_program", "system_program",
+    ]);
+    expect(names("withdraw")).toEqual(["user", "pool", "position", "brl_vault", "usd_vault", "user_brl", "user_usd", "credential", "token_program"]);
+    expect(names("request_withdraw")).toEqual([
+      "user", "pool", "position", "ticket", "brl_vault", "usd_vault", "user_brl", "user_usd", "credential", "token_program", "system_program",
+    ]);
+    expect(names("claim_withdraw")).toEqual(["user", "pool", "ticket", "brl_vault", "usd_vault", "user_brl", "user_usd", "credential", "token_program"]);
+    expect(names("devnet_credential")).toEqual(["user", "pool", "credential", "system_program"]);
+  });
+});
