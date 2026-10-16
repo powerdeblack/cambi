@@ -64,7 +64,7 @@ function errorText(e: unknown, logLines = 0): string {
 // Proposta de upgrade aprovada e ainda não executada que grava ESTE binário (target/deploy/cambi_pool.so)?
 async function findPending(msPda: PublicKey, vault: PublicKey): Promise<{ index: bigint; buffer: PublicKey } | null> {
   const info = await multisig.accounts.Multisig.fromAccountAddress(connection, msPda, "confirmed");
-  const index = BigInt(Number(info.transactionIndex));
+  const index = BigInt(info.transactionIndex.toString());
   if (index === 0n) return null;
   const [proposalPda] = multisig.getProposalPda({ multisigPda: msPda, transactionIndex: index });
   const proposal = await multisig.accounts.Proposal.fromAccountAddress(connection, proposalPda, "confirmed").catch(() => null);
@@ -98,7 +98,6 @@ async function main() {
   const members = Array.from({ length: 10 }, (_, i) => Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(`${KEYS}/baleia-${i + 1}.json`, "utf8")))));
   const program = new PublicKey(dep.programId);
   const [programData] = PublicKey.findProgramAddressSync([program.toBuffer()], LOADER);
-  const buffer = new PublicKey(process.env.BUFFER!);
   const newSize = Number(process.env.NEW_SIZE);
   const msPda = new PublicKey(dep.consortium.upgrade.multisig);
   const vault = new PublicKey(dep.consortium.upgrade.vault);
@@ -113,6 +112,8 @@ async function main() {
     return;
   }
   if (process.env.PENDING_INDEX) return executePending(dep, msPda, BigInt(process.env.PENDING_INDEX), members, timeLock);
+
+  const buffer = new PublicKey(process.env.BUFFER!);
 
   // Confere: a autoridade de upgrade é o cofre da multisig (senão, não há o que governar).
   const pd = await connection.getAccountInfo(programData, "confirmed");
@@ -235,7 +236,7 @@ async function executePending(dep: any, msPda: PublicKey, index: bigint, members
   const [proposalPda] = multisig.getProposalPda({ multisigPda: msPda, transactionIndex: index });
   const proposal = await multisig.accounts.Proposal.fromAccountAddress(connection, proposalPda, "confirmed");
   if (proposal.status.__kind !== "Approved") throw new Error(`Proposta #${index} não está aprovada`);
-  const approvedAt = Number(proposal.status.timestamp) * 1000;
+  const approvedAt = Number(proposal.status.timestamp.toString()) * 1000;
   const approvers = proposal.approved.map((k) => k.toBase58());
   console.log(`Proposta #${index}: ${approvers.length} aprovações, aprovada em ${new Date(approvedAt).toISOString()}.`);
   await sleep(Math.max(0, approvedAt + (timeLock + 30) * 1000 - Date.now()));
