@@ -8,17 +8,30 @@
 //   - a própria multisig valida a troca de admin e a primeira cotação (propostas com 7 assinaturas).
 // Execuções seguintes: uma rodada de cotação validada pela multisig (proposta, 7 aprovações, execução).
 //
-// Uso (GitHub Actions): ANCHOR_PROVIDER_URL=... ANCHOR_WALLET=.devnet-keys/deployer.json npx tsx scripts/consortium.ts
+// A RPC pública da devnet limita requisições: o script agrupa instruções em poucas transações, espaça as chamadas
+// e confirma por consulta (sem websocket).
+//
+// Uso (GitHub Actions): ANCHOR_WALLET=.devnet-keys/deployer.json npx tsx scripts/consortium.ts
 import * as anchor from "@coral-xyz/anchor";
 import { Idl, Program } from "@coral-xyz/anchor";
-import { AuthorityType, TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotent, setAuthority } from "@solana/spl-token";
-import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction, TransactionMessage } from "@solana/web3.js";
+import {
+  AuthorityType,
+  MINT_SIZE,
+  TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountIdempotentInstruction,
+  createInitializeMint2Instruction,
+  createSetAuthorityInstruction,
+  getAssociatedTokenAddressSync,
+  getMinimumBalanceForRentExemptMint,
+} from "@solana/spl-token";
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction, TransactionMessage } from "@solana/web3.js";
 import * as multisig from "@sqds/multisig";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { fetchConsensusQuote } from "../app/src/quote";
 import idl from "../idl/cambi_pool.json";
-import { BALEIA, BRL, RENDE, USD, createMints, mintAuthorityPda, politeConnection, poolPda, positionPda, programDataPda, u, vaultPda } from "./common";
+import { BALEIA, BRL, RENDE, USD, mintAuthorityPda, poolPda, positionPda, programDataPda, u, vaultPda } from "./common";
 
+const RPC = "https://api.devnet.solana.com";
 const FILE = "deployments/devnet-consortium.json";
 const KEYS = ".consortium-keys";
 const MEMBERS = 10;
@@ -27,8 +40,41 @@ const MAX_PRICE_AGE = 86_400; // sem cron neste branch: a cotação vale 24 h (l
 const MAX_PRICE_MOVE_BPS = 1_000;
 const LOCKUP_SECS = 600;
 const PRICE_SCALE = 1_000_000;
-const CONFIRMED = { commitment: "confirmed" as const };
+const DECIMALS = 6;
 const explorer = (kind: "address" | "tx", id: string) => `https://explorer.solana.com/${kind}/${id}?cluster=devnet`;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// ---------- RPC educada: espaça as chamadas e espera bastante quando recebe 429 ----------
+let lastCall = 0;
+async function slowFetch(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) {
+  for (let attempt = 1; ; attempt++) {
+    const wait = lastCall + 700 - Date.now();
+    lastCall = Math.max(Date.now(), lastCall + 700);
+    if (wait > 0) await sleep(wait);
+    const res = await fetch(input, init);
+    if (res.status !== 429 || attempt >= 25) return res;
+    const backoff = Math.min(3_000 * attempt, 30_000);
+    console.log(`RPC pediu calma (429). Nova tentativa em ${backoff / 1000}s…`);
+    await sleep(backoff);
+  }
+}
+const connection = new Connection(RPC, { commitment: "confirmed", disableRetryOnRateLimit: true, fetch: slowFetch as typeof fetch });
+
+/** Envia uma transação (o primeiro assinante paga) e confirma consultando o status, sem websocket. */
+async function send(ixs: TransactionInstruction[], signers: Keypair[]): Promise<string> {
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  const tx = new Transaction({ feePayer: signers[0].publicKey, blockhash, lastValidBlockHeight }).add(...ixs);
+  const seen = new Set<string>();
+  tx.sign(...signers.filter((s) => !seen.has(s.publicKey.toBase58()) && seen.add(s.publicKey.toBase58())));
+  const sig = await connection.sendRawTransaction(tx.serialize(), { preflightCommitment: "confirmed", maxRetries: 5 });
+  for (let i = 0; i < 60; i++) {
+    await sleep(2_000);
+    const st = (await connection.getSignatureStatuses([sig])).value[0];
+    if (st?.err) throw new Error(`Transação falhou ${sig}: ${JSON.stringify(st.err)}`);
+    if (st?.confirmationStatus === "confirmed" || st?.confirmationStatus === "finalized") return sig;
+  }
+  throw new Error(`Sem confirmação depois de 2 minutos: ${sig}`);
+}
 
 interface Validation {
   index: number;
@@ -59,68 +105,59 @@ function pickSigners(all: Keypair[], seed: number): Keypair[] {
   return order.sort((a, b) => a.k - b.k).slice(0, THRESHOLD).map((o) => o.kp);
 }
 
-/** Uma validação completa na multisig: cria a transação do cofre, abre a proposta, 7 Baleias aprovam, executa. */
-async function validate(
-  connection: anchor.web3.Connection,
-  msPda: PublicKey,
-  members: Keypair[],
-  ix: TransactionInstruction,
-  action: string,
-): Promise<Validation> {
+/**
+ * Uma validação completa na multisig, em 3 transações: (1) a proponente cria a transação do cofre e abre a proposta;
+ * (2) as 7 Baleias assinam juntas as aprovações; (3) a proposta aprovada é executada pelo cofre.
+ */
+async function validate(msPda: PublicKey, members: Keypair[], ix: TransactionInstruction, action: string): Promise<Validation> {
   const [vault] = multisig.getVaultPda({ multisigPda: msPda, index: 0 });
   const info = await multisig.accounts.Multisig.fromAccountAddress(connection, msPda, "confirmed");
   const transactionIndex = BigInt(Number(info.transactionIndex) + 1);
   const signers = pickSigners(members, Number(transactionIndex));
   const proposer = signers[0];
   const { blockhash } = await connection.getLatestBlockhash("confirmed");
-  const send = { skipPreflight: false, preflightCommitment: "confirmed" as const };
-  const wait = (sig: string) => connection.confirmTransaction(sig, "confirmed").then(() => sig);
 
-  const createSignature = await wait(
-    await multisig.rpc.vaultTransactionCreate({
-      connection,
-      feePayer: proposer,
-      multisigPda: msPda,
-      transactionIndex,
-      creator: proposer.publicKey,
-      vaultIndex: 0,
-      ephemeralSigners: 0,
-      transactionMessage: new TransactionMessage({ payerKey: vault, recentBlockhash: blockhash, instructions: [ix] }),
-      memo: `cambI: ${action}`.slice(0, 80),
-      sendOptions: send,
-    }),
+  const createSignature = await send(
+    [
+      multisig.instructions.vaultTransactionCreate({
+        multisigPda: msPda,
+        transactionIndex,
+        creator: proposer.publicKey,
+        vaultIndex: 0,
+        ephemeralSigners: 0,
+        transactionMessage: new TransactionMessage({ payerKey: vault, recentBlockhash: blockhash, instructions: [ix] }),
+        memo: `cambI: ${action}`.slice(0, 80),
+      }),
+      multisig.instructions.proposalCreate({ multisigPda: msPda, transactionIndex, creator: proposer.publicKey }),
+    ],
+    [proposer],
   );
-  await wait(await multisig.rpc.proposalCreate({ connection, feePayer: proposer, creator: proposer, multisigPda: msPda, transactionIndex, sendOptions: send }));
-  const approvals: Validation["approvals"] = [];
-  for (const m of signers) {
-    const signature = await wait(await multisig.rpc.proposalApprove({ connection, feePayer: proposer, member: m, multisigPda: msPda, transactionIndex, sendOptions: send }));
-    approvals.push({ member: m.publicKey.toBase58(), signature });
-    console.log(`  ✓ Baleia ${m.publicKey.toBase58().slice(0, 6)} aprovou (${approvals.length}/${THRESHOLD})`);
-  }
-  const executeSignature = await wait(
-    await multisig.rpc.vaultTransactionExecute({ connection, feePayer: proposer, multisigPda: msPda, transactionIndex, member: proposer.publicKey, sendOptions: send }),
+  const approveSignature = await send(
+    signers.map((m) => multisig.instructions.proposalApprove({ multisigPda: msPda, transactionIndex, member: m.publicKey })),
+    signers,
   );
+  console.log(`  ✓ ${THRESHOLD} Baleias aprovaram juntas: ${approveSignature}`);
+  const { instruction } = await multisig.instructions.vaultTransactionExecute({ connection, multisigPda: msPda, transactionIndex, member: proposer.publicKey });
+  const executeSignature = await send([instruction], [proposer]);
   console.log(`${action}: executada ${executeSignature}`);
   return {
     index: Number(transactionIndex),
     action,
     at: new Date().toISOString(),
     proposer: proposer.publicKey.toBase58(),
-    approvals,
+    approvals: signers.map((m) => ({ member: m.publicKey.toBase58(), signature: approveSignature })),
     createSignature,
     executeSignature,
   };
 }
 
 async function main() {
-  const env = anchor.AnchorProvider.env();
-  const provider = new anchor.AnchorProvider(politeConnection(env.connection.rpcEndpoint), env.wallet, CONFIRMED);
-  anchor.setProvider(provider);
+  const admin = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(process.env.ANCHOR_WALLET!, "utf8"))));
+  const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(admin), { commitment: "confirmed" });
   const program = new Program(idl as Idl, provider);
-  const connection = provider.connection;
-  const admin = (provider.wallet as anchor.Wallet).payer;
   const pid = program.programId;
   const members = baleias();
+  console.log(`Deployer ${admin.publicKey.toBase58()}: ${(await connection.getBalance(admin.publicKey)) / LAMPORTS_PER_SOL} SOL`);
 
   let price = 5.0;
   let source = "reserva fixa";
@@ -142,13 +179,14 @@ async function main() {
     const before = await (program.account as any).pool.fetch(pool);
     const old = Number(before.price.toString()) / PRICE_SCALE;
     if (Math.abs(price / old - 1) > 0.1) throw new Error(`Variação acima de 10% (${old} → ${price}); cotação não proposta.`);
-    // O proponente paga as taxas da rodada: completa o SOL dele com o do deployer, se precisar.
-    const proposer = pickSigners(members, Number((await multisig.accounts.Multisig.fromAccountAddress(connection, msPda, "confirmed")).transactionIndex) + 1)[0];
-    if ((await connection.getBalance(proposer.publicKey)) < 0.05 * LAMPORTS_PER_SOL) {
-      await provider.sendAndConfirm(new Transaction().add(SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: proposer.publicKey, lamports: 0.1 * LAMPORTS_PER_SOL })));
+    // A proponente paga as taxas e as contas da proposta: completa o SOL dela, se precisar.
+    const idx = Number((await multisig.accounts.Multisig.fromAccountAddress(connection, msPda, "confirmed")).transactionIndex) + 1;
+    const proposer = pickSigners(members, idx)[0];
+    if ((await connection.getBalance(proposer.publicKey)) < 0.03 * LAMPORTS_PER_SOL) {
+      await send([SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: proposer.publicKey, lamports: 0.05 * LAMPORTS_PER_SOL })], [admin]);
     }
     const ix = await program.methods.setPrice(priceRaw).accountsPartial({ oracle: vault, pool }).instruction();
-    const v = await validate(connection, msPda, members, ix, `Cotação R$ ${old.toFixed(4)} → R$ ${price.toFixed(4)} (${source})`);
+    const v = await validate(msPda, members, ix, `Cotação R$ ${old.toFixed(4)} → R$ ${price.toFixed(4)} (${source})`);
     dep.consortium.validations = [v, ...dep.consortium.validations].slice(0, 30);
     dep.updatedAt = new Date().toISOString();
     writeFileSync(FILE, JSON.stringify(dep, null, 2) + "\n");
@@ -164,109 +202,119 @@ async function main() {
     console.log(`${label}: ${signature}`);
   };
 
-  // SOL para as taxas: cada Baleia assina a aprovação; a proponente paga as contas da proposta.
-  const fund = new Transaction();
-  members.forEach((m, i) =>
-    fund.add(SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: m.publicKey, lamports: (i === 0 ? 0.04 : 0.025) * LAMPORTS_PER_SOL })),
+  // SOL para as taxas: a proponente de cada rodada paga as contas da proposta; todas assinam aprovações.
+  log(
+    "SOL de taxas para as 10 Baleias",
+    await send(
+      members.map((m) => SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: m.publicKey, lamports: 0.03 * LAMPORTS_PER_SOL })),
+      [admin],
+    ),
   );
-  await provider.sendAndConfirm(fund);
 
-  const mints = await createMints(connection, admin);
-  const pool = poolPda(pid, mints.brl, mints.usd);
-  const brlVault = vaultPda(pid, pool, mints.brl);
-  const usdVault = vaultPda(pid, pool, mints.usd);
+  // Moedas de teste com emissão já no PDA do pool (faucet on-chain), criadas numa transação só.
+  const brlMint = Keypair.generate();
+  const usdMint = Keypair.generate();
+  const pool = poolPda(pid, brlMint.publicKey, usdMint.publicKey);
+  const brlVault = vaultPda(pid, pool, brlMint.publicKey);
+  const usdVault = vaultPda(pid, pool, usdMint.publicKey);
   const mintAuthority = mintAuthorityPda(pid, pool);
-  log(
-    `Pool do consórcio criado (R$ ${price.toFixed(4)} por dólar)`,
-    await program.methods
-      .initialize(priceRaw, new anchor.BN(MAX_PRICE_AGE))
-      .accountsPartial({
-        admin: admin.publicKey,
-        brlMint: mints.brl,
-        usdMint: mints.usd,
-        pool,
-        brlVault,
-        usdVault,
-        program: pid,
-        programData: programDataPda(pid),
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc(),
-  );
-  log(
-    "Limites: cotação vale 24 h, move até 10% por vez, depósito travado 10 min",
-    await program.methods
-      .setLimits(new anchor.BN(MAX_PRICE_AGE), MAX_PRICE_MOVE_BPS, new anchor.BN(LOCKUP_SECS))
-      .accountsPartial({ admin: admin.publicKey, pool })
-      .rpc(),
-  );
-  await setAuthority(connection, admin, mints.brl, admin, AuthorityType.MintTokens, mintAuthority, [], CONFIRMED);
-  await setAuthority(connection, admin, mints.usd, admin, AuthorityType.MintTokens, mintAuthority, [], CONFIRMED);
+  const rent = await getMinimumBalanceForRentExemptMint(connection);
+  const mintIxs = (m: Keypair) => [
+    SystemProgram.createAccount({ fromPubkey: admin.publicKey, newAccountPubkey: m.publicKey, space: MINT_SIZE, lamports: rent, programId: TOKEN_PROGRAM_ID }),
+    createInitializeMint2Instruction(m.publicKey, DECIMALS, admin.publicKey, null),
+    createSetAuthorityInstruction(m.publicKey, admin.publicKey, AuthorityType.MintTokens, mintAuthority),
+  ];
+  log("Moedas de teste do consórcio (cBRL e cUSD)", await send([...mintIxs(brlMint), ...mintIxs(usdMint)], [admin, brlMint, usdMint]));
 
-  const adminMint = (side: number, amount: number, destination: PublicKey) =>
-    program.methods
-      .adminMint(side, u(amount))
-      .accountsPartial({ admin: admin.publicKey, pool, mint: side === BRL ? mints.brl : mints.usd, destination, mintAuthority, tokenProgram: TOKEN_PROGRAM_ID })
-      .rpc();
-
-  // As 10 Baleias depositam nas duas moedas (valores diferentes, como empresas de portes diferentes).
-  const sizes = [20_000, 15_000, 12_000, 10_000, 10_000, 8_000, 8_000, 6_000, 6_000, 5_000];
-  for (const [i, m] of members.entries()) {
-    const brlAta = await createAssociatedTokenAccountIdempotent(connection, admin, mints.brl, m.publicKey, CONFIRMED);
-    const usdAta = await createAssociatedTokenAccountIdempotent(connection, admin, mints.usd, m.publicKey, CONFIRMED);
-    const brl = sizes[i];
-    const usd = Math.round(sizes[i] / price);
-    await adminMint(BRL, brl, brlAta);
-    await adminMint(USD, usd, usdAta);
-    for (const [side, amount] of [
-      [BRL, brl],
-      [USD, usd],
-    ] as const) {
-      log(
-        `Baleia ${i + 1} deposita ${side === BRL ? `R$ ${brl.toLocaleString("pt-BR")}` : `US$ ${usd.toLocaleString("pt-BR")}`}`,
+  log(
+    `Pool do consórcio criado (R$ ${price.toFixed(4)} por dólar), com cotação válida por 24 h e depósito travado 10 min`,
+    await send(
+      [
         await program.methods
-          .deposit(BALEIA, side, u(amount))
+          .initialize(priceRaw, new anchor.BN(MAX_PRICE_AGE))
           .accountsPartial({
-            user: m.publicKey,
+            admin: admin.publicKey,
+            brlMint: brlMint.publicKey,
+            usdMint: usdMint.publicKey,
             pool,
-            position: positionPda(pid, pool, m.publicKey, BALEIA, side),
             brlVault,
             usdVault,
-            userBrl: brlAta,
-            userUsd: usdAta,
+            program: pid,
+            programData: programDataPda(pid),
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
-          .signers([m])
-          .rpc(),
-      );
-    }
-  }
+          .instruction(),
+        await program.methods.setLimits(new anchor.BN(MAX_PRICE_AGE), MAX_PRICE_MOVE_BPS, new anchor.BN(LOCKUP_SECS)).accountsPartial({ admin: admin.publicKey, pool }).instruction(),
+      ],
+      [admin],
+    ),
+  );
 
-  // Um depositante da Rende, para o pool ter a faixa sênior também.
-  const rende = Keypair.generate();
-  await provider.sendAndConfirm(new Transaction().add(SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: rende.publicKey, lamports: 0.02 * LAMPORTS_PER_SOL })));
-  const rBrl = await createAssociatedTokenAccountIdempotent(connection, admin, mints.brl, rende.publicKey, CONFIRMED);
-  const rUsd = await createAssociatedTokenAccountIdempotent(connection, admin, mints.usd, rende.publicKey, CONFIRMED);
-  await adminMint(BRL, 50_000, rBrl);
-  log(
-    "Depósito Rende: R$ 50.000",
-    await program.methods
-      .deposit(RENDE, BRL, u(50_000))
+  const mintTo = (side: number, amount: number, destination: PublicKey) =>
+    program.methods
+      .adminMint(side, u(amount))
+      .accountsPartial({ admin: admin.publicKey, pool, mint: side === BRL ? brlMint.publicKey : usdMint.publicKey, destination, mintAuthority, tokenProgram: TOKEN_PROGRAM_ID })
+      .instruction();
+  const depositIx = (user: PublicKey, tranche: number, side: number, amount: number, userBrl: PublicKey, userUsd: PublicKey) =>
+    program.methods
+      .deposit(tranche, side, u(amount))
       .accountsPartial({
-        user: rende.publicKey,
+        user,
         pool,
-        position: positionPda(pid, pool, rende.publicKey, RENDE, BRL),
+        position: positionPda(pid, pool, user, tranche, side),
         brlVault,
         usdVault,
-        userBrl: rBrl,
-        userUsd: rUsd,
+        userBrl,
+        userUsd,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
-      .signers([rende])
-      .rpc(),
+      .instruction();
+  const atas = (owner: PublicKey) => ({
+    brl: getAssociatedTokenAddressSync(brlMint.publicKey, owner),
+    usd: getAssociatedTokenAddressSync(usdMint.publicKey, owner),
+  });
+  const ataIxs = (owner: PublicKey) => [
+    createAssociatedTokenAccountIdempotentInstruction(admin.publicKey, atas(owner).brl, owner, brlMint.publicKey),
+    createAssociatedTokenAccountIdempotentInstruction(admin.publicKey, atas(owner).usd, owner, usdMint.publicKey),
+  ];
+
+  // As 10 Baleias depositam nas duas moedas (portes diferentes), uma transação por Baleia.
+  const sizes = [20_000, 15_000, 12_000, 10_000, 10_000, 8_000, 8_000, 6_000, 6_000, 5_000];
+  for (const [i, m] of members.entries()) {
+    const a = atas(m.publicKey);
+    const brl = sizes[i];
+    const usd = Math.round(sizes[i] / price);
+    log(
+      `Baleia ${i + 1} deposita R$ ${brl.toLocaleString("pt-BR")} + US$ ${usd.toLocaleString("pt-BR")}`,
+      await send(
+        [
+          ...ataIxs(m.publicKey),
+          await mintTo(BRL, brl, a.brl),
+          await mintTo(USD, usd, a.usd),
+          await depositIx(m.publicKey, BALEIA, BRL, brl, a.brl, a.usd),
+          await depositIx(m.publicKey, BALEIA, USD, usd, a.brl, a.usd),
+        ],
+        [admin, m],
+      ),
+    );
+  }
+
+  // Um depositante da Rende (faixa sênior), também numa transação só.
+  const rende = Keypair.generate();
+  const ra = atas(rende.publicKey);
+  log(
+    "Depósito Rende: R$ 50.000",
+    await send(
+      [
+        SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: rende.publicKey, lamports: 0.01 * LAMPORTS_PER_SOL }),
+        ...ataIxs(rende.publicKey),
+        await mintTo(BRL, 50_000, ra.brl),
+        await depositIx(rende.publicKey, RENDE, BRL, 50_000, ra.brl, ra.usd),
+      ],
+      [admin, rende],
+    ),
   );
 
   // Multisig 7 de 10 (Squads v4), sem autoridade de configuração: só as próprias Baleias mudam a multisig.
@@ -276,37 +324,40 @@ async function main() {
   const [programConfigPda] = multisig.getProgramConfigPda({});
   const programConfig = await multisig.accounts.ProgramConfig.fromAccountAddress(connection, programConfigPda);
   const { Permissions } = multisig.types;
-  const createSig = await multisig.rpc.multisigCreateV2({
-    connection,
-    treasury: programConfig.treasury,
-    createKey,
-    creator: admin,
-    multisigPda: msPda,
-    configAuthority: null,
-    threshold: THRESHOLD,
-    members: members.map((m) => ({ key: m.publicKey, permissions: Permissions.all() })),
-    timeLock: 0,
-    rentCollector: null,
-    sendOptions: { preflightCommitment: "confirmed" },
-  });
-  await connection.confirmTransaction(createSig, "confirmed");
-  log(`Multisig das Baleias criada (${THRESHOLD} de ${MEMBERS})`, createSig);
-
-  log("Oráculo do pool passa para o cofre da multisig", await program.methods.setOracle(vault).accountsPartial({ admin: admin.publicKey, pool }).rpc());
-  log("Admin do pool proposto para o cofre da multisig", await program.methods.proposeAdmin(vault).accountsPartial({ admin: admin.publicKey, pool }).rpc());
+  log(
+    `Multisig das Baleias criada (${THRESHOLD} de ${MEMBERS})`,
+    await send(
+      [
+        multisig.instructions.multisigCreateV2({
+          treasury: programConfig.treasury,
+          creator: admin.publicKey,
+          multisigPda: msPda,
+          configAuthority: null,
+          threshold: THRESHOLD,
+          members: members.map((m) => ({ key: m.publicKey, permissions: Permissions.all() })),
+          timeLock: 0,
+          createKey: createKey.publicKey,
+          rentCollector: null,
+        }),
+      ],
+      [admin, createKey],
+    ),
+  );
+  log(
+    "Oráculo do pool passa para o cofre da multisig, e o admin é proposto para ela",
+    await send(
+      [
+        await program.methods.setOracle(vault).accountsPartial({ admin: admin.publicKey, pool }).instruction(),
+        await program.methods.proposeAdmin(vault).accountsPartial({ admin: admin.publicKey, pool }).instruction(),
+      ],
+      [admin],
+    ),
+  );
 
   const validations: Validation[] = [];
+  validations.unshift(await validate(msPda, members, await program.methods.acceptAdmin().accountsPartial({ newAdmin: vault, pool }).instruction(), "Multisig assume o admin do pool"));
   validations.unshift(
-    await validate(connection, msPda, members, await program.methods.acceptAdmin().accountsPartial({ newAdmin: vault, pool }).instruction(), "Multisig assume o admin do pool"),
-  );
-  validations.unshift(
-    await validate(
-      connection,
-      msPda,
-      members,
-      await program.methods.setPrice(priceRaw).accountsPartial({ oracle: vault, pool }).instruction(),
-      `Primeira cotação validada: R$ ${price.toFixed(4)} (${source})`,
-    ),
+    await validate(msPda, members, await program.methods.setPrice(priceRaw).accountsPartial({ oracle: vault, pool }).instruction(), `Primeira cotação validada: R$ ${price.toFixed(4)} (${source})`),
   );
 
   const after = await (program.account as any).pool.fetch(pool);
@@ -316,13 +367,13 @@ async function main() {
     cluster: "devnet",
     version: 2,
     kind: "consortium",
-    rpc: "https://api.devnet.solana.com",
+    rpc: RPC,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     programId: pid.toBase58(),
     pool: pool.toBase58(),
-    brlMint: mints.brl.toBase58(),
-    usdMint: mints.usd.toBase58(),
+    brlMint: brlMint.publicKey.toBase58(),
+    usdMint: usdMint.publicKey.toBase58(),
     brlVault: brlVault.toBase58(),
     usdVault: usdVault.toBase58(),
     mintAuthority: mintAuthority.toBase58(),
@@ -352,7 +403,7 @@ async function main() {
 function summary(dep: any) {
   const out = process.env.GITHUB_STEP_SUMMARY;
   const rows = dep.consortium.validations
-    .map((v: Validation) => `| #${v.index} | ${v.action} | ${v.approvals.length}/${dep.consortium.members.length} | [executada](${explorer("tx", v.executeSignature)}) |`)
+    .map((v: Validation) => `| #${v.index} | ${v.action} | ${v.approvals.length} de ${dep.consortium.members.length} | [executada](${explorer("tx", v.executeSignature)}) |`)
     .join("\n");
   const text = `## Consórcio de Baleias (devnet)\n\n- Pool: [${dep.pool}](${dep.links.pool})\n- Multisig (${dep.consortium.threshold} de ${dep.consortium.members.length}): [${dep.consortium.multisig}](${dep.links.multisig})\n\n| Proposta | Ação | Assinaturas | Prova |\n|---|---|---|---|\n${rows}\n`;
   console.log(text);

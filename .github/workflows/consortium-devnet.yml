@@ -47,12 +47,11 @@ jobs:
 
       - name: Consórcio (montagem ou rodada de cotação)
         env:
-          ANCHOR_PROVIDER_URL: https://api.devnet.solana.com
           ANCHOR_WALLET: .devnet-keys/deployer.json
         run: npx tsx scripts/consortium.ts
 
       - name: Guardar chaves das Baleias (só na primeira vez)
-        if: steps.baleias.outputs.cache-hit != 'true'
+        if: always() && steps.baleias.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .consortium-keys
