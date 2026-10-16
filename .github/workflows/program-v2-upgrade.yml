@@ -3,6 +3,7 @@ name: Upgrade governado do programa v2 (devnet, branch v2)
 # Atualiza o programa v2 SÓ pela multisig de upgrade: o deployer grava o binário num buffer e passa o buffer para o
 # cofre da multisig; 7 de 10 Baleias aprovam; a execução só passa depois do prazo de espera (1 h).
 # Para rodar: altere deployments/program-v2-upgrade-round.txt no branch v2 (a primeira linha vira o motivo).
+# Se uma rodada anterior já aprovou este mesmo binário e só a execução falhou, a nova rodada só executa.
 on:
   push:
     branches: [v2]
@@ -70,8 +71,13 @@ jobs:
           if solana program dump "$PROGRAM_ID" /tmp/onchain.so && cmp -s -n "$NEW_SIZE" target/deploy/cambi_pool.so /tmp/onchain.so; then
             echo "same=1" >> "$GITHUB_OUTPUT"; echo "Programa já está com este binário."
           fi
-      - name: Gravar o novo binário num buffer e entregar o buffer à multisig
+      - name: Proposta já aprovada para este binário? (só executa)
         if: steps.same.outputs.same != '1'
+        env:
+          ANCHOR_WALLET: .devnet-keys/deployer.json
+        run: npx tsx scripts/upgrade-v2.ts --pending
+      - name: Gravar o novo binário num buffer e entregar o buffer à multisig
+        if: steps.same.outputs.same != '1' && env.PENDING_INDEX == ''
         timeout-minutes: 120
         run: |
           solana program close --buffers --bypass-warning || true
