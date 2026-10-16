@@ -1,1 +1,1 @@
-rodada 1
+rodada 2 (v2.4: auditoria + painel de especialistas)
