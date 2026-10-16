@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-16T14:52:29.763Z",
+  "multisig": "598PV6JhwdNycGu7MNDsrSK3L9Dt6ktbzG2tLk4dvtgi",
+  "vault": "EN7QVsJcU1q9sLoioxNjCYGJgS1wXn1qi9F3zG8caPxM",
+  "buffer": "F9RERscNt8HwrBCqvxWBGPVT9G6nGWR13cyF9bo6wj9S",
+  "results": [
+    {
+      "name": "controle: System Program por CPI (transferência do cofre)",
+      "ok": true,
+      "signature": "3VyhjA8kSTTxZh1fX5DFxBfZJQpUMkWCw5QPYeuNffU859J8VatnudwBmPZjTxcLfHHkK4L1JUn8QGbHDS9h6zoH"
+    },
+    {
+      "name": "loader por CPI: SetAuthority do buffer (cofre → deployer)",
+      "ok": true,
+      "signature": "4oTRH93Tj9UTxJ6gHqMDHDp2d9AdtAWrHV9CU1pgsmHXPVk6M2go5Zsa1NRWJhsTiiZTJwpwwQ5sP4aXo5HQ8Fsz"
+    }
+  ]
+}
