@@ -4,6 +4,7 @@ import { useChain } from "./chain/useChain";
 import { AlertSheet } from "./components/AlertSheet";
 import { ChainCard } from "./components/ChainCard";
 import { ConsortiumCard } from "./components/ConsortiumCard";
+import { MetricsCard } from "./components/MetricsCard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DollarCard } from "./components/DollarCard";
 import { DollarScreen } from "./components/DollarScreen";
@@ -486,6 +487,7 @@ export default function App() {
         {tab === "pool" && (
           <>
             <PoolLive live={live} onRende={() => setTab("rende")} />
+            <MetricsCard />
             <ConsortiumCard />
             <FeeFlow />
             <OnchainCard />

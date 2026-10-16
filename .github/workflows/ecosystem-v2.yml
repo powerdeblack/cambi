@@ -55,7 +55,7 @@ jobs:
           rm -rf .devnet-keys .consortium-keys
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for f in deployments/ecosystem-v2-report.json deployments/metrics-v2.json; do if [ -f "$f" ]; then git add "$f"; fi; done
+          for f in deployments/ecosystem-v2-report.json deployments/metrics-v2.json app/src/metrics-v2.json; do if [ -f "$f" ]; then git add "$f"; fi; done
           git commit -q -m "Teste de ecossistema v2: relatório [skip ci]" || exit 0
           url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git pull -q --rebase "$url" v2

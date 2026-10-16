@@ -715,3 +715,10 @@ button.link, .proofs a, .v-links a { color: var(--green-strong); }
 .chips.tight .chip { min-height: 40px; }
 .row-btn > svg:last-child { margin-left: auto; }
 .btn-hint { text-align: center; margin: 6px 0 0; }
+
+/* Produto medido (métricas agregadas do pool v2) */
+.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin-bottom: 12px; }
+.kpi-grid > div { display: grid; gap: 2px; }
+.kpi { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.spark { display: flex; align-items: flex-end; gap: 3px; height: 56px; margin: 4px 0 12px; }
+.spark span { flex: 1; background: var(--green); border-radius: 3px 3px 0 0; min-height: 3px; }

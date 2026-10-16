@@ -150,6 +150,7 @@ async function main() {
     note: "Rede de testes: moedas sem valor real. Só agregados; nenhum endereço de carteira é publicado.",
   };
   writeFileSync(OUT, JSON.stringify(out, null, 2) + "\n");
+  writeFileSync("app/src/metrics-v2.json", JSON.stringify(out, null, 2) + "\n"); // o app mostra na aba Pool
   console.log(JSON.stringify(out, null, 2));
   if (process.env.GITHUB_STEP_SUMMARY) {
     const { appendFileSync } = await import("fs");
