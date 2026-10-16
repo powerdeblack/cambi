@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-16T14:52:29.763Z",
+  "at": "2026-10-16T15:04:39.027Z",
   "multisig": "598PV6JhwdNycGu7MNDsrSK3L9Dt6ktbzG2tLk4dvtgi",
   "vault": "EN7QVsJcU1q9sLoioxNjCYGJgS1wXn1qi9F3zG8caPxM",
   "buffer": "F9RERscNt8HwrBCqvxWBGPVT9G6nGWR13cyF9bo6wj9S",
@@ -13,6 +13,33 @@
       "name": "loader por CPI: SetAuthority do buffer (cofre → deployer)",
       "ok": true,
       "signature": "4oTRH93Tj9UTxJ6gHqMDHDp2d9AdtAWrHV9CU1pgsmHXPVk6M2go5Zsa1NRWJhsTiiZTJwpwwQ5sP4aXo5HQ8Fsz"
+    },
+    {
+      "name": "Upgrade por CPI (cofre é a autoridade)",
+      "ok": true,
+      "signature": "53o8GYbDs1bqA7FPLXNJ31BQhwhVVmuNRWSL5WdowDD9n51niHpBLVym9aAUNmdTysyi9JwVHks6S7WnMdZDygER"
+    },
+    {
+      "name": "ExtendProgramChecked por CPI (+1 KB)",
+      "ok": false,
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+        "Program log: Instruction: VaultTransactionExecute",
+        "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf consumed 21241 of 1399850 compute units",
+        "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf failed: Program BPFLoaderUpgradeab1e11111111111111111111111 not supported by inner instructions"
+      ]
+    },
+    {
+      "name": "ExtendProgram sem autoridade, direto (fora da multisig, +1 KB)",
+      "ok": false,
+      "logs": [
+        "Program BPFLoaderUpgradeab1e11111111111111111111111 invoke [1]",
+        "ExtendProgram requires a minimum of 10240 additional bytes or to extend to maximum size, but only 1024 were requested",
+        "Program BPFLoaderUpgradeab1e11111111111111111111111 failed: invalid program argument"
+      ]
     }
-  ]
+  ],
+  "noopProgram": "Dj4sHdvi3AHPaFTu13wDAAyfK6LmwCDjX9XSSRszv9z9"
 }
