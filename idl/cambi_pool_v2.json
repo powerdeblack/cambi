@@ -295,6 +295,36 @@
           "writable": true
         },
         {
+          "name": "credential",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
@@ -399,8 +429,9 @@
         {
           "name": "credential",
           "docs": [
-            "Credencial KYC da carteira (exigida quando `pool.require_kyc`)."
+            "Credencial KYC da carteira (exigida quando `pool.require_kyc`); guarda o uso acumulado do dia."
           ],
+          "writable": true,
           "optional": true
         },
         {
@@ -886,6 +917,43 @@
       ]
     },
     {
+      "name": "remove_partner",
+      "docs": [
+        "Descredencia um app parceiro (B2B): fecha a conta e devolve o aluguel ao admin."
+      ],
+      "discriminator": [
+        205,
+        64,
+        184,
+        235,
+        182,
+        107,
+        63,
+        15
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "relations": [
+            "partner"
+          ]
+        },
+        {
+          "name": "partner",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "request_withdraw",
       "docs": [
         "Pede um saque grande: o valor sai da posição agora (para de render), fica reservado no cofre",
@@ -967,6 +1035,36 @@
           "writable": true
         },
         {
+          "name": "credential",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -981,6 +1079,42 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "restore_credential",
+      "docs": [
+        "Desfaz uma revogação (decisão do admin, ou seja, da multisig)."
+      ],
+      "discriminator": [
+        50,
+        108,
+        150,
+        164,
+        179,
+        102,
+        37,
+        253
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "relations": [
+            "credential"
+          ]
+        },
+        {
+          "name": "credential",
+          "writable": true
+        }
+      ],
+      "args": []
     },
     {
       "name": "revoke_credential",
@@ -1014,6 +1148,85 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "set_daily_limits",
+      "docs": [
+        "Teto acumulado em 24 h por nível de credencial (0 = sem teto)."
+      ],
+      "discriminator": [
+        25,
+        160,
+        242,
+        217,
+        133,
+        248,
+        132,
+        72
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "level_daily_brl",
+          "type": {
+            "array": [
+              "u64",
+              3
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "set_frozen",
+      "docs": [
+        "Indisponibilidade de bens (Lei 13.810/2019: sanções do CSNU; ordem judicial). Emissor de KYC ou admin.",
+        "Diferente da revogação: bloqueia também os saques, até a liberação."
+      ],
+      "discriminator": [
+        62,
+        87,
+        99,
+        96,
+        206,
+        47,
+        204,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "relations": [
+            "credential"
+          ]
+        },
+        {
+          "name": "credential",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "frozen",
+          "type": "bool"
+        }
+      ]
     },
     {
       "name": "set_guardian",
@@ -1234,6 +1447,41 @@
       ]
     },
     {
+      "name": "set_rebalance",
+      "docs": [
+        "Desconto para quem reequilibra (0 desliga; no máximo 5%)."
+      ],
+      "discriminator": [
+        103,
+        180,
+        93,
+        119,
+        22,
+        228,
+        204,
+        162
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "k_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
       "name": "set_reserve_policy",
       "docs": [
         "Quem atesta as reservas das moedas tokenizadas (custodiante/auditor) e a validade máxima do atestado.",
@@ -1390,8 +1638,9 @@
         {
           "name": "credential",
           "docs": [
-            "Credencial KYC da carteira (exigida quando `pool.require_kyc`, exceto para app parceiro)."
+            "Credencial KYC da carteira (exigida quando `pool.require_kyc`, exceto para app parceiro); guarda o uso do dia."
           ],
+          "writable": true,
           "optional": true
         },
         {
@@ -1520,6 +1769,36 @@
         {
           "name": "user_usd",
           "writable": true
+        },
+        {
+          "name": "credential",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
         },
         {
           "name": "token_program",
@@ -1652,6 +1931,19 @@
         142,
         107,
         144
+      ]
+    },
+    {
+      "name": "FreezeEvent",
+      "discriminator": [
+        71,
+        23,
+        242,
+        12,
+        63,
+        34,
+        225,
+        159
       ]
     },
     {
@@ -1890,6 +2182,21 @@
       "code": 6033,
       "name": "ReserveUnproven",
       "msg": "Lastro sem prova: reserva atestada menor que o emitido ou atestado vencido"
+    },
+    {
+      "code": 6034,
+      "name": "AboveDailyLimit",
+      "msg": "Limite diário do seu nível de verificação atingido; tente amanhã ou suba de nível"
+    },
+    {
+      "code": 6035,
+      "name": "AssetsFrozen",
+      "msg": "Bens indisponíveis por determinação legal; fale com o atendimento"
+    },
+    {
+      "code": 6036,
+      "name": "BaleiaNeedsLevel3",
+      "msg": "Depósito na Baleia exige credencial institucional (nível 3)"
     }
   ],
   "types": [
@@ -1928,6 +2235,24 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "day_start",
+            "docs": [
+              "Uso acumulado da janela de 24 h (teto diário por nível)."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "day_used_brl",
+            "type": "u64"
+          },
+          {
+            "name": "frozen",
+            "docs": [
+              "Indisponibilidade de bens (sanção da ONU/CSNU, ordem judicial): bloqueia troca, depósito e SAQUE."
+            ],
+            "type": "bool"
           }
         ]
       }
@@ -2048,6 +2373,26 @@
           {
             "name": "max_trade_bps",
             "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FreezeEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "frozen",
+            "type": "bool"
+          },
+          {
+            "name": "by",
+            "type": "pubkey"
           }
         ]
       }
@@ -2372,6 +2717,25 @@
           {
             "name": "reserve_max_age",
             "type": "i64"
+          },
+          {
+            "name": "level_daily_brl",
+            "docs": [
+              "Teto acumulado em 24 h por nível de credencial, em reais (6 casas); 0 = sem teto."
+            ],
+            "type": {
+              "array": [
+                "u64",
+                3
+              ]
+            }
+          },
+          {
+            "name": "rebalance_k_bps",
+            "docs": [
+              "Desconto para quem reequilibra: bps de preço por 100% de desequilíbrio restante (200 = até 2%)."
+            ],
+            "type": "u16"
           }
         ]
       }
