@@ -3,7 +3,7 @@ import { PoolState, Side, SwapResult, UserKind, deposit, swap } from "./engine/p
 
 export interface Activity {
   id: number;
-  kind: "swap" | "deposit" | "send" | "harvest" | "withdraw" | "faucet";
+  kind: "swap" | "deposit" | "send" | "harvest" | "withdraw" | "faucet" | "topup";
   side: Side; // moeda que saiu da carteira
   amountIn: number;
   amountOut?: number;
@@ -71,6 +71,16 @@ export function walletSwap(pool: PoolState, w: Wallet, side: Side, amount: numbe
     ],
   };
   return { pool: r.state, wallet, result: r };
+}
+
+/** Demonstração: dinheiro entrando por Pix (em produção, o Pix cai no parceiro autorizado e vira saldo em real). */
+export function walletTopUp(w: Wallet, amount: number): Wallet {
+  if (!(amount > 0)) throw new Error("Valor inválido");
+  return {
+    ...w,
+    balance: { ...w.balance, BRL: w.balance.BRL + amount },
+    activity: [{ id: nextId(), kind: "topup", side: "BRL", amountIn: amount, at: Date.now() }, ...w.activity],
+  };
 }
 
 export function walletDeposit(pool: PoolState, w: Wallet, side: Side, amount: number) {

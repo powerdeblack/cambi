@@ -4,7 +4,7 @@ import { dollarResult } from "../position";
 import { Wallet, isDepositor } from "../wallet";
 import { Brand } from "./Brand";
 import { ACTIVITY_ICON, activityTitle } from "../activity";
-import { BellIcon, ChevronIcon, EyeIcon, EyeOffIcon, GrowIcon, ListIcon, QrIcon, ScanIcon, SendIcon, SwapIcon } from "./Icons";
+import { ChevronIcon, EyeIcon, EyeOffIcon, GrowIcon, ListIcon, QrIcon, ScanIcon, SendIcon, SwapIcon } from "./Icons";
 import { ReactNode } from "react";
 
 interface Props {
@@ -13,10 +13,10 @@ interface Props {
   go: (tab: "trocar" | "rende") => void;
   onSend: () => void;
   onQr: (mode: "pay" | "charge") => void;
+  onAdd: () => void;
   onSimulateMarket?: () => void;
   onStatement: () => void;
   onDollars: () => void;
-  onAlert: () => void;
   /** Primeiro nome da pessoa (do cadastro), para a saudação. */
   name?: string;
   hidden: boolean;
@@ -31,7 +31,7 @@ const greeting = () => {
 };
 
 
-export function Home({ pool, wallet, go, onSend, onQr, onSimulateMarket, onStatement, onDollars, onAlert, name, hidden, onToggleHidden, afterActions }: Props) {
+export function Home({ pool, wallet, go, onSend, onQr, onAdd, onSimulateMarket, onStatement, onDollars, name, hidden, onToggleHidden, afterActions }: Props) {
   const p = pool.price;
   const free = wallet.balance.BRL + wallet.balance.USD * p;
   const invested = wallet.rende.BRL + wallet.rende.USD * p;
@@ -78,7 +78,7 @@ export function Home({ pool, wallet, go, onSend, onQr, onSimulateMarket, onState
         </button>
         <button onClick={() => onQr("charge")}>
           <span className="qa-icon"><QrIcon /></span>
-          Cobrar
+          Receber
         </button>
         <button onClick={() => go("rende")}>
           <span className="qa-icon"><GrowIcon /></span>
@@ -92,9 +92,9 @@ export function Home({ pool, wallet, go, onSend, onQr, onSimulateMarket, onState
           <span className="qa-icon qa-flag" aria-hidden>US$</span>
           Meus dólares
         </button>
-        <button onClick={onAlert}>
-          <span className="qa-icon"><BellIcon /></span>
-          Alerta
+        <button onClick={onAdd}>
+          <span className="qa-icon qa-flag" aria-hidden>+R$</span>
+          Adicionar
         </button>
       </div>
 
@@ -140,11 +140,10 @@ export function Home({ pool, wallet, go, onSend, onQr, onSimulateMarket, onState
       ) : (
         <section className="card hint">
           <p>
-            Hoje, quem lucra com o câmbio é o banco. Na <Brand />, deixando a partir de R$ 10 na Rende, você passa a
-            ganhar com as trocas dos outros e paga metade da taxa.
+            No banco, você nem vê a taxa. Na <Brand />, cada troca mostra quanto custou e para onde foi.
           </p>
-          <button className="secondary" onClick={() => go("rende")}>
-            Quero ser dono
+          <button className="secondary" onClick={() => go("trocar")}>
+            Fazer minha primeira troca
           </button>
         </section>
       )}
@@ -159,7 +158,7 @@ export function Home({ pool, wallet, go, onSend, onQr, onSimulateMarket, onState
           )}
         </div>
         {wallet.activity.length === 0 ? (
-          <p className="muted">Nenhuma movimentação ainda. Que tal fazer sua primeira troca?</p>
+          <p className="muted">Nenhuma movimentação ainda. Troque R$ 100 de teste e veja a taxa aberta, centavo por centavo.</p>
         ) : (
           <ul className="list activity">
             {wallet.activity.slice(0, 4).map((a) => (

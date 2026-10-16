@@ -65,6 +65,8 @@ fs.mkdirSync(out, { recursive: true });
   const CHAIN = 90_000;
 
   await page.goto(url);
+  // v2: pergunta de objetivo na primeira abertura.
+  await page.getByRole("button", { name: "Só quero explorar" }).click({ timeout: 5_000 }).catch(() => {});
   await page.getByRole("button", { name: "Criar minha conta grátis" }).click();
   const ready = page.getByText("Conta na Solana · devnet");
   const needSol = page.getByText("Falta só o SOL de teste");

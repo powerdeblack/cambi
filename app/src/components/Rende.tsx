@@ -57,15 +57,32 @@ export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, 
   }
   const over = amount > wallet.balance[side] + 1e-9;
   const [mismatchAck, setMismatchAck] = useState(false);
+  // Fase piloto (painel regulatório e jurídico): a Rende fica restrita a investidor qualificado até haver parecer
+  // sobre o enquadramento na CVM. A declaração fica lembrada neste aparelho.
+  const [qualified, setQualified] = useState(() => {
+    try {
+      return localStorage.getItem("cambi-qualified-v1") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const declareQualified = (v: boolean) => {
+    setQualified(v);
+    try {
+      localStorage.setItem("cambi-qualified-v1", v ? "1" : "0");
+    } catch {
+      /* sem armazenamento */
+    }
+  };
   const mismatch = rendeMismatch(suitability, side);
   const limit = amount > 0 && !over ? limitCheck(side, amount) : null;
-  const deposit = () => act("deposit", () => onDeposit(side, amount), "Depósito feito. Agora você ganha com as trocas do pool.");
+  const deposit = () => act("deposit", () => onDeposit(side, amount), "Depósito registrado. Sua participação nas taxas aparece aqui.");
   // Voltou do questionário de perfil: segue com o depósito que a pessoa já tinha pedido (se nada mudou o caminho).
   const [resume, setResume] = useState(false);
   useEffect(() => {
     if (!resume || !suitability) return;
     setResume(false);
-    if (amount > 0 && !over && !limit && !mismatch) deposit();
+    if (amount > 0 && !over && !limit && !mismatch && qualified) deposit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [suitability, resume]);
 
@@ -124,7 +141,7 @@ export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, 
             {onchain && (wallet.rende.BRL > 0 || wallet.rende.USD > 0) && (
               <div className="actions-row">
                 <button className="secondary" disabled={!!busy} onClick={() => act("harvest", onchain.onHarvest, "Rendimento enviado para sua carteira.")}>
-                  {busy === "harvest" ? "Recebendo…" : "Receber rendimento"}
+                  {busy === "harvest" ? "Recebendo…" : "Receber participação"}
                 </button>
                 <button
                   className="secondary"
@@ -167,7 +184,7 @@ export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, 
 
             <div className="field-box">
               <div className="amount-row">
-                <MoneyInput side={side} cents={cents} onChange={setCents} label="Quanto você quer deixar rendendo" invalid={over} />
+                <MoneyInput side={side} cents={cents} onChange={setCents} label="Valor do depósito" invalid={over} />
                 <select className="currency" value={side} onChange={(e) => setSide(e.target.value as Side)} aria-label="Moeda">
                   <option value="BRL">🇧🇷 BRL</option>
                   <option value="USD">🇺🇸 USD</option>
@@ -184,12 +201,20 @@ export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, 
                 <span>Seu perfil é conservador e a Rende em dólar oscila com o câmbio. Entendo e quero continuar.</span>
               </label>
             )}
+            <label className="toggle-row qualified-row">
+              <input type="checkbox" checked={qualified} onChange={(e) => declareQualified(e.target.checked)} />
+              <span>
+                Declaro ser <strong>investidor qualificado</strong> (mais de R$ 1 milhão em aplicações financeiras ou certificação
+                profissional, Res. CVM 30/2021). Na fase piloto, a Rende é só para esse público.
+              </span>
+            </label>
             {limit && <p className="warn-box">{limit}</p>}
+            {!qualified && amount > 0 && <p className="muted small btn-hint">Marque a declaração acima para depositar.</p>}
             {error && <p className="error" role="alert">{error}</p>}
             {done && <p className="pos" role="status">{done}</p>}
             <button
               className="primary"
-              disabled={!(amount > 0) || over || !!busy || Boolean(limit) || (mismatch && !mismatchAck)}
+              disabled={!(amount > 0) || over || !!busy || Boolean(limit) || (mismatch && !mismatchAck) || !qualified}
               onClick={() => {
                 if (suitability) deposit();
                 else {
@@ -214,7 +239,7 @@ export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, 
           </section>
 
           <section className="card">
-            <h3>Quanto você ganharia em 1 ano?</h3>
+            <h3>Como a participação nas taxas funciona (simulação)</h3>
             <div className="compare-hero">
               <div>
                 <span className="label">Conta comum</span>
@@ -248,7 +273,7 @@ export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, 
             )}
             <p className="muted small">
               Simulação, não promessa. Premissas: pool de R$ 100 mi, CDI {pct(CDI)}, Tesouro americano {pct(TBILL)}, 60% do
-              volume de apps parceiros. A <Brand /> só cobra 20% do que passar de 100% do CDI. Antes de IR e IOF.
+              volume de apps parceiros. Custos e premissas no documento de economia. Antes de IR e IOF.
             </p>
           </section>
         </>

@@ -1,7 +1,7 @@
 // Como cada movimentação aparece para a pessoa (tela inicial e extrato).
 import type { Wallet } from "./wallet";
 
-export const ACTIVITY_ICON = { swap: "⇄", deposit: "＋", send: "↗", harvest: "✦", withdraw: "↙", faucet: "🎁" } as const;
+export const ACTIVITY_ICON = { swap: "⇄", deposit: "＋", send: "↗", harvest: "✦", withdraw: "↙", faucet: "🎁", topup: "↓" } as const;
 
 export function activityTitle(a: Wallet["activity"][number]) {
   if (a.kind === "swap") return `Troca ${a.side === "BRL" ? "real → dólar" : "dólar → real"}`;
@@ -9,6 +9,7 @@ export function activityTitle(a: Wallet["activity"][number]) {
   if (a.kind === "harvest") return "Rendimento recebido";
   if (a.kind === "withdraw") return "Resgate da Rende";
   if (a.kind === "faucet") return "Moedas de teste recebidas";
+  if (a.kind === "topup") return "Pix recebido (demonstração)";
   if (a.route === "Pix") return "Pix enviado";
   if (a.route === "ACH") return "Envio para conta nos EUA";
   if (a.route === "SWIFT") return "Transferência internacional";

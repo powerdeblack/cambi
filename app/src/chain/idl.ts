@@ -48,4 +48,6 @@ export const PROGRAM_ERRORS: Record<number, string> = {
   6032: "Saque da fila ainda no prazo de aviso prévio",
   6033: "Lastro sem prova: reserva atestada menor que o emitido ou atestado vencido",
   6034: "Limite diário do seu nível de verificação atingido; tente amanhã ou suba de nível",
+  6035: "Bens indisponíveis por determinação legal; fale com o atendimento",
+  6036: "Depósito na Baleia exige credencial institucional (nível 3)",
 };

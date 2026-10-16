@@ -257,7 +257,17 @@ async function main() {
   const withdrawIx = (amount: number) =>
     program.methods
       .withdraw(u(amount))
-      .accountsPartial({ user: saver.publicKey, pool, position, brlVault, usdVault, userBrl: ata(saver.publicKey, BRL), userUsd: ata(saver.publicKey, USD), tokenProgram: TOKEN_PROGRAM_ID })
+      .accountsPartial({
+        user: saver.publicKey,
+        pool,
+        position,
+        brlVault,
+        usdVault,
+        userBrl: ata(saver.publicKey, BRL),
+        userUsd: ata(saver.publicKey, USD),
+        credential: credentialPda(pid, pool, saver.publicKey),
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
       .instruction();
   // A trava de depósito (lockup) segura o principal por alguns minutos: o teste espera para medir o saque de verdade.
   const lockup = Number((await acc.pool.fetch(pool)).lockupSecs);
@@ -282,6 +292,7 @@ async function main() {
             pool,
             position,
             ticket: ticketPda(pid, position),
+            credential: credentialPda(pid, pool, saver.publicKey),
             brlVault,
             usdVault,
             userBrl: ata(saver.publicKey, BRL),

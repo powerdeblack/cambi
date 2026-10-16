@@ -267,6 +267,18 @@ pub mod cambi_pool {
         Ok(())
     }
 
+    /// Indisponibilidade de bens (Lei 13.810/2019: sanções do CSNU; ordem judicial). Emissor de KYC ou admin.
+    /// Diferente da revogação: bloqueia também os saques, até a liberação.
+    pub fn set_frozen(ctx: Context<RevokeCredential>, frozen: bool) -> Result<()> {
+        let pool = &ctx.accounts.pool;
+        let who = ctx.accounts.authority.key();
+        require!(who == pool.kyc_issuer || who == pool.admin, CambiError::Unauthorized);
+        let c = &mut ctx.accounts.credential;
+        c.frozen = frozen;
+        emit!(FreezeEvent { user: c.user, frozen, by: who });
+        Ok(())
+    }
+
     /// Desfaz uma revogação (decisão do admin, ou seja, da multisig).
     pub fn restore_credential(ctx: Context<RestoreCredential>) -> Result<()> {
         let c = &mut ctx.accounts.credential;
@@ -334,6 +346,8 @@ pub mod cambi_pool {
         if ctx.accounts.pool.require_kyc {
             let value = value_in_brl(ctx.accounts.pool.price, s, amount)?;
             if let Some(c) = ctx.accounts.credential.as_deref_mut() {
+                // Baleia (júnior, provedor de liquidez): só instituição/investidor qualificado com credencial nível 3.
+                require!(t != BALEIA || c.level == 3, CambiError::BaleiaNeedsLevel3);
                 use_daily(c, &ctx.accounts.pool, now, value)?;
             }
         }
@@ -397,6 +411,7 @@ pub mod cambi_pool {
     /// Saca principal da posição (na moeda depositada) e recebe as taxas acumuladas nas duas moedas.
     /// `amount = 0` só colhe as taxas (permitido a qualquer momento, inclusive com o pool pausado).
     pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+        ensure_not_frozen(&ctx.accounts.credential)?;
         let t = tranche_idx(ctx.accounts.position.tranche)?;
         let s = side_idx(ctx.accounts.position.side)?;
         require!(amount <= ctx.accounts.position.amount, CambiError::InsufficientPosition);
@@ -616,6 +631,7 @@ pub mod cambi_pool {
     /// Pede um saque grande: o valor sai da posição agora (para de render), fica reservado no cofre
     /// (trocas não usam) e pode ser resgatado depois do aviso prévio. Funciona com o pool pausado.
     pub fn request_withdraw(ctx: Context<RequestWithdraw>, amount: u64) -> Result<()> {
+        ensure_not_frozen(&ctx.accounts.credential)?;
         require!(amount > 0, CambiError::ZeroAmount);
         let t = tranche_idx(ctx.accounts.position.tranche)?;
         let s = side_idx(ctx.accounts.position.side)?;
@@ -677,6 +693,7 @@ pub mod cambi_pool {
 
     /// Resgata o saque da fila depois do aviso prévio. O valor já estava reservado: não passa pelo disjuntor.
     pub fn claim_withdraw(ctx: Context<ClaimWithdraw>) -> Result<()> {
+        ensure_not_frozen(&ctx.accounts.credential)?;
         let now = Clock::get()?.unix_timestamp;
         let ticket = &ctx.accounts.ticket;
         require!(now >= ticket.ready_at, CambiError::WithdrawNotReady);
@@ -860,6 +877,18 @@ pub fn breaker_take(pool: &mut Pool, now: i64, free: [u64; 2], s: usize, amount:
     Ok(())
 }
 
+/// Saques: a credencial da carteira (endereço fixo por seeds, então não dá para omitir) não pode estar bloqueada.
+/// Carteira sem credencial (ex.: pool sem KYC) segue livre.
+pub fn ensure_not_frozen(acc: &UncheckedAccount) -> Result<()> {
+    if acc.data_is_empty() {
+        return Ok(());
+    }
+    let data = acc.try_borrow_data()?;
+    let c = Credential::try_deserialize(&mut &data[..])?;
+    require!(!c.frozen, CambiError::AssetsFrozen);
+    Ok(())
+}
+
 /// Entrada de uma moeda na janela do disjuntor abate a saída dela (conta a saída LÍQUIDA).
 /// Auditoria v2 (achado 2): trocas de ida e volta não enchem o disjuntor para travar os outros.
 pub fn breaker_inflow(pool: &mut Pool, now: i64, s: usize, amount: u64) {
@@ -875,6 +904,7 @@ pub fn check_credential(pool: &Pool, pool_key: Pubkey, user: Pubkey, cred: Optio
     }
     let c = cred.ok_or(error!(CambiError::KycRequired))?;
     require!(c.pool == pool_key && c.user == user, CambiError::KycRequired);
+    require!(!c.frozen, CambiError::AssetsFrozen);
     require!(!c.revoked, CambiError::CredentialRevoked);
     require!(now < c.expires_at, CambiError::CredentialExpired);
     // Auditoria v2 (achado 3): só vale credencial do emissor ATUAL. Trocar o emissor (chave vazada) invalida as antigas.
@@ -1196,6 +1226,8 @@ pub struct Credential {
     /// Uso acumulado da janela de 24 h (teto diário por nível).
     pub day_start: i64,
     pub day_used_brl: u64,
+    /// Indisponibilidade de bens (sanção da ONU/CSNU, ordem judicial): bloqueia troca, depósito e SAQUE.
+    pub frozen: bool,
 }
 
 #[account]
@@ -1255,6 +1287,13 @@ pub struct SwapEvent {
     pub to_platform: u64,
     pub to_partner: u64,
     pub price: u64,
+}
+
+#[event]
+pub struct FreezeEvent {
+    pub user: Pubkey,
+    pub frozen: bool,
+    pub by: Pubkey,
 }
 
 #[event]
@@ -1454,6 +1493,9 @@ pub struct RequestWithdraw<'info> {
     pub user_brl: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
     pub user_usd: Box<Account<'info, TokenAccount>>,
+    /// CHECK: credencial da carteira no endereço fixo (seeds); se existir, não pode estar bloqueada.
+    #[account(seeds = [b"credential", pool.key().as_ref(), user.key().as_ref()], bump)]
+    pub credential: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
@@ -1474,6 +1516,9 @@ pub struct ClaimWithdraw<'info> {
     pub user_brl: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
     pub user_usd: Box<Account<'info, TokenAccount>>,
+    /// CHECK: credencial da carteira no endereço fixo (seeds); se existir, não pode estar bloqueada.
+    #[account(seeds = [b"credential", pool.key().as_ref(), user.key().as_ref()], bump)]
+    pub credential: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -1554,6 +1599,9 @@ pub struct Withdraw<'info> {
     pub user_brl: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
     pub user_usd: Box<Account<'info, TokenAccount>>,
+    /// CHECK: credencial da carteira no endereço fixo (seeds); se existir, não pode estar bloqueada.
+    #[account(seeds = [b"credential", pool.key().as_ref(), user.key().as_ref()], bump)]
+    pub credential: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -1708,6 +1756,10 @@ pub enum CambiError {
     ReserveUnproven,
     #[msg("Limite diário do seu nível de verificação atingido; tente amanhã ou suba de nível")]
     AboveDailyLimit,
+    #[msg("Bens indisponíveis por determinação legal; fale com o atendimento")]
+    AssetsFrozen,
+    #[msg("Depósito na Baleia exige credencial institucional (nível 3)")]
+    BaleiaNeedsLevel3,
 }
 
 #[cfg(test)]
@@ -1764,7 +1816,7 @@ mod tests {
 
     fn cred(level: u8, expires_at: i64, revoked: bool) -> Credential {
         // Emissor = Pubkey::default() = pool.kyc_issuer nos testes.
-        Credential { pool: Pubkey::default(), user: Pubkey::default(), issuer: Pubkey::default(), level, expires_at, revoked, bump: 0, day_start: 0, day_used_brl: 0 }
+        Credential { pool: Pubkey::default(), user: Pubkey::default(), issuer: Pubkey::default(), level, expires_at, revoked, bump: 0, day_start: 0, day_used_brl: 0, frozen: false }
     }
 
     const R: u64 = 1_000_000; // 1 unidade com 6 casas
@@ -1908,6 +1960,15 @@ mod tests {
         breaker_inflow(&mut p, 10_020, BRL, 291 * R);
         assert_eq!(p.breaker_out[BRL], 0);
         assert!(breaker_take(&mut p, 10_030, [1_000 * R, 600 * R], BRL, 250 * R).is_ok());
+    }
+
+    #[test]
+    fn credencial_bloqueada_nao_troca() {
+        let p = pool(5_000_000);
+        let k = Pubkey::default();
+        let mut c = cred(3, 2_000, false);
+        c.frozen = true;
+        assert!(check_credential(&p, k, k, Some(&c), 1, 1_000).is_err());
     }
 
     #[test]

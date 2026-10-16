@@ -160,6 +160,7 @@ describe("cambi_pool", () => {
         usdVault: c.usdVault,
         userBrl: user.brl,
         userUsd: user.usd,
+        credential: credentialPda(pid, c.pool, user.kp.publicKey),
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .signers([user.kp])
@@ -475,13 +476,21 @@ describe("cambi_pool", () => {
     await expectError(swap(eve, BRL, 10_001, { ctx }), "AboveKycLimit");
     await swap(eve, BRL, 1_000, { ctx });
     await deposit(eve, RENDE, BRL, 1_000, ctx);
+    // Baleia (provedor de liquidez) só com credencial institucional, nível 3.
+    await expectError(deposit(eve, BALEIA, BRL, 100, ctx), "BaleiaNeedsLevel3");
     // Revogada (ex.: sanção): não troca mais, mas o dinheiro dela não fica preso.
     await program.methods
       .revokeCredential()
       .accountsPartial({ authority: admin.publicKey, pool: ctx.pool, credential: credentialPda(pid, ctx.pool, eve.kp.publicKey) })
       .rpc();
     await expectError(swap(eve, BRL, 100, { ctx }), "CredentialRevoked");
+    // Bloqueio de bens (sanção/ordem judicial) é diferente: trava também o saque, até a liberação.
+    const eveCred = credentialPda(pid, ctx.pool, eve.kp.publicKey);
+    await program.methods.setFrozen(true).accountsPartial({ authority: admin.publicKey, pool: ctx.pool, credential: eveCred }).rpc();
+    await expectError(withdraw(eve, RENDE, BRL, 1_000, ctx), "AssetsFrozen");
+    await program.methods.setFrozen(false).accountsPartial({ authority: admin.publicKey, pool: ctx.pool, credential: eveCred }).rpc();
     await withdraw(eve, RENDE, BRL, 1_000, ctx);
+
     // Só o emissor de KYC cria credencial.
     await expectError(
       program.methods
@@ -585,6 +594,7 @@ describe("cambi_pool", () => {
     const accounts = {
       user: lp.kp.publicKey,
       pool: ctx.pool,
+      credential: credentialPda(pid, ctx.pool, lp.kp.publicKey),
       brlVault: ctx.brlVault,
       usdVault: ctx.usdVault,
       userBrl: lp.brl,

@@ -16,8 +16,10 @@ com as correções dos gargalos levantados na revisão de "regulado na porta, DE
 
 ## O que continua igual
 
-- Saques **nunca** ficam bloqueados por pausa, por credencial revogada ou pelo disjuntor da fila: o que muda é o ritmo
-  (imediato até o limite, o resto pela fila).
+- Saques não ficam bloqueados por pausa, por credencial revogada ou pelo disjuntor da fila: o que muda é o ritmo
+  (imediato até o limite, o resto pela fila). A **única** exceção é o **bloqueio de bens** (`set_frozen`), exigido por
+  lei para sanções do CSNU (Lei 13.810/2019) e ordens judiciais: aí troca, depósito e saque param até a liberação.
+- Depósito na **Baleia** exige credencial **nível 3** (institucional/investidor qualificado).
 - Rende sênior, Baleia júnior, trava de depósito, limite de variação do oráculo e limite por troca seguem como no v1.
 
 ## Na devnet (rede de testes)

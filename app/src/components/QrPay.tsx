@@ -16,6 +16,8 @@ export type PayRequest =
 
 interface Props {
   mode: "pay" | "charge";
+  /** Cobrança: começa em Pix (Brasil) ou Solana Pay (exterior). */
+  chargeKind?: "pix" | "solana";
   wallet: Wallet;
   price: number; // reais por dólar (cotação do pool)
   live: boolean; // conta na Solana ativa
@@ -194,7 +196,7 @@ function PayPanel({ wallet, price, usdMint, preview, limitCheck, onPay, onClose,
         <button className="primary" disabled={!text.trim()} onClick={() => read(text)}>
           Continuar
         </button>
-        <p className="muted small">Pague qualquer QR Pix com o seu dólar digital, ou um QR Solana Pay com os seus reais: a cambI converte no pool, na hora.</p>
+        <p className="muted small">Pague qualquer QR Pix com o seu dólar digital, ou um QR Solana Pay com os seus reais: a cambI converte na hora, com a taxa mostrada antes.</p>
       </section>
     );
   }
@@ -318,8 +320,8 @@ function PayPanel({ wallet, price, usdMint, preview, limitCheck, onPay, onClose,
 
 /* ---------- Cobrar: gera QR Pix (Brasil) ou Solana Pay (exterior) ---------- */
 
-function ChargePanel({ live, owner, usdMint, name }: Props) {
-  const [kind, setKind] = useState<"pix" | "solana">("pix");
+function ChargePanel({ live, owner, usdMint, name, chargeKind }: Props) {
+  const [kind, setKind] = useState<"pix" | "solana">(chargeKind ?? "pix");
   const [cents, setCents] = useState(0);
   const [key, setKey] = useState("");
   const [copied, setCopied] = useState(false);
@@ -360,7 +362,7 @@ function ChargePanel({ live, owner, usdMint, name }: Props) {
           🇧🇷 Pix (Brasil)
         </button>
         <button className={`chip${kind === "solana" ? " on" : ""}`} aria-pressed={kind === "solana"} onClick={() => setKind("solana")}>
-          🌎 Solana Pay (exterior)
+          🌎 Receber do exterior
         </button>
       </div>
       <MoneyInput side={side} cents={cents} onChange={setCents} label={kind === "pix" ? "Valor em reais" : "Valor em dólar"} />
@@ -380,7 +382,7 @@ function ChargePanel({ live, owner, usdMint, name }: Props) {
           <p className="muted small">
             {kind === "pix"
               ? "Qualquer app de banco paga este Pix. Quem estiver fora do Brasil pode pagar com dólar digital pela cambI."
-              : "Quem paga escaneia com uma carteira Solana (como a Phantom). O dólar cai na sua conta cambI em segundos."}
+              : "Quem paga escaneia com uma carteira de dólar digital. O dólar cai na sua conta cambI em segundos."}
           </p>
           <div className="row-actions">
             <button className="secondary" onClick={copy}>

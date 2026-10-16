@@ -119,7 +119,7 @@ export function Exchange({ pool, wallet, onSwap, limitCheck, onVerify, preview, 
       )}
 
       {!isDepositor(wallet) && (
-        <p className="tip">Quem tem dinheiro na <Brand /> Rende paga metade: 0,5%.</p>
+        <p className="tip">Taxa já incluída no valor acima, comparada ao banco antes de você confirmar.</p>
       )}
 
       <label className="field purpose">
@@ -141,6 +141,7 @@ export function Exchange({ pool, wallet, onSwap, limitCheck, onVerify, preview, 
       )}
       {pv?.blocker && <p className="error">{pv.blocker}</p>}
       {error && <p className="error" role="alert">{error}</p>}
+      {valid && !purpose && !busy && <p className="muted small btn-hint">Escolha a finalidade da troca para continuar.</p>}
       <button className="primary" disabled={!valid || !purpose || busy} onClick={confirm}>
         {busy ? (
           <>
@@ -222,7 +223,7 @@ function Receipt({ r, onClose, onSendOut }: { r: SwapResult; onClose: () => void
 
       <p className="tip">
         💡 <strong>Spread</strong> é a diferença entre o preço justo do dólar e o que cobram de você. No banco ele fica com o
-        banco. Aqui, a maior parte volta para quem deposita.
+        banco. Aqui, você vê cada centavo dela no gráfico acima.
       </p>
       <button className="primary" onClick={onSendOut}>
         <SendIcon /> {out === "BRL" ? `Enviar ${money(out, r.amountOut)} por Pix` : `Enviar ${money(out, r.amountOut)} para fora`}
@@ -236,7 +237,7 @@ function Receipt({ r, onClose, onSendOut }: { r: SwapResult; onClose: () => void
 function ShareSaving({ saved }: { saved: number }) {
   const [copied, setCopied] = useState(false);
   if (!(saved > 0)) return null;
-  const text = `Troquei real por dólar na cambI e economizei ${reais(saved)} em relação ao banco. Câmbio peer-to-pool, 24 h, e quem deposita ganha com as trocas.`;
+  const text = `Troquei real por dólar na cambI e economizei ${reais(saved)} em relação ao banco. Câmbio 24 h, com a taxa aberta e comprovante público.`;
   const url = "https://powerdeblack.github.io/cambi/";
   async function share() {
     try {

@@ -415,6 +415,7 @@ export async function withdrawRende(signer: ChainSigner, side: number, amount: b
     w(vault[USD]),
     w(ata(owner, BRL)),
     w(ata(owner, USD)),
+    ...(isV2() ? [r(credentialPda(owner))] : []), // v2: bloqueio de bens confere a credencial
     r(TOKEN_PROGRAM_ID),
   ]);
   return sendTx([ix], owner, signer.signTransaction);
@@ -433,6 +434,7 @@ export async function requestWithdraw(signer: ChainSigner, side: number, amount:
     w(vault[USD]),
     w(ata(owner, BRL)),
     w(ata(owner, USD)),
+    r(credentialPda(owner)),
     r(TOKEN_PROGRAM_ID),
     r(SystemProgram.programId),
   ]);
@@ -451,6 +453,7 @@ export async function claimWithdraw(signer: ChainSigner, side: number) {
     w(vault[USD]),
     w(ata(owner, BRL)),
     w(ata(owner, USD)),
+    r(credentialPda(owner)),
     r(TOKEN_PROGRAM_ID),
   ]);
   return sendTx([ix], owner, signer.signTransaction);

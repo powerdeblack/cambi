@@ -1,6 +1,7 @@
 /* Design tokens */
 :root {
   --green: #12a150;
+  --green-strong: #0b7a3b; /* texto branco sobre ele e links: contraste AA (~5,4:1) */
   --green-strong: #0e8a44;
   --green-soft: #e3f6ea;
   --navy: #0b2545;
@@ -121,7 +122,7 @@ p { margin: 0 0 12px; line-height: 1.45; }
 /* Botões */
 button.primary {
   width: 100%; min-height: 52px; margin-top: 8px; font-size: 1rem; font-weight: 700; border: 0;
-  border-radius: 14px; background: var(--green); color: #fff; cursor: pointer;
+  border-radius: 14px; background: var(--green-strong); color: #fff; cursor: pointer;
 }
 button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
 button.secondary {
@@ -682,12 +683,12 @@ textarea.paste:focus { outline: none; border-color: var(--green); }
 .gov-check.ok { background: var(--green-soft); color: var(--green); }
 .gov-check.differs { color: var(--error); }
 .baleias { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 4px 0 10px; }
-.baleia {
+.whale-chip {
   display: grid; justify-items: center; gap: 2px; padding: 8px 2px; border-radius: 12px; border: 1px solid var(--line);
   background: var(--card); color: var(--ink); text-decoration: none;
 }
 .baleia-n { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 800; font-size: 0.85rem; }
-.baleia small { font-size: 0.68rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.whale-chip small { font-size: 0.68rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .validations li { align-items: flex-start; }
 .validations li > span:nth-child(2) { gap: 4px; }
 .validations strong { font-size: 0.88rem; line-height: 1.3; }
@@ -704,3 +705,13 @@ textarea.paste:focus { outline: none; border-color: var(--green); }
 .safety-list { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 6px; font-size: 0.86rem; color: var(--ink); }
 .share-saving { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin: 4px 0 14px; }
 .share-saving svg { width: 18px; height: 18px; }
+.qualified-row { font-size: 0.85rem; align-items: flex-start; }
+
+/* Painel UI/UX: contraste dos links, texto jurídico legível, alvos de toque */
+button.link, .proofs a, .v-links a { color: var(--green-strong); }
+@media (prefers-color-scheme: dark) { button.link, .proofs a, .v-links a { color: #7ee2a8; } }
+.qualified-row span { display: block; font-weight: 400; }
+.profile-btn, .eye { width: 44px; height: 44px; }
+.chips.tight .chip { min-height: 40px; }
+.row-btn > svg:last-child { margin-left: auto; }
+.btn-hint { text-align: center; margin: 6px 0 0; }

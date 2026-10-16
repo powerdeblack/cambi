@@ -81,7 +81,7 @@ export function ConsortiumCard() {
 
       <div className="baleias" role="list" aria-label="Baleias do consórcio">
         {c.members.map((m) => (
-          <a key={m.key} role="listitem" className="baleia" href={explorerAddress(m.key)} target="_blank" rel="noreferrer">
+          <a key={m.key} role="listitem" className="whale-chip" href={explorerAddress(m.key)} target="_blank" rel="noreferrer">
             <span className="baleia-n">{m.name.replace("Baleia ", "")}</span>
             <small>R$ {m.depositBRL >= 1000 ? `${Math.round(m.depositBRL / 1000)} mil` : m.depositBRL}</small>
           </a>

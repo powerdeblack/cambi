@@ -61,7 +61,9 @@ function usePoolLive() {
           setError(null);
         }
       } catch (e) {
-        if (alive) setError((e as Error).message);
+        // Mensagem para gente, não erro técnico (o detalhe vai para o console).
+        console.warn("PoolLive", e);
+        if (alive) setError("Sem conexão com a rede de testes agora.");
       }
     }
     load();
@@ -102,7 +104,7 @@ export function PoolLive({ live, onRende }: Props) {
           <span className="live-dot" aria-hidden />
           <h3>Pool ao vivo na Solana</h3>
         </div>
-        <p className="muted">{error ? `Não foi possível ler a blockchain agora (${error}). Tentando de novo…` : "Lendo o pool na blockchain…"}</p>
+        <p className="muted">{error ? `${error} Tentando de novo a cada minuto…` : "Lendo o pool na blockchain…"}</p>
         {!error && <div className="skeleton tall" />}
       </section>
     );

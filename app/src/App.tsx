@@ -10,6 +10,8 @@ import { DollarScreen } from "./components/DollarScreen";
 import { Exchange } from "./components/Exchange";
 import { Home } from "./components/Home";
 import { PayRequest, QrPay } from "./components/QrPay";
+import { AddMoney } from "./components/AddMoney";
+import { Goal, GoalSheet, goalAsked } from "./components/GoalSheet";
 import { BankIcon, ChevronIcon, GrowIcon, HomeIcon, KeyIcon, PoolIcon, SwapIcon, UserIcon } from "./components/Icons";
 import { Logo } from "./components/Logo";
 import { OnchainCard } from "./components/OnchainCard";
@@ -31,7 +33,7 @@ import { ProfileScreen } from "./components/ProfileScreen";
 import { SuitabilitySheet } from "./components/SuitabilitySheet";
 import { RateAlert, alertHit, loadAlert, saveAlert } from "./history";
 import { useLiveQuote } from "./useLiveQuote";
-import { INITIAL_WALLET, Recipient, Wallet, kindFor, rememberRecipient, routeLabel, sanitizeWallet, simulateMarket, walletDeposit, walletSend, walletSwap } from "./wallet";
+import { INITIAL_WALLET, Recipient, Wallet, kindFor, walletTopUp, rememberRecipient, routeLabel, sanitizeWallet, simulateMarket, walletDeposit, walletSend, walletSwap } from "./wallet";
 
 const PRICE = 5.4; // cotação de referência, usada só até chegar a cotação ao vivo (ou se as fontes estiverem fora do ar)
 const STORAGE_KEY = "cambi-demo-v1";
@@ -63,7 +65,11 @@ function loadSaved(): { pool: PoolState; wallet: Wallet } | null {
 const idx = (s: Side) => (s === "BRL" ? 0 : 1);
 
 type Tab = "inicio" | "trocar" | "rende" | "pool";
-type Flow = { kind: "send"; side: Side; cents?: number } | { kind: "qr"; mode: "pay" | "charge" } | null;
+type Flow =
+  | { kind: "send"; side: Side; cents?: number }
+  | { kind: "qr"; mode: "pay" | "charge"; chargeKind?: "pix" | "solana" }
+  | { kind: "add" }
+  | null;
 
 const TABS: { id: Tab; label: string; Icon: () => JSX.Element }[] = [
   { id: "inicio", label: "Início", Icon: HomeIcon },
@@ -85,6 +91,14 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [suitabilityOpen, setSuitabilityOpen] = useState(false);
   const [legal, setLegal] = useState<LegalDoc | null>(null);
+  // Primeira abertura: uma pergunta só (objetivo) que leva direto à primeira ação certa.
+  const [goalOpen, setGoalOpen] = useState(() => !goalAsked());
+  const pickGoal = (g: Goal) => {
+    setGoalOpen(false);
+    if (g === "receber") setFlow({ kind: "qr", mode: "charge", chargeKind: "solana" });
+    else if (g === "pagar") setFlow({ kind: "qr", mode: "pay" });
+    else setTab("trocar");
+  };
   // Esconder saldo (padrão dos apps de banco), lembrado neste aparelho.
   const [hideMoney, setHideMoney] = useState(() => {
     try {
@@ -398,11 +412,11 @@ export default function App() {
             wallet={view}
             go={setTab}
             onSend={() => setChooser(true)}
-            onQr={(mode) => setFlow({ kind: "qr", mode })}
+            onQr={(mode) => setFlow(mode === "charge" ? { kind: "qr", mode, chargeKind: "solana" } : { kind: "qr", mode })}
+            onAdd={() => setFlow({ kind: "add" })}
             onSimulateMarket={live ? undefined : handleMarket}
             onStatement={() => setStatement(true)}
             onDollars={() => setDollarsOpen(true)}
-            onAlert={() => setAlertOpen(true)}
             name={profile.name.trim().split(/\s+/)[0] || undefined}
             hidden={hideMoney}
             onToggleHidden={() => {
@@ -581,6 +595,7 @@ export default function App() {
       {flow?.kind === "qr" && (
         <QrPay
           mode={flow.mode}
+          chargeKind={flow.chargeKind}
           wallet={view}
           price={viewPool.price}
           live={!!live}
@@ -593,6 +608,19 @@ export default function App() {
           onClose={() => setFlow(null)}
         />
       )}
+
+      {flow?.kind === "add" && (
+        <AddMoney
+          live={!!live}
+          onTopUp={(amount) => {
+            touched.current = true;
+            setWallet((w) => walletTopUp(w, amount));
+          }}
+          onClose={() => setFlow(null)}
+        />
+      )}
+
+      {goalOpen && !flow && <GoalSheet onPick={pickGoal} onClose={() => setGoalOpen(false)} />}
 
       {flow?.kind === "send" && (
         <SendFlow
