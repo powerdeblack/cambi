@@ -4,7 +4,7 @@ import { dollarResult } from "../position";
 import { Wallet, isDepositor } from "../wallet";
 import { Brand } from "./Brand";
 import { ACTIVITY_ICON, activityTitle } from "../activity";
-import { BellIcon, ChevronIcon, EyeIcon, EyeOffIcon, GrowIcon, ListIcon, SendIcon, SwapIcon } from "./Icons";
+import { BellIcon, ChevronIcon, EyeIcon, EyeOffIcon, GrowIcon, ListIcon, QrIcon, ScanIcon, SendIcon, SwapIcon } from "./Icons";
 import { ReactNode } from "react";
 
 interface Props {
@@ -12,6 +12,7 @@ interface Props {
   wallet: Wallet;
   go: (tab: "trocar" | "rende") => void;
   onSend: () => void;
+  onQr: (mode: "pay" | "charge") => void;
   onSimulateMarket?: () => void;
   onStatement: () => void;
   onDollars: () => void;
@@ -30,7 +31,7 @@ const greeting = () => {
 };
 
 
-export function Home({ pool, wallet, go, onSend, onSimulateMarket, onStatement, onDollars, onAlert, name, hidden, onToggleHidden, afterActions }: Props) {
+export function Home({ pool, wallet, go, onSend, onQr, onSimulateMarket, onStatement, onDollars, onAlert, name, hidden, onToggleHidden, afterActions }: Props) {
   const p = pool.price;
   const free = wallet.balance.BRL + wallet.balance.USD * p;
   const invested = wallet.rende.BRL + wallet.rende.USD * p;
@@ -70,6 +71,14 @@ export function Home({ pool, wallet, go, onSend, onSimulateMarket, onStatement, 
         <button onClick={onSend}>
           <span className="qa-icon"><SendIcon /></span>
           Enviar
+        </button>
+        <button onClick={() => onQr("pay")}>
+          <span className="qa-icon"><ScanIcon /></span>
+          Pagar QR
+        </button>
+        <button onClick={() => onQr("charge")}>
+          <span className="qa-icon"><QrIcon /></span>
+          Cobrar
         </button>
         <button onClick={() => go("rende")}>
           <span className="qa-icon"><GrowIcon /></span>

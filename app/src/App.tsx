@@ -8,6 +8,7 @@ import { DollarCard } from "./components/DollarCard";
 import { DollarScreen } from "./components/DollarScreen";
 import { Exchange } from "./components/Exchange";
 import { Home } from "./components/Home";
+import { PayRequest, QrPay } from "./components/QrPay";
 import { BankIcon, ChevronIcon, GrowIcon, HomeIcon, KeyIcon, PoolIcon, SwapIcon, UserIcon } from "./components/Icons";
 import { Logo } from "./components/Logo";
 import { OnchainCard } from "./components/OnchainCard";
@@ -19,7 +20,9 @@ import { Rende } from "./components/Rende";
 import { SendFlow } from "./components/SendFlow";
 import { Sheet } from "./components/Sheet";
 import { Statement } from "./components/Statement";
-import { BENCHMARKS, PoolState, Side, SwapResult, createPool, deposit, setPrice } from "./engine/pool";
+import { BENCHMARKS, PoolState, Side, SwapResult, createPool, deposit, quote as quoteSwap, setPrice } from "./engine/pool";
+import { amountForTarget } from "./payqr";
+import devnet from "./devnet.json";
 import { money, rate } from "./format";
 import { EMPTY_PROFILE, Profile, isVerified, limitProblem, loadProfile, saveProfile } from "./compliance";
 import { Legal, LegalDoc } from "./components/Legal";
@@ -27,7 +30,7 @@ import { ProfileScreen } from "./components/ProfileScreen";
 import { SuitabilitySheet } from "./components/SuitabilitySheet";
 import { RateAlert, alertHit, loadAlert, saveAlert } from "./history";
 import { useLiveQuote } from "./useLiveQuote";
-import { INITIAL_WALLET, Recipient, Wallet, rememberRecipient, routeLabel, sanitizeWallet, simulateMarket, walletDeposit, walletSend, walletSwap } from "./wallet";
+import { INITIAL_WALLET, Recipient, Wallet, kindFor, rememberRecipient, routeLabel, sanitizeWallet, simulateMarket, walletDeposit, walletSend, walletSwap } from "./wallet";
 
 const PRICE = 5.4; // cotação de referência, usada só até chegar a cotação ao vivo (ou se as fontes estiverem fora do ar)
 const STORAGE_KEY = "cambi-demo-v1";
@@ -59,7 +62,7 @@ function loadSaved(): { pool: PoolState; wallet: Wallet } | null {
 const idx = (s: Side) => (s === "BRL" ? 0 : 1);
 
 type Tab = "inicio" | "trocar" | "rende" | "pool";
-type Flow = { kind: "send"; side: Side; cents?: number } | null;
+type Flow = { kind: "send"; side: Side; cents?: number } | { kind: "qr"; mode: "pay" | "charge" } | null;
 
 const TABS: { id: Tab; label: string; Icon: () => JSX.Element }[] = [
   { id: "inicio", label: "Início", Icon: HomeIcon },
@@ -229,15 +232,61 @@ export default function App() {
     }
   }
 
-  async function chainSend(side: Side, amount: number, fee: number, recipient: Recipient) {
+  async function chainSend(side: Side, amount: number, fee: number, recipient: Recipient, payReference?: string) {
     // Na blockchain vai só um código de referência; chave Pix, nome e conta ficam fora dela.
     const reference = `${recipient.route}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const destination = recipient.route === "usdc" ? recipient.data.address ?? "" : "";
-    const sig = await run((c, s) => c.sendOut(s, idx(side), toUnits(amount + fee), recipient.route, destination, reference));
+    const sig = await run((c, s) => c.sendOut(s, idx(side), toUnits(amount + fee), recipient.route, destination, reference, payReference));
     const route = routeLabel(recipient.route);
     record({ kind: "send", side, amountIn: amount, fee, to: `${recipient.name} · ${recipient.detail}`, route, sig });
     setWallet((w) => rememberRecipient(w, recipient));
     return sig;
+  }
+
+  /** Quanto sai do outro lado numa troca (prévia com taxa), na blockchain ou na demo. */
+  const previewOut = (side: Side, amount: number) => (live ? chainPreview(side, amount).amountOut : quoteSwap(pool, side, amount, kindFor(wallet)).amountOut);
+
+  /** Pagar um QR Pix (sai em reais) ou Solana Pay (sai em dólar): se a pessoa paga com a outra moeda, troca antes no pool. */
+  async function payQr(p: PayRequest): Promise<string[]> {
+    touched.current = true;
+    const outSide: Side = p.kind === "pix" ? "BRL" : "USD";
+    const target = p.kind === "pix" ? p.amountBRL : p.amountUSD;
+    const recipient: Recipient =
+      p.kind === "pix"
+        ? {
+            id: `pix:${p.pix.key}`,
+            side: "BRL",
+            route: "pix",
+            name: p.pix.name || "Recebedor Pix",
+            detail: `Pix por QR · ${p.pix.key.length > 12 ? `${p.pix.key.slice(0, 4)}•••${p.pix.key.slice(-4)}` : p.pix.key}`,
+            data: { type: "aleatoria", key: p.pix.key },
+          }
+        : {
+            id: `usdc:${p.pay.recipient}`,
+            side: "USD",
+            route: "usdc",
+            name: p.pay.label || "Carteira Solana",
+            detail: `Solana Pay · ${p.pay.recipient.slice(0, 4)}…${p.pay.recipient.slice(-4)}`,
+            data: { address: p.pay.recipient },
+          };
+    const swapIn = p.payWith !== outSide ? amountForTarget(target, 100, previewOut(p.payWith, 100)) : 0;
+    if (live) {
+      const sigs: string[] = [];
+      if (swapIn > 0) sigs.push((await chainSwap(p.payWith, swapIn, "compras")).signature!);
+      sigs.push(await chainSend(outSide, target, 0, recipient, p.kind === "solana" ? p.pay.reference : undefined));
+      return sigs;
+    }
+    let nextPool = pool;
+    let nextWallet = wallet;
+    if (swapIn > 0) {
+      const r = walletSwap(nextPool, nextWallet, p.payWith, swapIn, "compras");
+      nextPool = r.pool;
+      nextWallet = r.wallet;
+    }
+    nextWallet = walletSend(nextWallet, outSide, target, 0, recipient);
+    setPool(nextPool);
+    setWallet(nextWallet);
+    return [];
   }
 
   function handleSwap(side: Side, amount: number, purpose?: string) {
@@ -327,6 +376,7 @@ export default function App() {
             wallet={view}
             go={setTab}
             onSend={() => setChooser(true)}
+            onQr={(mode) => setFlow({ kind: "qr", mode })}
             onSimulateMarket={live ? undefined : handleMarket}
             onStatement={() => setStatement(true)}
             onDollars={() => setDollarsOpen(true)}
@@ -500,6 +550,22 @@ export default function App() {
             setTab("rende");
           }}
           onClose={() => setDollarsOpen(false)}
+        />
+      )}
+
+      {flow?.kind === "qr" && (
+        <QrPay
+          mode={flow.mode}
+          wallet={view}
+          price={viewPool.price}
+          live={!!live}
+          owner={live?.owner}
+          usdMint={devnet.usdMint}
+          name={profile.name.trim() || undefined}
+          preview={previewOut}
+          limitCheck={limitCheck}
+          onPay={payQr}
+          onClose={() => setFlow(null)}
         />
       )}
 

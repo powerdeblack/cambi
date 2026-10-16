@@ -375,7 +375,7 @@ export async function withdrawRende(signer: ChainSigner, side: number, amount: b
  * programa). Pix e conta nos EUA: vai para a carteira do parceiro, com um memo que tem SÓ um código de
  * referência (nenhum dado pessoal na blockchain); o parceiro paga a outra ponta.
  */
-export async function sendOut(signer: ChainSigner, side: number, amount: bigint, route: "pix" | "ach" | "swift" | "usdc", destination: string, reference: string) {
+export async function sendOut(signer: ChainSigner, side: number, amount: bigint, route: "pix" | "ach" | "swift" | "usdc", destination: string, reference: string, payReference?: string) {
   const owner = signer.publicKey;
   const { mint } = ids();
   let to: PublicKey;
@@ -387,9 +387,12 @@ export async function sendOut(signer: ChainSigner, side: number, amount: bigint,
     to = new PublicKey(d.payout!);
   }
   const toAta = ata(to, side);
+  const transfer = transferCheckedIx(ata(owner, side), mint[side], toAta, owner, amount, DECIMALS);
+  // Solana Pay: a referência do QR entra como conta só de leitura, para quem cobrou achar o pagamento.
+  if (payReference) transfer.keys.push({ pubkey: new PublicKey(payReference), isSigner: false, isWritable: false });
   const ixs = [
     createAtaIdempotentIx(owner, toAta, to, mint[side]),
-    transferCheckedIx(ata(owner, side), mint[side], toAta, owner, amount, DECIMALS),
+    transfer,
     memo(`cambI ref ${reference.replace(/[^A-Za-z0-9-]/g, "").slice(0, 24)}`, owner),
   ];
   return sendTx(ixs, owner, signer.signTransaction);

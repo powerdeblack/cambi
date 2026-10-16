@@ -94,13 +94,13 @@ p { margin: 0 0 12px; line-height: 1.45; }
 .earned-chip { display: inline-block; margin-top: 14px; padding: 6px 12px; border-radius: 999px; background: rgba(18, 161, 80, 0.25); color: #9ff0c0; font-weight: 700; font-size: 0.85rem; }
 
 /* Atalhos */
-.quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 8px; padding: 4px 0 6px; }
+.quick-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 8px; padding: 4px 0 6px; }
 .quick-actions button {
   display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 4px 2px; border: 0; background: none;
   font-weight: 600; font-size: 0.82rem; color: var(--ink); cursor: pointer; min-height: 76px; -webkit-tap-highlight-color: transparent;
 }
 .quick-actions .qa-icon {
-  width: 56px; height: 56px; border-radius: 50%; background: var(--card); color: var(--green); border: 1px solid var(--line);
+  width: 52px; height: 52px; border-radius: 50%; background: var(--card); color: var(--green); border: 1px solid var(--line);
   box-shadow: 0 2px 8px rgba(11, 37, 69, 0.08); transition: transform 0.12s ease, background 0.12s ease;
 }
 .quick-actions .qa-icon svg { width: 24px; height: 24px; }
@@ -644,3 +644,34 @@ button.link.inline { padding: 0; font-size: inherit; }
 .hero-chart .chart-legend, .pool-now .chart-legend { flex-wrap: wrap; gap: 4px 14px; }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .legend-item .legend-diamond { margin-left: 0; }
+
+/* QR Code: pagar e cobrar (Pix e Solana Pay) */
+.chips.tight { margin: 0 0 14px; }
+.chips .chip svg { width: 16px; height: 16px; vertical-align: -3px; margin-right: 4px; }
+.scanner { display: grid; gap: 10px; justify-items: center; margin-bottom: 14px; }
+.scanner video { display: none; width: 100%; max-width: 320px; aspect-ratio: 1; object-fit: cover; border-radius: 16px; background: #000; }
+.scanner video.on { display: block; }
+.scanner button { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.scanner button svg { width: 20px; height: 20px; }
+textarea.paste {
+  width: 100%; margin-top: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink);
+  font: 0.85rem/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; word-break: break-all;
+}
+textarea.paste:focus { outline: none; border-color: var(--green); }
+.qr-kind { display: inline-block; padding: 4px 10px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-weight: 700; font-size: 0.78rem; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0 0 14px; }
+.kv dt { color: var(--muted); font-size: 0.85rem; }
+.kv dd { margin: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }
+.qr-amount { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em; text-align: center; margin: 6px 0 12px; font-variant-numeric: tabular-nums; }
+.qr-cost { padding: 12px; border-radius: 12px; background: var(--bg); }
+.qr-cost .small { display: block; margin-top: 4px; }
+.qr-review .link { display: block; margin: 10px auto 0; }
+.qr-box { display: grid; justify-items: center; gap: 4px; text-align: center; margin: 8px 0 12px; }
+.qr { width: min(100%, 240px); height: auto; border-radius: 12px; border: 1px solid var(--line); }
+.row-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; width: 100%; }
+.row-actions button { display: inline-flex; align-items: center; gap: 6px; }
+.row-actions svg { width: 18px; height: 18px; }
+.ok-badge { display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--green); color: #fff; margin: 4px auto 10px; }
+.ok-badge svg { width: 28px; height: 28px; }
+.receipt .chain-badge { display: inline-block; margin: 0 4px 10px; }
+.receipt .ok-badge + h3 { text-align: center; }
