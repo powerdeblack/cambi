@@ -42,3 +42,21 @@ Com lastro que rende, o dinheiro parado no pool ganha o juro básico e as taxas 
 
 - Rust (`cargo test`): KYC, teto por nível, disjuntor, fila de saque, prova de reserva e as regras antigas.
 - Integração (`anchor test`, numa Solana local no CI): cada regra acima com transações reais, incluindo os ataques.
+
+## Auditoria interna do v2 (v2.1)
+
+Uma revisão independente do código v2 encontrou 8 pontos (nenhum crítico). Corrigidos no v2.1:
+
+| Achado | Gravidade | Correção |
+|---|---|---|
+| Base do disjuntor inflável: depósito grande, janela recomeça, o valor sai pela fila e o teto fica alto | Média-alta | Base limitada a `livre + já saído`; o que entra na fila sai da base |
+| Griefing: trocas de ida e volta enchem o disjuntor e travam todo mundo | Média | Disjuntor conta saída **líquida** (entrada da moeda abate a saída dela) |
+| Trocar o emissor de KYC não invalidava credenciais antigas; validade sem teto | Média | Só vale credencial do emissor atual; validade máxima de 400 dias |
+| Atestado de reserva de atestador antigo continuava valendo | Média | Só vale atestado do atestador atual |
+| App parceiro B2B sem teto e sem como descredenciar | Média | Teto institucional por operação; `remove_partner` |
+| CI não conferia a credencial de teste fora do binário de produção | Baixa-média | CI procura também `devnet_credential` e `admin_mint` |
+| Reemitir credencial desfazia revogação | Baixa | Só o admin (multisig) restaura (`restore_credential`) |
+| Aviso prévio da fila podia ser zero | Baixa | Mínimo de 60 s |
+
+Em aberto (próximas versões): teto **acumulado** por dia por credencial (hoje é por operação) e janela
+deslizante no disjuntor (hoje é fixa: no virar da janela dá para sair ~2× o teto em pouco tempo).
