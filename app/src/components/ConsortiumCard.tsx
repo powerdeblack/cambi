@@ -24,7 +24,15 @@ interface Consortium {
   threshold: number;
   members: Member[];
   upgradeAuthorityInMultisig: boolean;
+  upgrade?: { multisig: string; vault: string; threshold: number; timeLockSecs: number };
   validations: Validation[];
+}
+interface Security {
+  levelLimitsBRL: number[];
+  breaker: { windowSecs: number; bps: number };
+  instantWithdrawBps: number;
+  withdrawNoticeSecs: number;
+  guardian: string;
 }
 
 const short = (s: string) => `${s.slice(0, 4)}…${s.slice(-4)}`;
@@ -32,7 +40,9 @@ const when = (iso: string) => new Date(iso).toLocaleString("pt-BR", { day: "2-di
 
 /** Consórcio de Baleias: 10 provedores de liquidez com chave própria; 7 precisam assinar cada mudança no pool. */
 export function ConsortiumCard() {
-  const c = (deployment as unknown as { consortium?: Consortium }).consortium;
+  const dep = deployment as unknown as { consortium?: Consortium; security?: Security };
+  const c = dep.consortium;
+  const sec = dep.security;
   const [check, setCheck] = useState<"loading" | "ok" | "differs" | "error">("loading");
 
   useEffect(() => {
@@ -113,6 +123,25 @@ export function ConsortiumCard() {
           <a href={explorerAddress(c.vault)} target="_blank" rel="noreferrer">{short(c.vault)} ↗</a>
         </li>
       </ul>
+      {c.upgrade && (
+        <ul className="list proofs">
+          <li>
+            <span>Upgrade do programa ({c.upgrade.threshold} de {c.members.length}, espera de {Math.round(c.upgrade.timeLockSecs / 3600)} h)</span>
+            <a href={explorerAddress(c.upgrade.multisig)} target="_blank" rel="noreferrer">{short(c.upgrade.multisig)} ↗</a>
+          </li>
+        </ul>
+      )}
+      {sec && (
+        <>
+          <h4 className="sub">Proteções do pool</h4>
+          <ul className="safety-list">
+            <li>Só carteira com credencial de identidade troca e deposita. Teto por operação: {money("BRL", sec.levelLimitsBRL[0]).replace(",00", "")} no nível básico, {money("BRL", sec.levelLimitsBRL[1]).replace(",00", "")} no completo.</li>
+            <li>Disjuntor: no máximo {sec.breaker.bps / 100}% da liquidez de cada moeda sai por {Math.round(sec.breaker.windowSecs / 60)} min.</li>
+            <li>Saque na hora até {sec.instantWithdrawBps / 100}% da liquidez; acima disso, fila com aviso de {Math.round(sec.withdrawNoticeSecs / 60)} min e valor reservado.</li>
+            <li>Guardião de plantão só consegue pausar. Despausar e mudar regras é com a multisig.</li>
+          </ul>
+        </>
+      )}
       {!c.upgradeAuthorityInMultisig && (
         <p className="warn-box small">
           Ainda falta: o código do programa continua atualizável por uma chave só. O próximo passo é passar essa permissão
