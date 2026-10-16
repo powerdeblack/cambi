@@ -92,7 +92,9 @@ jobs:
           BAL=$(solana balance | awk '{print $1}')
           SIZE=$(stat -c%s target/deploy/cambi_pool.so)
           if solana program show "$PROGRAM_ID" >/dev/null 2>&1; then
-            echo "PROGRAM_EXISTS=1" >> "$GITHUB_ENV"; NEED=0.6
+            echo "PROGRAM_EXISTS=1" >> "$GITHUB_ENV"
+            # Já existe: se o pool ainda não foi montado (upgrade ainda com o deployer), atualiza o binário.
+            if [ -f deployments/devnet-v2.json ]; then NEED=0.6; else NEED=$(awk -v a="$(rent $SIZE)" 'BEGIN {printf "%.2f", a + 1.0}'); fi
           else
             echo "PROGRAM_EXISTS=0" >> "$GITHUB_ENV"
             # Programa no tamanho exato (sem folga) + buffer temporário (o SOL do buffer volta no fim) + montagem do pool.
@@ -111,10 +113,21 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy do programa v2
-        if: env.PROGRAM_EXISTS == '0'
+      - name: Deploy (ou atualização antes da montagem) do programa v2
         timeout-minutes: 120
         run: |
+          if [ "$PROGRAM_EXISTS" = 1 ]; then
+            if solana program dump "$PROGRAM_ID" /tmp/onchain.so 2>/dev/null \
+               && cmp -s -n "$SIZE" target/deploy/cambi_pool.so /tmp/onchain.so; then
+              echo "Programa já está na devnet com este binário."; exit 0
+            fi
+            if [ -f deployments/devnet-v2.json ]; then
+              echo "::error::Programa já montado e com upgrade na multisig: atualizar só por proposta da multisig (com prazo de espera)."
+              exit 1
+            fi
+            CUR=$(solana program show "$PROGRAM_ID" --output json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).dataLen||0))')
+            [ "$SIZE" -gt "$CUR" ] && solana program extend "$PROGRAM_ID" $((SIZE - CUR))
+          fi
           solana-keygen new --no-bip39-passphrase --silent --force -o /tmp/buffer.json
           BUFFER=$(solana address -k /tmp/buffer.json)
           ok=0
@@ -131,8 +144,13 @@ jobs:
             echo "::error::Não foi possível escrever o programa na devnet (RPC pública instável). Rode de novo."
             exit 1
           fi
-          solana program deploy --buffer /tmp/buffer.json --program-id target/deploy/cambi_pool-keypair.json \
-            --max-len "$SIZE" --with-compute-unit-price 100000 --max-sign-attempts 100 --use-rpc
+          if [ "$PROGRAM_EXISTS" = 1 ]; then
+            solana program deploy --buffer /tmp/buffer.json --program-id target/deploy/cambi_pool-keypair.json \
+              --with-compute-unit-price 100000 --max-sign-attempts 100 --use-rpc
+          else
+            solana program deploy --buffer /tmp/buffer.json --program-id target/deploy/cambi_pool-keypair.json \
+              --max-len "$SIZE" --with-compute-unit-price 100000 --max-sign-attempts 100 --use-rpc
+          fi
           solana program show "$PROGRAM_ID"
 
       - name: Montar o pool v2 (ou rodada de cotação)
