@@ -544,7 +544,8 @@ describe("cambi_pool", () => {
       const usd = await tokenBalance(connection, trader.usd);
       await swap(trader, USD, Math.floor(usd * 100) / 100, { ctx });
     }
-    await swap(lp, BRL, 300, { ctx });
+    // Depois das idas e voltas, uma troca normal ainda passa: o disjuntor não ficou cheio.
+    await swap(trader, BRL, 300, { ctx });
   });
 
   it("v2: guardião só pausa; despausar é do admin (multisig)", async () => {
