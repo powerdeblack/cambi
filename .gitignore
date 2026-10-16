@@ -9,3 +9,4 @@ test-ledger/
 
 .devnet-keys/
 ui-e2e/
+.consortium-keys/
