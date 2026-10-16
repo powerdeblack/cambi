@@ -81,7 +81,9 @@ async function main() {
       continue;
     }
     for (const ev of parser.parseLogs(logs)) {
-      const d = ev.data as Record<string, any>;
+      // O EventParser pode devolver os campos em snake_case (como no IDL) ou camelCase: aceita os dois.
+      const raw = ev.data as Record<string, any>;
+      const d = new Proxy(raw, { get: (o, k: string) => o[k] ?? o[k.replace(/[A-Z]/g, (c) => "_" + c.toLowerCase())] });
       const num = (v: any) => Number(v?.toString?.() ?? v) / 1e6;
       switch (ev.name) {
         case "SwapEvent": {

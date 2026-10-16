@@ -1,0 +1,42 @@
+name: Métricas do pool v2 (devnet, branch v2)
+
+# Só lê a blockchain e publica agregados (sem chaves). Para rodar: altere deployments/metrics-round.txt no branch v2.
+on:
+  push:
+    branches: [v2]
+    paths:
+      - deployments/metrics-round.txt
+
+permissions:
+  contents: write
+
+concurrency:
+  group: program-v2-devnet
+  cancel-in-progress: false
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: v2
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx tsx scripts/metrics-v2.ts
+      - name: Publicar no branch v2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deployments/metrics-v2.json app/src/metrics-v2.json
+          git commit -q -m "Métricas do pool v2 [skip ci]" || exit 0
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git pull -q --rebase "$url" v2
+          git push -q "$url" HEAD:v2
