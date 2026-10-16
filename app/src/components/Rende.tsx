@@ -15,7 +15,15 @@ interface Props {
   wallet: Wallet;
   onDeposit: (side: Side, amount: number) => void | Promise<void>;
   /** Modo blockchain: colher as taxas e resgatar a posição de verdade. */
-  onchain?: { onHarvest: () => Promise<void>; onWithdraw: () => Promise<void>; unlockAt?: number };
+  onchain?: {
+    onHarvest: () => Promise<void>;
+    /** Devolve uma mensagem quando o resgate foi para a fila (programa v2). */
+    onWithdraw: () => Promise<string | void>;
+    unlockAt?: number;
+    /** Saques na fila de aviso prévio (programa v2). */
+    queue?: { side: Side; amount: number; readyAt: number }[];
+    onClaim?: (side: Side) => Promise<void>;
+  };
   suitability?: Suitability;
   onSuitability: () => void;
   limitCheck: (side: Side, amount: number) => string | null;
@@ -27,20 +35,20 @@ export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, 
   const [cents, setCents] = useState(10_000);
   const amount = cents / 100;
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState<"" | "deposit" | "harvest" | "withdraw">("");
+  const [busy, setBusy] = useState<"" | "deposit" | "harvest" | "withdraw" | "claim">("");
   const [done, setDone] = useState("");
   const [giro, setGiro] = useState(0.05);
   const r = project({ poolBRL: 100e6, giro, cdi: CDI, tbill: TBILL });
   const yearly = amount * (side === "BRL" ? r.rendeBRL : r.rendeUSD);
   const common = amount * (side === "BRL" ? CDI : TBILL);
 
-  async function act(kind: "deposit" | "harvest" | "withdraw", fn: () => void | Promise<void>, ok: string) {
+  async function act(kind: "deposit" | "harvest" | "withdraw" | "claim", fn: () => void | Promise<void | string>, ok: string) {
     setBusy(kind);
     setError("");
     setDone("");
     try {
-      await fn();
-      setDone(ok);
+      const msg = await fn();
+      setDone(typeof msg === "string" ? msg : ok);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -118,6 +126,28 @@ export function Rende({ wallet, onDeposit, onchain, suitability, onSuitability, 
                 </button>
               </div>
             )}
+            {onchain?.queue?.map((t) => {
+              const ready = t.readyAt * 1000 <= Date.now();
+              return (
+                <div key={t.side} className="queue-box" role="status">
+                  <span>
+                    <strong>Na fila de saque: {money(t.side, t.amount)}</strong>
+                    <small className="muted">
+                      {ready
+                        ? "Aviso prévio cumprido: pode resgatar."
+                        : `Reservado no cofre. Libera às ${new Date(t.readyAt * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.`}
+                    </small>
+                  </span>
+                  <button
+                    className="secondary"
+                    disabled={!ready || !!busy || !onchain.onClaim}
+                    onClick={() => act("claim", () => onchain.onClaim!(t.side), "Saque da fila resgatado.")}
+                  >
+                    {busy === "claim" ? "Resgatando…" : "Resgatar"}
+                  </button>
+                </div>
+              );
+            })}
             {onchain && (onchain.unlockAt ?? 0) * 1000 > Date.now() && (
               <p className="muted small">
                 Por segurança, o principal fica travado por alguns minutos após cada depósito. Resgate liberado às{" "}

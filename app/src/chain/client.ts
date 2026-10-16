@@ -32,6 +32,9 @@ const d = deployment as unknown as {
   usdVault: string | null;
 };
 
+/** Programa v2 (KYC on-chain, disjuntor, fila de saque): o pool exige credencial e contas extras. */
+export const isV2 = () => (deployment as { kind?: string }).kind === "consortium-v2";
+
 export const isDeployed = () =>
   Boolean(d.cluster === "devnet" && d.programId && d.pool && d.brlMint && d.usdMint && d.brlVault && d.usdVault && d.payout);
 
@@ -160,6 +163,8 @@ export interface ChainState {
   vaults: [bigint, bigint];
   avail: [bigint, bigint];
   positions: { side: number; raw: PositionRaw; pending: [bigint, bigint] }[];
+  /** Saques na fila (programa v2): valor reservado e quando libera (segundos Unix). */
+  queue: { side: number; amount: bigint; readyAt: number }[];
 }
 
 const tokenAmount = (data: Uint8Array | null | undefined) =>
@@ -168,6 +173,7 @@ const tokenAmount = (data: Uint8Array | null | undefined) =>
 export async function fetchState(owner: PublicKey): Promise<ChainState> {
   const { pool, vault } = ids();
   const keys = [pool, vault[0], vault[1], ata(owner, BRL), ata(owner, USD), positionPda(owner, RENDE, BRL), positionPda(owner, RENDE, USD)];
+  if (isV2()) keys.push(ticketPda(owner, BRL), ticketPda(owner, USD));
   const [infos, lamports] = await Promise.all([conn().getMultipleAccountsInfo(keys, "confirmed"), conn().getBalance(owner, "confirmed")]);
   if (!infos[0]) throw new Error("Pool não encontrado na devnet");
   const p = decodePoolRaw(infos[0].data);
@@ -179,9 +185,18 @@ export async function fetchState(owner: PublicKey): Promise<ChainState> {
       const raw = decodePositionRaw(info!.data);
       return { side, raw, pending: pendingFees(p, raw) };
     });
+  // Fila de saque (v2): owner 32, pool 32, side 1, amount 8, requested_at 8, ready_at 8.
+  const queue = [7, 8]
+    .map((i) => infos[i])
+    .filter((x): x is NonNullable<typeof x> => Boolean(x))
+    .map((info) => {
+      const v = new DataView(info.data.buffer, info.data.byteOffset);
+      return { side: info.data[8 + 64], amount: v.getBigUint64(8 + 65, true), readyAt: Number(v.getBigInt64(8 + 81, true)) };
+    });
   return {
     owner: owner.toBase58(),
     sol: lamports / LAMPORTS_PER_SOL,
+    queue,
     balances: [tokenAmount(infos[3]?.data), tokenAmount(infos[4]?.data)],
     hasTokenAccounts: Boolean(infos[3] && infos[4]),
     pool: p,
@@ -247,6 +262,36 @@ function programIx(name: keyof typeof DISCRIMINATOR, args: Uint8Array[], keys: {
 const w = (pubkey: PublicKey) => ({ pubkey, isSigner: false, isWritable: true });
 const r = (pubkey: PublicKey) => ({ pubkey, isSigner: false, isWritable: false });
 
+export function credentialPda(owner: PublicKey) {
+  const { program, pool } = ids();
+  return PublicKey.findProgramAddressSync([new TextEncoder().encode("credential"), pool.toBytes(), owner.toBytes()], program)[0];
+}
+
+export function ticketPda(owner: PublicKey, side: number) {
+  const { program } = ids();
+  return PublicKey.findProgramAddressSync([new TextEncoder().encode("ticket"), positionPda(owner, RENDE, side).toBytes()], program)[0];
+}
+
+/**
+ * SÓ DEVNET (programa v2): credencial básica de teste. Em produção quem emite é o parceiro regulado, depois do KYC;
+ * aqui a própria carteira pede, para dar para experimentar. Renova a validade se já existir.
+ */
+function devnetCredentialIx(owner: PublicKey) {
+  const { pool } = ids();
+  return programIx("devnet_credential", [], [
+    { pubkey: owner, isSigner: true, isWritable: true },
+    r(pool),
+    w(credentialPda(owner)),
+    r(SystemProgram.programId),
+  ]);
+}
+
+/** Contas extras de troca e depósito no programa v2: credencial, moedas e atestados de reserva (ausentes). */
+function v2Accounts(owner: PublicKey) {
+  const { mint, program } = ids();
+  return [r(credentialPda(owner)), r(mint[BRL]), r(mint[USD]), r(program), r(program)];
+}
+
 export function mintAuthorityPda() {
   const { program, pool } = ids();
   return PublicKey.findProgramAddressSync([new TextEncoder().encode("mint-authority"), pool.toBytes()], program)[0];
@@ -305,6 +350,7 @@ export async function faucetClaim(signer: ChainSigner) {
       r(TOKEN_PROGRAM_ID),
       r(SystemProgram.programId),
     ]),
+    ...(isV2() ? [devnetCredentialIx(owner)] : []),
   ];
   return sendTx(ixs, owner, signer.signTransaction);
 }
@@ -330,9 +376,11 @@ export async function swap(signer: ChainSigner, s: ChainState, sideIn: number, a
     w(ata(owner, USD)),
     r(pos), // depositor_position (opcional: o próprio programa quando ausente)
     r(program), // partner (ausente)
+    ...(isV2() ? v2Accounts(owner) : []),
     r(TOKEN_PROGRAM_ID),
   ]);
-  const sig = await sendTx([ix], owner, signer.signTransaction);
+  // v2: garante (e renova) a credencial de teste na mesma transação.
+  const sig = await sendTx(isV2() ? [devnetCredentialIx(owner), ix] : [ix], owner, signer.signTransaction);
   return { sig, q, kind };
 }
 
@@ -347,10 +395,11 @@ export async function depositRende(signer: ChainSigner, side: number, amount: bi
     w(vault[USD]),
     w(ata(owner, BRL)),
     w(ata(owner, USD)),
+    ...(isV2() ? v2Accounts(owner) : []),
     r(TOKEN_PROGRAM_ID),
     r(SystemProgram.programId),
   ]);
-  return sendTx([ix], owner, signer.signTransaction);
+  return sendTx(isV2() ? [devnetCredentialIx(owner), ix] : [ix], owner, signer.signTransaction);
 }
 
 /** Saca `amount` do principal e recebe as taxas acumuladas (amount = 0 só colhe as taxas). */
@@ -361,6 +410,42 @@ export async function withdrawRende(signer: ChainSigner, side: number, amount: b
     { pubkey: owner, isSigner: true, isWritable: false },
     w(pool),
     w(positionPda(owner, RENDE, side)),
+    w(vault[BRL]),
+    w(vault[USD]),
+    w(ata(owner, BRL)),
+    w(ata(owner, USD)),
+    r(TOKEN_PROGRAM_ID),
+  ]);
+  return sendTx([ix], owner, signer.signTransaction);
+}
+
+/** Programa v2: saque grande vai para a fila com aviso prévio (o valor fica reservado no cofre). */
+export async function requestWithdraw(signer: ChainSigner, side: number, amount: bigint) {
+  const { pool, vault } = ids();
+  const owner = signer.publicKey;
+  const ix = programIx("request_withdraw", [u64le(amount)], [
+    { pubkey: owner, isSigner: true, isWritable: true },
+    w(pool),
+    w(positionPda(owner, RENDE, side)),
+    w(ticketPda(owner, side)),
+    w(vault[BRL]),
+    w(vault[USD]),
+    w(ata(owner, BRL)),
+    w(ata(owner, USD)),
+    r(TOKEN_PROGRAM_ID),
+    r(SystemProgram.programId),
+  ]);
+  return sendTx([ix], owner, signer.signTransaction);
+}
+
+/** Resgata o saque da fila depois do aviso prévio. */
+export async function claimWithdraw(signer: ChainSigner, side: number) {
+  const { pool, vault } = ids();
+  const owner = signer.publicKey;
+  const ix = programIx("claim_withdraw", [], [
+    { pubkey: owner, isSigner: true, isWritable: true },
+    w(pool),
+    w(ticketPda(owner, side)),
     w(vault[BRL]),
     w(vault[USD]),
     w(ata(owner, BRL)),

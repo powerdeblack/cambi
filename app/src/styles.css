@@ -696,3 +696,8 @@ textarea.paste:focus { outline: none; border-color: var(--green); }
 @media (prefers-color-scheme: dark) { .baleia-n { background: var(--green); } }
 .v-links a, .consortium .proofs a { color: var(--green); text-decoration: none; }
 .gov-check.error { color: var(--muted); font-weight: 500; }
+
+/* Fila de saque (programa v2) */
+.queue-box { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: var(--bg); margin: 8px 0; }
+.queue-box > span { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.queue-box button { flex: none; }

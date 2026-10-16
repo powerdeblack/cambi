@@ -1,0 +1,158 @@
+name: Programa v2 na devnet (branch v2)
+
+# Só no branch v2. Implanta o PROGRAMA v2 (KYC on-chain, disjuntor, fila de saque, guardião, prova de reserva) num
+# endereço NOVO, monta o pool v2 governado pelo consórcio de Baleias e passa a autoridade de upgrade para uma
+# multisig com prazo de espera. O programa e o pool avaliados não são tocados.
+# Para rodar: altere deployments/program-v2-round.txt no branch v2.
+on:
+  push:
+    branches: [v2]
+    paths:
+      - deployments/program-v2-round.txt
+
+permissions:
+  contents: write
+
+concurrency:
+  group: program-v2-devnet
+  cancel-in-progress: false
+
+env:
+  AGAVE_VERSION: "4.3.0"
+  AGAVE_INSTALL_SHA256: de7be8bb4fdf52751680c967d05bac435affadbdbfb0efd0d6e33c365bd84fff
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: v2
+          persist-credentials: false
+      - uses: ./.github/actions/solana-setup
+      - run: npm ci --ignore-scripts
+
+      - name: Restaurar chave do deployer (devnet)
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .devnet-keys
+          key: devnet-keys-v2
+      - name: Restaurar chaves das 10 Baleias
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .consortium-keys
+          key: consortium-keys-v1
+      - name: Restaurar chave do programa v2
+        id: progkey
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .program-v2-keys
+          key: program-v2-key-v1
+      - name: Gerar chave do programa v2 (só na primeira vez)
+        run: |
+          test -f .devnet-keys/deployer.json || { echo "::error::Chave do deployer não encontrada no cache"; exit 1; }
+          test -f .consortium-keys/baleia-1.json || { echo "::error::Chaves das Baleias não encontradas no cache"; exit 1; }
+          mkdir -p .program-v2-keys
+          [ -f .program-v2-keys/program.json ] || solana-keygen new --no-bip39-passphrase --silent -o .program-v2-keys/program.json
+      - name: Guardar chave do programa v2
+        if: steps.progkey.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .program-v2-keys
+          key: program-v2-key-v1
+
+      - name: Configurar carteira e programa
+        run: |
+          mkdir -p ~/.config/solana target/deploy
+          cp .devnet-keys/deployer.json ~/.config/solana/id.json
+          cp .program-v2-keys/program.json target/deploy/cambi_pool-keypair.json
+          solana config set --url https://api.devnet.solana.com
+          echo "DEPLOYER=$(solana address)" >> "$GITHUB_ENV"
+          echo "PROGRAM_ID=$(solana address -k target/deploy/cambi_pool-keypair.json)" >> "$GITHUB_ENV"
+
+      - name: Compilar o programa v2 (versão devnet)
+        run: |
+          test "$PROGRAM_ID" != "AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ" || { echo "::error::Chave do programa avaliado; abortado"; exit 1; }
+          anchor keys sync
+          sed -i "s/^cambi_pool = \".*\"/cambi_pool = \"$PROGRAM_ID\"/" Anchor.toml
+          anchor build -- --features devnet
+          test "$(node -p "require('./target/idl/cambi_pool.json').address")" = "$PROGRAM_ID"
+          node -e 'const i=require("./target/idl/cambi_pool.json").instructions.map(x=>x.name); for (const n of ["issue_credential","request_withdraw","guardian_pause","attest_reserves"]) if(!i.includes(n)) { console.error("IDL sem", n); process.exit(1) }'
+          mkdir -p idl
+          cp target/idl/cambi_pool.json idl/cambi_pool_v2.json
+          ls -la target/deploy/
+
+      - name: Recuperar SOL de buffers de deploys interrompidos
+        run: solana program close --buffers --bypass-warning || echo "Nenhum buffer para fechar"
+
+      - name: Verificar saldo de SOL de devnet
+        run: |
+          rent() { solana rent "$1" | awk '/Rent-exempt minimum/ {print $3}'; }
+          BAL=$(solana balance | awk '{print $1}')
+          SIZE=$(stat -c%s target/deploy/cambi_pool.so)
+          if solana program show "$PROGRAM_ID" >/dev/null 2>&1; then
+            echo "PROGRAM_EXISTS=1" >> "$GITHUB_ENV"; NEED=0.6
+          else
+            echo "PROGRAM_EXISTS=0" >> "$GITHUB_ENV"
+            # Programa no tamanho exato (sem folga) + buffer temporário (o SOL do buffer volta no fim) + montagem do pool.
+            NEED=$(awk -v a="$(rent $SIZE)" 'BEGIN {printf "%.2f", a * 2 + 0.6}')
+          fi
+          echo "SIZE=$SIZE" >> "$GITHUB_ENV"
+          echo "Saldo: $BAL SOL | necessário (aprox.): $NEED SOL | programa: $SIZE bytes"
+          if awk "BEGIN {exit !($BAL < $NEED)}"; then
+            {
+              echo "## Falta SOL de devnet"
+              echo ""
+              echo "A carteira de deploy precisa de **$NEED SOL** de devnet e tem **$BAL SOL**."
+              echo "Envie SOL de devnet para \`$DEPLOYER\` em https://faucet.solana.com e rode de novo."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Saldo insuficiente: precisa de $NEED SOL, tem $BAL. Envie SOL de devnet para $DEPLOYER"
+            exit 1
+          fi
+
+      - name: Deploy do programa v2
+        if: env.PROGRAM_EXISTS == '0'
+        timeout-minutes: 120
+        run: |
+          solana-keygen new --no-bip39-passphrase --silent --force -o /tmp/buffer.json
+          BUFFER=$(solana address -k /tmp/buffer.json)
+          ok=0
+          for i in 1 2 3 4 5 6; do
+            MODE=""; [ $((i % 2)) -eq 1 ] && MODE="--use-rpc"
+            echo "::group::Escrita do buffer $BUFFER, tentativa $i ${MODE:-(TPU)}"
+            if timeout 25m solana program write-buffer target/deploy/cambi_pool.so \
+                 --buffer /tmp/buffer.json --with-compute-unit-price 100000 --max-sign-attempts 100 $MODE; then ok=1; echo "::endgroup::"; break; fi
+            echo "::endgroup::"
+            sleep 20
+          done
+          if [ "$ok" != 1 ]; then
+            solana program close "$BUFFER" --bypass-warning || true
+            echo "::error::Não foi possível escrever o programa na devnet (RPC pública instável). Rode de novo."
+            exit 1
+          fi
+          solana program deploy --buffer /tmp/buffer.json --program-id target/deploy/cambi_pool-keypair.json \
+            --max-len "$SIZE" --with-compute-unit-price 100000 --max-sign-attempts 100 --use-rpc
+          solana program show "$PROGRAM_ID"
+
+      - name: Montar o pool v2 (ou rodada de cotação)
+        env:
+          ANCHOR_WALLET: .devnet-keys/deployer.json
+        run: npx tsx scripts/consortium-v2.ts
+
+      - name: Publicar o registro no branch v2
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf .devnet-keys .consortium-keys .program-v2-keys target/deploy/cambi_pool-keypair.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add idl/cambi_pool_v2.json 2>/dev/null || true
+          [ -f deployments/devnet-v2.json ] && git add deployments/devnet-v2.json
+          git commit -q -m "Programa v2 na devnet: $PROGRAM_ID [skip ci]" || exit 0
+          # O build mexeu no declare_id e no Anchor.toml só para compilar: descarta antes de sincronizar.
+          git checkout -- .
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git pull -q --rebase "$url" v2
+          git push -q "$url" HEAD:v2

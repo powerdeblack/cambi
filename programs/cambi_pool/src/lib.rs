@@ -296,7 +296,7 @@ pub mod cambi_pool {
             &ctx.accounts.pool,
             ctx.accounts.pool.key(),
             ctx.accounts.user.key(),
-            ctx.accounts.credential.as_deref(),
+            ctx.accounts.credential.as_deref().map(|c| &**c),
             value_in_brl(ctx.accounts.pool.price, s, amount)?,
             now,
         )?;
@@ -477,7 +477,7 @@ pub mod cambi_pool {
                     pool,
                     pool_key,
                     user_key,
-                    ctx.accounts.credential.as_deref(),
+                    ctx.accounts.credential.as_deref().map(|c| &**c),
                     value_in_brl(pool.price, s_in, amount_in)?,
                     now,
                 )?;
@@ -1331,28 +1331,28 @@ pub struct RequestWithdraw<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
     #[account(mut, has_one = brl_vault, has_one = usd_vault)]
-    pub pool: Account<'info, Pool>,
+    pub pool: Box<Account<'info, Pool>>,
     #[account(
         mut, has_one = pool,
         constraint = position.owner == user.key() @ CambiError::InvalidPosition,
         seeds = [b"position", pool.key().as_ref(), user.key().as_ref(), &[position.tranche], &[position.side]],
         bump = position.bump
     )]
-    pub position: Account<'info, Position>,
+    pub position: Box<Account<'info, Position>>,
     /// Um pedido por posição de cada vez.
     #[account(
         init, payer = user, space = 8 + WithdrawTicket::INIT_SPACE,
         seeds = [b"ticket", position.key().as_ref()], bump
     )]
-    pub ticket: Account<'info, WithdrawTicket>,
+    pub ticket: Box<Account<'info, WithdrawTicket>>,
     #[account(mut)]
-    pub brl_vault: Account<'info, TokenAccount>,
+    pub brl_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
-    pub usd_vault: Account<'info, TokenAccount>,
+    pub usd_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.brl_mint, token::authority = user)]
-    pub user_brl: Account<'info, TokenAccount>,
+    pub user_brl: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
-    pub user_usd: Account<'info, TokenAccount>,
+    pub user_usd: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
@@ -1362,17 +1362,17 @@ pub struct ClaimWithdraw<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
     #[account(mut, has_one = brl_vault, has_one = usd_vault)]
-    pub pool: Account<'info, Pool>,
+    pub pool: Box<Account<'info, Pool>>,
     #[account(mut, has_one = pool, constraint = ticket.owner == user.key() @ CambiError::InvalidPosition, close = user)]
-    pub ticket: Account<'info, WithdrawTicket>,
+    pub ticket: Box<Account<'info, WithdrawTicket>>,
     #[account(mut)]
-    pub brl_vault: Account<'info, TokenAccount>,
+    pub brl_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
-    pub usd_vault: Account<'info, TokenAccount>,
+    pub usd_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.brl_mint, token::authority = user)]
-    pub user_brl: Account<'info, TokenAccount>,
+    pub user_brl: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
-    pub user_usd: Account<'info, TokenAccount>,
+    pub user_usd: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -1405,22 +1405,22 @@ pub struct Deposit<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
     #[account(mut, has_one = brl_vault, has_one = usd_vault)]
-    pub pool: Account<'info, Pool>,
+    pub pool: Box<Account<'info, Pool>>,
     #[account(
         init_if_needed, payer = user, space = 8 + Position::INIT_SPACE,
         seeds = [b"position", pool.key().as_ref(), user.key().as_ref(), &[tranche], &[side]], bump
     )]
-    pub position: Account<'info, Position>,
+    pub position: Box<Account<'info, Position>>,
     #[account(mut)]
-    pub brl_vault: Account<'info, TokenAccount>,
+    pub brl_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
-    pub usd_vault: Account<'info, TokenAccount>,
+    pub usd_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.brl_mint, token::authority = user)]
-    pub user_brl: Account<'info, TokenAccount>,
+    pub user_brl: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
-    pub user_usd: Account<'info, TokenAccount>,
+    pub user_usd: Box<Account<'info, TokenAccount>>,
     /// Credencial KYC da carteira (exigida quando `pool.require_kyc`).
-    pub credential: Option<Account<'info, Credential>>,
+    pub credential: Option<Box<Account<'info, Credential>>>,
     #[account(address = pool.brl_mint)]
     pub brl_mint: Box<Account<'info, Mint>>,
     #[account(address = pool.usd_mint)]
@@ -1436,22 +1436,22 @@ pub struct Deposit<'info> {
 pub struct Withdraw<'info> {
     pub user: Signer<'info>,
     #[account(mut, has_one = brl_vault, has_one = usd_vault)]
-    pub pool: Account<'info, Pool>,
+    pub pool: Box<Account<'info, Pool>>,
     #[account(
         mut, has_one = pool,
         constraint = position.owner == user.key() @ CambiError::InvalidPosition,
         seeds = [b"position", pool.key().as_ref(), user.key().as_ref(), &[position.tranche], &[position.side]],
         bump = position.bump
     )]
-    pub position: Account<'info, Position>,
+    pub position: Box<Account<'info, Position>>,
     #[account(mut)]
-    pub brl_vault: Account<'info, TokenAccount>,
+    pub brl_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
-    pub usd_vault: Account<'info, TokenAccount>,
+    pub usd_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.brl_mint, token::authority = user)]
-    pub user_brl: Account<'info, TokenAccount>,
+    pub user_brl: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
-    pub user_usd: Account<'info, TokenAccount>,
+    pub user_usd: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -1459,19 +1459,19 @@ pub struct Withdraw<'info> {
 pub struct Swap<'info> {
     pub user: Signer<'info>,
     #[account(mut, has_one = brl_vault, has_one = usd_vault)]
-    pub pool: Account<'info, Pool>,
+    pub pool: Box<Account<'info, Pool>>,
     #[account(mut)]
-    pub brl_vault: Account<'info, TokenAccount>,
+    pub brl_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
-    pub usd_vault: Account<'info, TokenAccount>,
+    pub usd_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.brl_mint, token::authority = user)]
-    pub user_brl: Account<'info, TokenAccount>,
+    pub user_brl: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
-    pub user_usd: Account<'info, TokenAccount>,
-    pub depositor_position: Option<Account<'info, Position>>,
-    pub partner: Option<Account<'info, Partner>>,
+    pub user_usd: Box<Account<'info, TokenAccount>>,
+    pub depositor_position: Option<Box<Account<'info, Position>>>,
+    pub partner: Option<Box<Account<'info, Partner>>>,
     /// Credencial KYC da carteira (exigida quando `pool.require_kyc`, exceto para app parceiro).
-    pub credential: Option<Account<'info, Credential>>,
+    pub credential: Option<Box<Account<'info, Credential>>>,
     #[account(address = pool.brl_mint)]
     pub brl_mint: Box<Account<'info, Mint>>,
     #[account(address = pool.usd_mint)]

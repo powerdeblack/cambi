@@ -4,6 +4,10 @@ export const DISCRIMINATOR = {
   swap: [248, 198, 158, 145, 225, 117, 135, 200],
   withdraw: [183, 18, 70, 156, 148, 109, 161, 34],
   faucet_claim: [37, 228, 249, 8, 75, 106, 198, 114],
+  // Programa v2
+  devnet_credential: [54, 62, 76, 183, 91, 191, 107, 122],
+  request_withdraw: [137, 95, 187, 96, 250, 138, 31, 182],
+  claim_withdraw: [232, 89, 154, 117, 16, 204, 182, 224],
 } as const;
 
 /** Mensagens de erro do programa (códigos 6000+). */
@@ -34,4 +38,13 @@ export const PROGRAM_ERRORS: Record<number, string> = {
   6023: "Moedas de teste: aguarde 1 hora entre pedidos",
   6024: "Moedas de teste só para quem tem menos de R$ 100",
   6025: "Limite de moedas de teste desta hora atingido; tente mais tarde",
+  // Programa v2
+  6026: "Carteira sem credencial de identidade (KYC) neste pool",
+  6027: "Credencial de identidade revogada",
+  6028: "Credencial de identidade vencida; renove a verificação",
+  6029: "Valor acima do limite do seu nível de verificação",
+  6030: "Disjuntor: o pool atingiu o teto de saída desta janela; tente mais tarde",
+  6031: "Saque grande: use a fila de saque (aviso prévio)",
+  6032: "Saque da fila ainda no prazo de aviso prévio",
+  6033: "Lastro sem prova: reserva atestada menor que o emitido ou atestado vencido",
 };

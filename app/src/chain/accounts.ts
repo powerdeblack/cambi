@@ -47,6 +47,22 @@ export interface PoolRaw {
   windowStart: number;
   windowBase: bigint[];
   windowOut: bigint[];
+  /** Regras de segurança do programa v2 (ausentes no programa v1). */
+  safety?: PoolSafety;
+}
+
+export interface PoolSafety {
+  requireKyc: boolean;
+  levelLimitBrl: bigint[]; // teto por operação, por nível (0 = sem teto)
+  breakerWindowSecs: number;
+  breakerBps: bigint;
+  breakerStart: number;
+  breakerBase: bigint[];
+  breakerOut: bigint[];
+  instantWithdrawBps: bigint;
+  withdrawNoticeSecs: number;
+  queued: bigint[];
+  reserveMaxAge: number;
 }
 
 export interface PositionRaw {
@@ -63,6 +79,9 @@ export interface PositionRaw {
 class Reader {
   private o: number;
   private v: DataView;
+  get offset() {
+    return this.o;
+  }
   constructor(private data: Uint8Array, offset = 8) {
     this.v = new DataView(data.buffer, data.byteOffset, data.byteLength);
     this.o = offset;
@@ -136,9 +155,28 @@ export function decodePoolRaw(data: Uint8Array): PoolRaw {
   const windowStart = r.i64();
   const windowBase = [r.u64(), r.u64()];
   const windowOut = [r.u64(), r.u64()];
+  let safety: PoolSafety | undefined;
+  // Programa v2: campos novos no fim da conta.
+  if (data.length >= r.offset + 16 + 32 * 2 + 1 + 24 + 8 + 2 + 8 + 32 + 2 + 8 + 16 + 32 + 8) {
+    r.skip(16); // faucet_window_start, faucet_window_minted
+    r.skip(64); // guardian, kyc_issuer
+    const requireKyc = r.u8() === 1;
+    const levelLimitBrl = [r.u64(), r.u64(), r.u64()];
+    const breakerWindowSecs = r.i64();
+    const breakerBps = r.u16();
+    const breakerStart = r.i64();
+    const breakerBase = [r.u64(), r.u64()];
+    const breakerOut = [r.u64(), r.u64()];
+    const instantWithdrawBps = r.u16();
+    const withdrawNoticeSecs = r.i64();
+    const queued = [r.u64(), r.u64()];
+    r.skip(32); // reserve_attester
+    const reserveMaxAge = r.i64();
+    safety = { requireKyc, levelLimitBrl, breakerWindowSecs, breakerBps, breakerStart, breakerBase, breakerOut, instantWithdrawBps, withdrawNoticeSecs, queued, reserveMaxAge };
+  }
   return {
     price, priceUpdatedAt, maxPriceAge, fees, paused, principal, shares, accFeePerShare, lpFeesUnclaimed, platformFees,
-    partnerFees, swapCount, volumeBrl, lockupSecs, maxPriceMoveBps, windowStart, windowBase, windowOut,
+    partnerFees, swapCount, volumeBrl, lockupSecs, maxPriceMoveBps, windowStart, windowBase, windowOut, safety,
   };
 }
 
@@ -158,7 +196,7 @@ export function decodePositionRaw(data: Uint8Array): PositionRaw {
 
 /** Liquidez livre do cofre: saldo menos as taxas reservadas (igual a `available` no programa). */
 export function available(pool: PoolRaw, vaultAmount: bigint, s: number): bigint {
-  const reserved = pool.platformFees[s] + pool.partnerFees[s] + pool.lpFeesUnclaimed[s];
+  const reserved = pool.platformFees[s] + pool.partnerFees[s] + pool.lpFeesUnclaimed[s] + (pool.safety?.queued[s] ?? 0n);
   return vaultAmount > reserved ? vaultAmount - reserved : 0n;
 }
 
@@ -209,6 +247,15 @@ export function swapBlocker(pool: PoolRaw, sIn: number, q: ChainQuote, brlAvail:
   if (q.amountOut > (availOut * pool.fees.maxTradeBps) / BPS) {
     const max = Number((availOut * pool.fees.maxTradeBps) / BPS) / UNIT;
     return `Por segurança, cada troca pode levar até ${Number(pool.fees.maxTradeBps) / 100}% da liquidez (até ${max.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${sIn === BRL ? "dólares" : "reais"}).`;
+  }
+  const sf = pool.safety;
+  if (sf) {
+    // Disjuntor: mesma conta do programa (a janela recomeça sozinha depois do prazo).
+    const sOut = 1 - sIn;
+    const fresh = nowSec - sf.breakerStart >= sf.breakerWindowSecs;
+    const base = fresh ? availOut : sf.breakerBase[sOut];
+    const out = fresh ? 0n : sf.breakerOut[sOut];
+    if (out + q.amountOut > (base * sf.breakerBps) / BPS) return "Disjuntor de segurança: o pool atingiu o teto de saída desta hora. Tente mais tarde ou um valor menor.";
   }
   return null;
 }

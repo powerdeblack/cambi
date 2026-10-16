@@ -226,11 +226,32 @@ export default function App() {
     }
   }
 
-  async function chainWithdraw() {
-    for (const p of live!.state.positions.filter((x) => x.raw.amount > 0n)) {
-      const sig = await run((c, s) => c.withdrawRende(s, p.side, p.raw.amount));
-      record({ kind: "withdraw", side: p.side === 0 ? "BRL" : "USD", amountIn: fromUnits(p.raw.amount), sig });
+  async function chainWithdraw(): Promise<string | void> {
+    const st = live!.state;
+    let queued = "";
+    for (const p of st.positions.filter((x) => x.raw.amount > 0n)) {
+      const side: Side = p.side === 0 ? "BRL" : "USD";
+      const sf = st.pool.safety;
+      // Programa v2: acima do limite de saque imediato, o resgate entra na fila com aviso prévio.
+      const big = sf && p.raw.amount * 10_000n > st.avail[p.side] * sf.instantWithdrawBps;
+      if (big) {
+        if (st.queue.some((t) => t.side === p.side)) throw new Error("Já existe um saque na fila nesta moeda. Resgate-o primeiro.");
+        const sig = await run((c, s) => c.requestWithdraw(s, p.side, p.raw.amount));
+        record({ kind: "withdraw", side, amountIn: fromUnits(p.raw.amount), sig });
+        const mins = Math.round(sf.withdrawNoticeSecs / 60);
+        queued = `Resgate grande foi para a fila de saque: o valor fica reservado e libera em ${mins} min (aviso prévio, contra corrida no pool).`;
+      } else {
+        const sig = await run((c, s) => c.withdrawRende(s, p.side, p.raw.amount));
+        record({ kind: "withdraw", side, amountIn: fromUnits(p.raw.amount), sig });
+      }
     }
+    return queued || undefined;
+  }
+
+  async function chainClaim(side: Side) {
+    const t = live!.state.queue.find((x) => x.side === idx(side));
+    const sig = await run((c, s) => c.claimWithdraw(s, idx(side)));
+    record({ kind: "withdraw", side, amountIn: t ? fromUnits(t.amount) : 0, sig });
   }
 
   async function chainSend(side: Side, amount: number, fee: number, recipient: Recipient, payReference?: string) {
@@ -440,6 +461,8 @@ export default function App() {
                 ? {
                     onHarvest: chainHarvest,
                     onWithdraw: chainWithdraw,
+                    queue: live.state.queue.map((t) => ({ side: t.side === 0 ? ("BRL" as const) : ("USD" as const), amount: fromUnits(t.amount), readyAt: t.readyAt })),
+                    onClaim: chainClaim,
                     unlockAt: Math.max(0, ...live.state.positions.filter((p) => p.raw.amount > 0n).map((p) => p.raw.lastDepositAt + live.state.pool.lockupSecs)),
                   }
                 : undefined
