@@ -11,6 +11,16 @@
 //! - depósitos ficam travados por um período mínimo antes do resgate do principal (contra liquidez relâmpago);
 //! - o oráculo só move o preço dentro de um limite por atualização.
 //!
+//! Versão 2 (gargalos de segurança):
+//! - só carteiras com credencial KYC válida (emitida pelo parceiro regulado) trocam e depositam;
+//!   cada nível de credencial tem um teto por operação. Sacar continua livre: ninguém fica preso;
+//! - disjuntor: a saída somada (trocas + saques imediatos) por janela tem teto por moeda;
+//! - saques grandes entram numa fila com aviso prévio, e o valor fica reservado até o resgate;
+//! - guardião: chave de emergência que SÓ pausa; despausar é do admin (multisig);
+//! - a autoridade de upgrade do programa fica numa multisig com prazo de espera (fora do código);
+//! - prova de reserva: o custodiante de cada moeda tokenizada atesta a reserva on-chain; se o total emitido
+//!   passar da reserva atestada, ou o atestado ficar velho, trocas e depósitos param (saques seguem livres).
+//!
 //! Auditoria e correções: docs/AUDITORIA.md.
 
 use anchor_lang::prelude::*;
@@ -45,6 +55,15 @@ pub const DEFAULT_LOCKUP_SECS: i64 = 600;
 pub const DEFAULT_MAX_PRICE_MOVE_BPS: u16 = 1_000;
 pub const MAX_PRICE_AGE_LIMIT: i64 = 86_400;
 pub const MAX_LOCKUP_SECS: i64 = 7 * 86_400;
+pub const DEFAULT_BREAKER_WINDOW_SECS: i64 = 3_600;
+pub const DEFAULT_BREAKER_BPS: u16 = 3_000; // 30% da liquidez livre de cada moeda por hora
+pub const DEFAULT_INSTANT_WITHDRAW_BPS: u16 = 1_000; // saque imediato até 10% da liquidez livre
+pub const DEFAULT_WITHDRAW_NOTICE_SECS: i64 = 86_400; // acima disso, fila com 24 h de aviso
+pub const MAX_WITHDRAW_NOTICE_SECS: i64 = 30 * 86_400;
+/// Teto por operação (valor em reais, 6 casas) por nível de credencial: básico, completo, institucional (0 = sem teto).
+pub const DEFAULT_LEVEL_LIMITS: [u64; 3] = [10_000_000_000, 100_000_000_000, 0];
+#[cfg(feature = "devnet")]
+pub const DEVNET_CREDENTIAL_SECS: i64 = 30 * 86_400;
 
 #[program]
 pub mod cambi_pool {
@@ -70,6 +89,14 @@ pub mod cambi_pool {
         pool.bump = ctx.bumps.pool;
         pool.lockup_secs = DEFAULT_LOCKUP_SECS;
         pool.max_price_move_bps = DEFAULT_MAX_PRICE_MOVE_BPS;
+        pool.guardian = ctx.accounts.admin.key();
+        pool.kyc_issuer = ctx.accounts.admin.key();
+        pool.require_kyc = true;
+        pool.breaker_window_secs = DEFAULT_BREAKER_WINDOW_SECS;
+        pool.breaker_bps = DEFAULT_BREAKER_BPS;
+        pool.instant_withdraw_bps = DEFAULT_INSTANT_WITHDRAW_BPS;
+        pool.withdraw_notice_secs = DEFAULT_WITHDRAW_NOTICE_SECS;
+        pool.level_limit_brl = DEFAULT_LEVEL_LIMITS;
         Ok(())
     }
 
@@ -120,6 +147,125 @@ pub mod cambi_pool {
     /// Pausa trocas e depósitos. Saques continuam liberados para ninguém ficar preso.
     pub fn set_paused(ctx: Context<AdminOnly>, paused: bool) -> Result<()> {
         ctx.accounts.pool.paused = paused;
+        emit!(PauseEvent { by: ctx.accounts.admin.key(), paused });
+        Ok(())
+    }
+
+    /// Guardião: chave de emergência (pode ficar num celular de plantão) que só consegue PAUSAR.
+    /// Não mexe em preço, taxas, cofres nem despausa: se vazar, o pior que faz é pausar trocas.
+    pub fn guardian_pause(ctx: Context<GuardianPause>) -> Result<()> {
+        ctx.accounts.pool.paused = true;
+        emit!(PauseEvent { by: ctx.accounts.guardian.key(), paused: true });
+        Ok(())
+    }
+
+    pub fn set_guardian(ctx: Context<AdminOnly>, guardian: Pubkey) -> Result<()> {
+        ctx.accounts.pool.guardian = guardian;
+        Ok(())
+    }
+
+    /// Quem emite as credenciais (o parceiro regulado que faz o KYC) e se elas são exigidas.
+    pub fn set_kyc(ctx: Context<AdminOnly>, issuer: Pubkey, require_kyc: bool) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+        pool.kyc_issuer = issuer;
+        pool.require_kyc = require_kyc;
+        Ok(())
+    }
+
+    /// Quem atesta as reservas das moedas tokenizadas (custodiante/auditor) e a validade máxima do atestado.
+    /// `max_age = 0` desliga a exigência (ex.: moedas de teste sem custodiante).
+    pub fn set_reserve_policy(ctx: Context<AdminOnly>, attester: Pubkey, max_age: i64) -> Result<()> {
+        require!((0..=30 * 86_400).contains(&max_age), CambiError::InvalidConfig);
+        let pool = &mut ctx.accounts.pool;
+        pool.reserve_attester = attester;
+        pool.reserve_max_age = max_age;
+        Ok(())
+    }
+
+    /// O custodiante publica a reserva que lastreia uma das moedas do pool (em unidades do token).
+    pub fn attest_reserves(ctx: Context<AttestReserves>, reserves: u64) -> Result<()> {
+        let mint = ctx.accounts.mint.key();
+        let pool = &ctx.accounts.pool;
+        require!(mint == pool.brl_mint || mint == pool.usd_mint, CambiError::InvalidSide);
+        let now = Clock::get()?.unix_timestamp;
+        let r = &mut ctx.accounts.reserve;
+        r.pool = pool.key();
+        r.mint = mint;
+        r.reserves = reserves;
+        r.attested_at = now;
+        r.attester = ctx.accounts.attester.key();
+        r.bump = ctx.bumps.reserve;
+        emit!(ReserveEvent { mint, reserves, supply: ctx.accounts.mint.supply, at: now });
+        Ok(())
+    }
+
+    /// Disjuntor, fila de saque e tetos por nível de credencial, sempre dentro de limites fixos no código.
+    pub fn set_safety(
+        ctx: Context<AdminOnly>,
+        breaker_window_secs: i64,
+        breaker_bps: u16,
+        instant_withdraw_bps: u16,
+        withdraw_notice_secs: i64,
+        level_limit_brl: [u64; 3],
+    ) -> Result<()> {
+        require!((60..=86_400).contains(&breaker_window_secs), CambiError::InvalidConfig);
+        require!((100..=10_000).contains(&breaker_bps), CambiError::InvalidConfig);
+        require!(instant_withdraw_bps <= 10_000, CambiError::InvalidConfig);
+        require!((0..=MAX_WITHDRAW_NOTICE_SECS).contains(&withdraw_notice_secs), CambiError::InvalidConfig);
+        let pool = &mut ctx.accounts.pool;
+        pool.breaker_window_secs = breaker_window_secs;
+        pool.breaker_bps = breaker_bps;
+        pool.instant_withdraw_bps = instant_withdraw_bps;
+        pool.withdraw_notice_secs = withdraw_notice_secs;
+        pool.level_limit_brl = level_limit_brl;
+        Ok(())
+    }
+
+    /// O emissor de KYC registra (ou renova) a credencial de uma carteira. Nada de dado pessoal on-chain:
+    /// só o nível, a validade e quem emitiu.
+    pub fn issue_credential(ctx: Context<IssueCredential>, level: u8, expires_at: i64) -> Result<()> {
+        require!((1..=3).contains(&level), CambiError::InvalidConfig);
+        require!(expires_at > Clock::get()?.unix_timestamp, CambiError::InvalidConfig);
+        let c = &mut ctx.accounts.credential;
+        c.pool = ctx.accounts.pool.key();
+        c.user = ctx.accounts.user.key();
+        c.issuer = ctx.accounts.issuer.key();
+        c.level = level;
+        c.expires_at = expires_at;
+        c.revoked = false;
+        c.bump = ctx.bumps.credential;
+        emit!(CredentialEvent { user: c.user, level, expires_at, revoked: false });
+        Ok(())
+    }
+
+    /// Revoga a credencial (sanção, fraude, pedido do regulador). A pessoa ainda consegue sacar o que é dela.
+    pub fn revoke_credential(ctx: Context<RevokeCredential>) -> Result<()> {
+        let pool = &ctx.accounts.pool;
+        let who = ctx.accounts.authority.key();
+        require!(who == pool.kyc_issuer || who == pool.admin, CambiError::Unauthorized);
+        let c = &mut ctx.accounts.credential;
+        c.revoked = true;
+        emit!(CredentialEvent { user: c.user, level: c.level, expires_at: c.expires_at, revoked: true });
+        Ok(())
+    }
+
+    /// SÓ DEVNET: credencial básica de teste, para quem quiser experimentar o app sem o parceiro de KYC.
+    /// Na mainnet esta instrução não existe: só o emissor regulado cria credenciais.
+    #[cfg(feature = "devnet")]
+    pub fn devnet_credential(ctx: Context<DevnetCredential>) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
+        let c = &mut ctx.accounts.credential;
+        // Não reabilita quem foi revogado nem rebaixa uma credencial de nível maior.
+        require!(!c.revoked, CambiError::CredentialRevoked);
+        if c.user == Pubkey::default() {
+            c.pool = ctx.accounts.pool.key();
+            c.user = ctx.accounts.user.key();
+            c.issuer = ctx.accounts.user.key();
+            c.level = 1;
+            c.bump = ctx.bumps.credential;
+        }
+        c.expires_at = c.expires_at.max(now.saturating_add(DEVNET_CREDENTIAL_SECS));
+        emit!(CredentialEvent { user: c.user, level: c.level, expires_at: c.expires_at, revoked: false });
         Ok(())
     }
 
@@ -146,6 +292,21 @@ pub mod cambi_pool {
         // Shares são calculadas pelo preço: não aceita depósito com cotação velha.
         require!(price_fresh(&ctx.accounts.pool, now), CambiError::StalePrice);
         require!(value_in_brl(ctx.accounts.pool.price, s, amount)? >= MIN_DEPOSIT_BRL, CambiError::DepositTooSmall);
+        check_credential(
+            &ctx.accounts.pool,
+            ctx.accounts.pool.key(),
+            ctx.accounts.user.key(),
+            ctx.accounts.credential.as_deref(),
+            value_in_brl(ctx.accounts.pool.price, s, amount)?,
+            now,
+        )?;
+        check_backing(
+            &ctx.accounts.pool,
+            ctx.accounts.pool.key(),
+            [&ctx.accounts.brl_mint, &ctx.accounts.usd_mint],
+            [ctx.accounts.brl_reserve.as_deref().map(|r| &**r), ctx.accounts.usd_reserve.as_deref().map(|r| &**r)],
+            now,
+        )?;
 
         let pending = {
             let pool = &mut ctx.accounts.pool;
@@ -221,6 +382,16 @@ pub mod cambi_pool {
                 baleia_can_withdraw(avail, amount, p[idx(RENDE, s)]) && avail_o >= p[idx(RENDE, o)],
                 CambiError::BaleiaJuniorLiquidity
             );
+        }
+        if amount > 0 {
+            // Saque grande vai para a fila (request_withdraw); o imediato também conta no disjuntor.
+            require!(
+                instant_withdraw_ok(avail, amount, ctx.accounts.pool.instant_withdraw_bps),
+                CambiError::UseWithdrawQueue
+            );
+            let now = Clock::get()?.unix_timestamp;
+            let free = [available(&ctx.accounts.pool, vaults[BRL], BRL), available(&ctx.accounts.pool, vaults[USD], USD)];
+            breaker_take(&mut ctx.accounts.pool, now, free, s, amount)?;
         }
 
         let pending = {
@@ -300,6 +471,24 @@ pub mod cambi_pool {
                 available(pool, ctx.accounts.brl_vault.amount, BRL),
                 available(pool, ctx.accounts.usd_vault.amount, USD),
             ];
+            if kind != UserKind::B2b {
+                // App parceiro (B2B) já passou pelo KYB no cadastro feito pelo admin.
+                check_credential(
+                    pool,
+                    pool_key,
+                    user_key,
+                    ctx.accounts.credential.as_deref(),
+                    value_in_brl(pool.price, s_in, amount_in)?,
+                    now,
+                )?;
+            }
+            check_backing(
+                pool,
+                pool_key,
+                [&ctx.accounts.brl_mint, &ctx.accounts.usd_mint],
+                [ctx.accounts.brl_reserve.as_deref().map(|r| &**r), ctx.accounts.usd_reserve.as_deref().map(|r| &**r)],
+                now,
+            )?;
             let q = quote(pool, s_in, amount_in, kind, avail[BRL], avail[USD])?;
             require!(q.amount_out > 0, CambiError::ZeroAmount);
             require!(q.amount_out >= min_out, CambiError::SlippageExceeded);
@@ -322,6 +511,8 @@ pub mod cambi_pool {
             let cap = (pool.window_base[s_out] as u128) * (pool.fees.max_trade_bps as u128) / BPS;
             require!((out_total as u128) <= cap, CambiError::OutflowLimit);
             pool.window_out[s_out] = out_total;
+            // Disjuntor da janela longa (padrão: 1 hora), somando trocas e saques imediatos.
+            breaker_take(pool, now, avail, s_out, q.amount_out)?;
         }
 
         let (vault_in, vault_out, user_in, user_out) = match s_in {
@@ -372,6 +563,84 @@ pub mod cambi_pool {
             to_partner: q.to_partner,
             price: pool.price,
         });
+        Ok(())
+    }
+
+    /// Pede um saque grande: o valor sai da posição agora (para de render), fica reservado no cofre
+    /// (trocas não usam) e pode ser resgatado depois do aviso prévio. Funciona com o pool pausado.
+    pub fn request_withdraw(ctx: Context<RequestWithdraw>, amount: u64) -> Result<()> {
+        require!(amount > 0, CambiError::ZeroAmount);
+        let t = tranche_idx(ctx.accounts.position.tranche)?;
+        let s = side_idx(ctx.accounts.position.side)?;
+        require!(amount <= ctx.accounts.position.amount, CambiError::InsufficientPosition);
+        let now = Clock::get()?.unix_timestamp;
+        let unlock = ctx.accounts.position.last_deposit_at.saturating_add(ctx.accounts.pool.lockup_secs);
+        require!(now >= unlock, CambiError::PositionLocked);
+
+        let vaults = [ctx.accounts.brl_vault.amount, ctx.accounts.usd_vault.amount];
+        let avail = available(&ctx.accounts.pool, vaults[s], s);
+        require!(amount <= avail, CambiError::InsufficientLiquidity);
+        if t == BALEIA {
+            let o = 1 - s;
+            let avail_o = available(&ctx.accounts.pool, vaults[o], o);
+            let p = ctx.accounts.pool.principal;
+            require!(
+                baleia_can_withdraw(avail, amount, p[idx(RENDE, s)]) && avail_o >= p[idx(RENDE, o)],
+                CambiError::BaleiaJuniorLiquidity
+            );
+        }
+
+        let pending = {
+            let pool = &mut ctx.accounts.pool;
+            let pos = &mut ctx.accounts.position;
+            let pending = harvest(pool, pos)?;
+            let removed = pos.shares.checked_mul(amount as u128).ok_or(CambiError::MathOverflow)? / (pos.amount as u128);
+            pos.amount = pos.amount.checked_sub(amount).ok_or(CambiError::MathOverflow)?;
+            pos.shares = pos.shares.checked_sub(removed).ok_or(CambiError::MathOverflow)?;
+            pool.shares[t] = pool.shares[t].checked_sub(removed).ok_or(CambiError::MathOverflow)?;
+            let i = idx(t, s);
+            pool.principal[i] = pool.principal[i].checked_sub(amount).ok_or(CambiError::MathOverflow)?;
+            pool.queued[s] = pool.queued[s].checked_add(amount).ok_or(CambiError::MathOverflow)?;
+            sync_debt(pool, pos)?;
+            pending
+        };
+
+        let ready_at = now.saturating_add(ctx.accounts.pool.withdraw_notice_secs);
+        let ticket = &mut ctx.accounts.ticket;
+        ticket.owner = ctx.accounts.user.key();
+        ticket.pool = ctx.accounts.pool.key();
+        ticket.side = s as u8;
+        ticket.amount = amount;
+        ticket.requested_at = now;
+        ticket.ready_at = ready_at;
+        ticket.bump = ctx.bumps.ticket;
+
+        pay_pending(
+            &ctx.accounts.pool,
+            [&ctx.accounts.brl_vault, &ctx.accounts.usd_vault],
+            [&ctx.accounts.user_brl, &ctx.accounts.user_usd],
+            &ctx.accounts.token_program,
+            pending,
+        )?;
+        emit!(WithdrawRequestedEvent { user: ctx.accounts.user.key(), tranche: t as u8, side: s as u8, amount, ready_at });
+        Ok(())
+    }
+
+    /// Resgata o saque da fila depois do aviso prévio. O valor já estava reservado: não passa pelo disjuntor.
+    pub fn claim_withdraw(ctx: Context<ClaimWithdraw>) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
+        let ticket = &ctx.accounts.ticket;
+        require!(now >= ticket.ready_at, CambiError::WithdrawNotReady);
+        let s = side_idx(ticket.side)?;
+        let amount = ticket.amount;
+        let (vault, dest) = match s {
+            BRL => (&ctx.accounts.brl_vault, &ctx.accounts.user_brl),
+            _ => (&ctx.accounts.usd_vault, &ctx.accounts.user_usd),
+        };
+        pay_from_vault(&ctx.accounts.pool, vault, dest, &ctx.accounts.token_program, amount)?;
+        let pool = &mut ctx.accounts.pool;
+        pool.queued[s] = pool.queued[s].checked_sub(amount).ok_or(CambiError::MathOverflow)?;
+        emit!(WithdrawEvent { user: ctx.accounts.user.key(), tranche: u8::MAX, side: s as u8, amount, fees: [0, 0] });
         Ok(())
     }
 
@@ -519,6 +788,60 @@ pub fn baleia_can_withdraw(available: u64, amount: u64, rende_principal: u64) ->
     available.checked_sub(amount).map_or(false, |left| left >= rende_principal)
 }
 
+/// Saque imediato só até uma fração da liquidez livre; acima disso, fila com aviso prévio.
+pub fn instant_withdraw_ok(available: u64, amount: u64, instant_bps: u16) -> bool {
+    (amount as u128) * BPS <= (available as u128) * (instant_bps as u128)
+}
+
+/// Disjuntor: soma a saída da moeda `s` na janela atual e recusa se passar do teto.
+/// A janela recomeça sozinha depois de `breaker_window_secs`, com a liquidez livre daquele momento como base.
+pub fn breaker_take(pool: &mut Pool, now: i64, free: [u64; 2], s: usize, amount: u64) -> Result<()> {
+    if now.saturating_sub(pool.breaker_start) >= pool.breaker_window_secs {
+        pool.breaker_start = now;
+        pool.breaker_base = free;
+        pool.breaker_out = [0, 0];
+    }
+    let total = pool.breaker_out[s].checked_add(amount).ok_or(CambiError::MathOverflow)?;
+    let cap = (pool.breaker_base[s] as u128) * (pool.breaker_bps as u128) / BPS;
+    require!((total as u128) <= cap, CambiError::CircuitBreaker);
+    pool.breaker_out[s] = total;
+    Ok(())
+}
+
+/// Confere a credencial KYC de quem troca ou deposita (quando o pool exige).
+pub fn check_credential(pool: &Pool, pool_key: Pubkey, user: Pubkey, cred: Option<&Credential>, value_brl: u128, now: i64) -> Result<()> {
+    if !pool.require_kyc {
+        return Ok(());
+    }
+    let c = cred.ok_or(error!(CambiError::KycRequired))?;
+    require!(c.pool == pool_key && c.user == user, CambiError::KycRequired);
+    require!(!c.revoked, CambiError::CredentialRevoked);
+    require!(now < c.expires_at, CambiError::CredentialExpired);
+    require!((1..=3).contains(&c.level), CambiError::KycRequired);
+    let limit = pool.level_limit_brl[(c.level - 1) as usize];
+    require!(limit == 0 || value_brl <= limit as u128, CambiError::AboveKycLimit);
+    Ok(())
+}
+
+/// Reserva atestada cobre o total emitido e o atestado está dentro da validade.
+pub fn reserves_ok(supply: u64, reserves: u64, attested_at: i64, now: i64, max_age: i64) -> bool {
+    supply <= reserves && now.saturating_sub(attested_at) <= max_age
+}
+
+/// Prova de reserva das duas moedas do pool (quando a política está ligada).
+pub fn check_backing(pool: &Pool, pool_key: Pubkey, mints: [&Mint; 2], reserves: [Option<&ReserveAttestation>; 2], now: i64) -> Result<()> {
+    if pool.reserve_max_age == 0 {
+        return Ok(());
+    }
+    let expected = [pool.brl_mint, pool.usd_mint];
+    for s in 0..2 {
+        let r = reserves[s].ok_or(error!(CambiError::ReserveUnproven))?;
+        require!(r.pool == pool_key && r.mint == expected[s], CambiError::ReserveUnproven);
+        require!(reserves_ok(mints[s].supply, r.reserves, r.attested_at, now, pool.reserve_max_age), CambiError::ReserveUnproven);
+    }
+    Ok(())
+}
+
 /// Taxas pendentes de uma posição, nas duas moedas.
 pub fn pending_fees(shares: u128, acc: [u128; 2], debt: [u128; 2]) -> Result<[u64; 2]> {
     let mut out = [0u64; 2];
@@ -584,7 +907,7 @@ pub fn quote(pool: &Pool, s_in: usize, amount_in: u64, kind: UserKind, brl_avail
 
 /// Saldo do cofre que pode ser usado em trocas e saques de principal (exclui taxas reservadas).
 pub fn available(pool: &Pool, vault_amount: u64, s: usize) -> u64 {
-    let reserved = pool.platform_fees[s] + pool.partner_fees[s] + pool.lp_fees_unclaimed[s];
+    let reserved = pool.platform_fees[s] + pool.partner_fees[s] + pool.lp_fees_unclaimed[s] + pool.queued[s];
     vault_amount.saturating_sub(reserved)
 }
 
@@ -745,6 +1068,64 @@ pub struct Pool {
     /// Faucet de devnet: teto global por hora.
     pub faucet_window_start: i64,
     pub faucet_window_minted: u64,
+    /// Chave de emergência que só pausa.
+    pub guardian: Pubkey,
+    /// Quem emite as credenciais KYC (parceiro regulado) e se elas são exigidas.
+    pub kyc_issuer: Pubkey,
+    pub require_kyc: bool,
+    /// Teto por operação, em reais (6 casas), por nível de credencial; 0 = sem teto.
+    pub level_limit_brl: [u64; 3],
+    /// Disjuntor: janela, teto (bps da liquidez livre no início da janela), base e saída somada por moeda.
+    pub breaker_window_secs: i64,
+    pub breaker_bps: u16,
+    pub breaker_start: i64,
+    pub breaker_base: [u64; 2],
+    pub breaker_out: [u64; 2],
+    /// Saque imediato até esta fração da liquidez livre; acima, fila com aviso prévio.
+    pub instant_withdraw_bps: u16,
+    pub withdraw_notice_secs: i64,
+    /// Valor na fila de saque, reservado nos cofres (fora da liquidez das trocas).
+    pub queued: [u64; 2],
+    /// Prova de reserva: quem atesta e validade máxima do atestado (0 = desligada).
+    pub reserve_attester: Pubkey,
+    pub reserve_max_age: i64,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct ReserveAttestation {
+    pub pool: Pubkey,
+    pub mint: Pubkey,
+    /// Reserva atestada, em unidades do token (mesmas casas decimais).
+    pub reserves: u64,
+    pub attested_at: i64,
+    pub attester: Pubkey,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct Credential {
+    pub pool: Pubkey,
+    pub user: Pubkey,
+    pub issuer: Pubkey,
+    /// 1 = básico, 2 = completo, 3 = institucional
+    pub level: u8,
+    pub expires_at: i64,
+    pub revoked: bool,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct WithdrawTicket {
+    pub owner: Pubkey,
+    pub pool: Pubkey,
+    pub side: u8,
+    pub amount: u64,
+    pub requested_at: i64,
+    pub ready_at: i64,
+    pub bump: u8,
 }
 
 #[account]
@@ -792,6 +1173,37 @@ pub struct SwapEvent {
     pub to_platform: u64,
     pub to_partner: u64,
     pub price: u64,
+}
+
+#[event]
+pub struct ReserveEvent {
+    pub mint: Pubkey,
+    pub reserves: u64,
+    pub supply: u64,
+    pub at: i64,
+}
+
+#[event]
+pub struct PauseEvent {
+    pub by: Pubkey,
+    pub paused: bool,
+}
+
+#[event]
+pub struct CredentialEvent {
+    pub user: Pubkey,
+    pub level: u8,
+    pub expires_at: i64,
+    pub revoked: bool,
+}
+
+#[event]
+pub struct WithdrawRequestedEvent {
+    pub user: Pubkey,
+    pub tranche: u8,
+    pub side: u8,
+    pub amount: u64,
+    pub ready_at: i64,
 }
 
 #[event]
@@ -855,6 +1267,116 @@ pub struct AdminOnly<'info> {
 }
 
 #[derive(Accounts)]
+pub struct AttestReserves<'info> {
+    #[account(mut)]
+    pub attester: Signer<'info>,
+    #[account(constraint = pool.reserve_attester == attester.key() @ CambiError::Unauthorized)]
+    pub pool: Account<'info, Pool>,
+    pub mint: Account<'info, Mint>,
+    #[account(
+        init_if_needed, payer = attester, space = 8 + ReserveAttestation::INIT_SPACE,
+        seeds = [b"reserve", pool.key().as_ref(), mint.key().as_ref()], bump
+    )]
+    pub reserve: Account<'info, ReserveAttestation>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct GuardianPause<'info> {
+    pub guardian: Signer<'info>,
+    #[account(mut, has_one = guardian)]
+    pub pool: Account<'info, Pool>,
+}
+
+#[derive(Accounts)]
+pub struct IssueCredential<'info> {
+    #[account(mut)]
+    pub issuer: Signer<'info>,
+    #[account(constraint = pool.kyc_issuer == issuer.key() @ CambiError::Unauthorized)]
+    pub pool: Account<'info, Pool>,
+    /// CHECK: carteira que recebe a credencial; só usada como chave.
+    pub user: UncheckedAccount<'info>,
+    #[account(
+        init_if_needed, payer = issuer, space = 8 + Credential::INIT_SPACE,
+        seeds = [b"credential", pool.key().as_ref(), user.key().as_ref()], bump
+    )]
+    pub credential: Account<'info, Credential>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RevokeCredential<'info> {
+    pub authority: Signer<'info>,
+    pub pool: Account<'info, Pool>,
+    #[account(mut, has_one = pool)]
+    pub credential: Account<'info, Credential>,
+}
+
+#[cfg(feature = "devnet")]
+#[derive(Accounts)]
+pub struct DevnetCredential<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+    pub pool: Account<'info, Pool>,
+    #[account(
+        init_if_needed, payer = user, space = 8 + Credential::INIT_SPACE,
+        seeds = [b"credential", pool.key().as_ref(), user.key().as_ref()], bump
+    )]
+    pub credential: Account<'info, Credential>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RequestWithdraw<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[account(mut, has_one = brl_vault, has_one = usd_vault)]
+    pub pool: Account<'info, Pool>,
+    #[account(
+        mut, has_one = pool,
+        constraint = position.owner == user.key() @ CambiError::InvalidPosition,
+        seeds = [b"position", pool.key().as_ref(), user.key().as_ref(), &[position.tranche], &[position.side]],
+        bump = position.bump
+    )]
+    pub position: Account<'info, Position>,
+    /// Um pedido por posição de cada vez.
+    #[account(
+        init, payer = user, space = 8 + WithdrawTicket::INIT_SPACE,
+        seeds = [b"ticket", position.key().as_ref()], bump
+    )]
+    pub ticket: Account<'info, WithdrawTicket>,
+    #[account(mut)]
+    pub brl_vault: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub usd_vault: Account<'info, TokenAccount>,
+    #[account(mut, token::mint = pool.brl_mint, token::authority = user)]
+    pub user_brl: Account<'info, TokenAccount>,
+    #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
+    pub user_usd: Account<'info, TokenAccount>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimWithdraw<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[account(mut, has_one = brl_vault, has_one = usd_vault)]
+    pub pool: Account<'info, Pool>,
+    #[account(mut, has_one = pool, constraint = ticket.owner == user.key() @ CambiError::InvalidPosition, close = user)]
+    pub ticket: Account<'info, WithdrawTicket>,
+    #[account(mut)]
+    pub brl_vault: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub usd_vault: Account<'info, TokenAccount>,
+    #[account(mut, token::mint = pool.brl_mint, token::authority = user)]
+    pub user_brl: Account<'info, TokenAccount>,
+    #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
+    pub user_usd: Account<'info, TokenAccount>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
 pub struct AcceptAdmin<'info> {
     pub new_admin: Signer<'info>,
     #[account(mut)]
@@ -897,6 +1419,15 @@ pub struct Deposit<'info> {
     pub user_brl: Account<'info, TokenAccount>,
     #[account(mut, token::mint = pool.usd_mint, token::authority = user)]
     pub user_usd: Account<'info, TokenAccount>,
+    /// Credencial KYC da carteira (exigida quando `pool.require_kyc`).
+    pub credential: Option<Account<'info, Credential>>,
+    #[account(address = pool.brl_mint)]
+    pub brl_mint: Box<Account<'info, Mint>>,
+    #[account(address = pool.usd_mint)]
+    pub usd_mint: Box<Account<'info, Mint>>,
+    /// Atestados de reserva das duas moedas (exigidos quando a prova de reserva está ligada).
+    pub brl_reserve: Option<Box<Account<'info, ReserveAttestation>>>,
+    pub usd_reserve: Option<Box<Account<'info, ReserveAttestation>>>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
@@ -939,6 +1470,15 @@ pub struct Swap<'info> {
     pub user_usd: Account<'info, TokenAccount>,
     pub depositor_position: Option<Account<'info, Position>>,
     pub partner: Option<Account<'info, Partner>>,
+    /// Credencial KYC da carteira (exigida quando `pool.require_kyc`, exceto para app parceiro).
+    pub credential: Option<Account<'info, Credential>>,
+    #[account(address = pool.brl_mint)]
+    pub brl_mint: Box<Account<'info, Mint>>,
+    #[account(address = pool.usd_mint)]
+    pub usd_mint: Box<Account<'info, Mint>>,
+    /// Atestados de reserva das duas moedas (exigidos quando a prova de reserva está ligada).
+    pub brl_reserve: Option<Box<Account<'info, ReserveAttestation>>>,
+    pub usd_reserve: Option<Box<Account<'info, ReserveAttestation>>>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -1047,6 +1587,22 @@ pub enum CambiError {
     FaucetBalanceTooHigh,
     #[msg("Limite de moedas de teste desta hora atingido; tente mais tarde")]
     FaucetHourlyCap,
+    #[msg("Carteira sem credencial de identidade (KYC) neste pool")]
+    KycRequired,
+    #[msg("Credencial de identidade revogada")]
+    CredentialRevoked,
+    #[msg("Credencial de identidade vencida; renove a verificação")]
+    CredentialExpired,
+    #[msg("Valor acima do limite do seu nível de verificação")]
+    AboveKycLimit,
+    #[msg("Disjuntor: o pool atingiu o teto de saída desta janela; tente mais tarde")]
+    CircuitBreaker,
+    #[msg("Saque grande: use a fila de saque (aviso prévio)")]
+    UseWithdrawQueue,
+    #[msg("Saque da fila ainda no prazo de aviso prévio")]
+    WithdrawNotReady,
+    #[msg("Lastro sem prova: reserva atestada menor que o emitido ou atestado vencido")]
+    ReserveUnproven,
 }
 
 #[cfg(test)]
@@ -1083,7 +1639,25 @@ mod tests {
             window_out: [0; 2],
             faucet_window_start: 0,
             faucet_window_minted: 0,
+            guardian: Pubkey::default(),
+            kyc_issuer: Pubkey::default(),
+            require_kyc: true,
+            level_limit_brl: DEFAULT_LEVEL_LIMITS,
+            breaker_window_secs: DEFAULT_BREAKER_WINDOW_SECS,
+            breaker_bps: DEFAULT_BREAKER_BPS,
+            breaker_start: 0,
+            breaker_base: [0; 2],
+            breaker_out: [0; 2],
+            instant_withdraw_bps: DEFAULT_INSTANT_WITHDRAW_BPS,
+            withdraw_notice_secs: DEFAULT_WITHDRAW_NOTICE_SECS,
+            queued: [0; 2],
+            reserve_attester: Pubkey::default(),
+            reserve_max_age: 0,
         }
+    }
+
+    fn cred(level: u8, expires_at: i64, revoked: bool) -> Credential {
+        Credential { pool: Pubkey::default(), user: Pubkey::default(), issuer: Pubkey::default(), level, expires_at, revoked, bump: 0 }
     }
 
     const R: u64 = 1_000_000; // 1 unidade com 6 casas
@@ -1178,5 +1752,57 @@ mod tests {
         assert!(caro.validate().is_err());
         let sem_limite = FeeConfig { max_trade_bps: 0, ..FeeConfig::default() };
         assert!(sem_limite.validate().is_err());
+    }
+
+    #[test]
+    fn kyc_exige_credencial_valida_e_respeita_o_teto_do_nivel() {
+        let p = pool(5_000_000);
+        let k = Pubkey::default();
+        let now = 1_000;
+        assert!(check_credential(&p, k, k, None, 1, now).is_err()); // sem credencial
+        assert!(check_credential(&p, k, k, Some(&cred(1, 2_000, false)), 1_000 * R as u128, now).is_ok());
+        assert!(check_credential(&p, k, k, Some(&cred(1, 2_000, true)), 1, now).is_err()); // revogada
+        assert!(check_credential(&p, k, k, Some(&cred(1, 900, false)), 1, now).is_err()); // vencida
+        // Nível básico: até R$ 10 mil por operação; institucional sem teto.
+        assert!(check_credential(&p, k, k, Some(&cred(1, 2_000, false)), 10_001 * R as u128, now).is_err());
+        assert!(check_credential(&p, k, k, Some(&cred(3, 2_000, false)), 10_000_000 * R as u128, now).is_ok());
+        // Pool sem exigência (ex.: rede de testes aberta) aceita sem credencial.
+        let mut aberto = pool(5_000_000);
+        aberto.require_kyc = false;
+        assert!(check_credential(&aberto, k, k, None, 1, now).is_ok());
+        // Credencial de outra carteira não serve.
+        let outra = Pubkey::new_unique();
+        assert!(check_credential(&p, k, outra, Some(&cred(1, 2_000, false)), 1, now).is_err());
+    }
+
+    #[test]
+    fn disjuntor_soma_trocas_e_saques_na_janela_e_reabre_depois() {
+        let mut p = pool(5_000_000);
+        let free = [1_000 * R, 200 * R];
+        // 30% por hora: até R$ 300 de saída em reais.
+        assert!(breaker_take(&mut p, 10_000, free, BRL, 200 * R).is_ok());
+        assert!(breaker_take(&mut p, 10_100, free, BRL, 100 * R).is_ok());
+        assert!(breaker_take(&mut p, 10_200, free, BRL, 1).is_err());
+        // A outra moeda tem o próprio teto.
+        assert!(breaker_take(&mut p, 10_200, free, USD, 60 * R).is_ok());
+        // Passada a janela, recomeça com a liquidez do momento.
+        assert!(breaker_take(&mut p, 10_000 + DEFAULT_BREAKER_WINDOW_SECS, [500 * R, 200 * R], BRL, 150 * R).is_ok());
+        assert!(breaker_take(&mut p, 10_000 + DEFAULT_BREAKER_WINDOW_SECS, [500 * R, 200 * R], BRL, 1).is_err());
+    }
+
+    #[test]
+    fn saque_grande_vai_para_a_fila_e_o_valor_da_fila_fica_reservado() {
+        assert!(instant_withdraw_ok(1_000, 100, 1_000)); // 10%
+        assert!(!instant_withdraw_ok(1_000, 101, 1_000));
+        let mut p = pool(5_000_000);
+        p.queued[BRL] = 400;
+        assert_eq!(available(&p, 1_000, BRL), 600);
+    }
+
+    #[test]
+    fn prova_de_reserva_trava_moeda_sem_lastro_ou_com_atestado_velho() {
+        assert!(reserves_ok(1_000, 1_000, 100, 200, 3_600));
+        assert!(!reserves_ok(1_001, 1_000, 100, 200, 3_600)); // emitiu mais do que tem
+        assert!(!reserves_ok(1_000, 1_000, 100, 100 + 3_601, 3_600)); // atestado vencido
     }
 }

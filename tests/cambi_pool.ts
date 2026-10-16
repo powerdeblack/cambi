@@ -1,7 +1,7 @@
 // Testes de integração: rodam o programa numa Solana local (`anchor test`), compilado com a feature `devnet`.
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { AuthorityType, TOKEN_PROGRAM_ID, setAuthority } from "@solana/spl-token";
+import { AuthorityType, TOKEN_PROGRAM_ID, getMint, mintTo, setAuthority } from "@solana/spl-token";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { expect } from "chai";
 import { CambiPool } from "../target/types/cambi_pool";
@@ -14,12 +14,15 @@ import {
   User,
   claimPda,
   createMints,
+  credentialPda,
   mintAuthorityPda,
   partnerPda,
   poolPda,
   positionPda,
   programDataPda,
+  reservePda,
   setupUser,
+  ticketPda,
   tokenBalance,
   u,
   vaultPda,
@@ -65,8 +68,39 @@ describe("cambi_pool", () => {
     pool: PublicKey;
     brlVault: PublicKey;
     usdVault: PublicKey;
+    m: Mints;
   }
-  const main = (): Ctx => ({ pool, brlVault, usdVault });
+  const main = (): Ctx => ({ pool, brlVault, usdVault, m: mints });
+  const NO_RESERVES = { brlReserve: null, usdReserve: null };
+
+  /** O emissor de KYC (no teste, o admin) dá credencial às carteiras. Nível 3 = institucional, sem teto. */
+  const enroll = async (c: Ctx, users: User[], level = 3) => {
+    const expires = new anchor.BN(Math.floor(Date.now() / 1000) + 30 * 86_400);
+    for (const user of users) {
+      await program.methods
+        .issueCredential(level, expires)
+        .accountsPartial({
+          issuer: admin.publicKey,
+          pool: c.pool,
+          user: user.kp.publicKey,
+          credential: credentialPda(pid, c.pool, user.kp.publicKey),
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    }
+  };
+
+  const setSafety = (c: Ctx, o: { window?: number; breakerBps?: number; instantBps?: number; notice?: number; limits?: number[] } = {}) =>
+    program.methods
+      .setSafety(
+        new anchor.BN(o.window ?? 3600),
+        o.breakerBps ?? 3_000,
+        o.instantBps ?? 1_000,
+        new anchor.BN(o.notice ?? 86_400),
+        (o.limits ?? [10_000, 100_000, 0]).map((v) => u(v)),
+      )
+      .accountsPartial({ admin: admin.publicKey, pool: c.pool })
+      .rpc();
 
   const initialize = (m: Mints, maxAge = 3600, signer: Keypair = admin) => {
     const p = poolPda(pid, m.brl, m.usd);
@@ -94,7 +128,7 @@ describe("cambi_pool", () => {
       .accountsPartial({ admin: admin.publicKey, pool: c.pool })
       .rpc();
 
-  const deposit = (user: User, tranche: number, side: number, amount: number, c: Ctx = main()) =>
+  const deposit = (user: User, tranche: number, side: number, amount: number, c: Ctx = main(), credential: PublicKey | null = credentialPda(pid, c.pool, user.kp.publicKey)) =>
     program.methods
       .deposit(tranche, side, u(amount))
       .accountsPartial({
@@ -105,6 +139,10 @@ describe("cambi_pool", () => {
         usdVault: c.usdVault,
         userBrl: user.brl,
         userUsd: user.usd,
+        credential,
+        brlMint: c.m.brl,
+        usdMint: c.m.usd,
+        ...NO_RESERVES,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
@@ -131,7 +169,7 @@ describe("cambi_pool", () => {
     user: User,
     side: number,
     amount: number,
-    opts: { position?: PublicKey; partner?: PublicKey; minOut?: number; ctx?: Ctx } = {},
+    opts: { position?: PublicKey; partner?: PublicKey; minOut?: number; ctx?: Ctx; noCredential?: boolean; reserves?: { brlReserve: PublicKey; usdReserve: PublicKey } } = {},
   ) => {
     const c = opts.ctx ?? main();
     return program.methods
@@ -145,6 +183,10 @@ describe("cambi_pool", () => {
         userUsd: user.usd,
         depositorPosition: opts.position ?? null,
         partner: opts.partner ?? null,
+        credential: opts.noCredential || opts.partner ? null : credentialPda(pid, c.pool, user.kp.publicKey),
+        brlMint: c.m.brl,
+        usdMint: c.m.usd,
+        ...(opts.reserves ?? NO_RESERVES),
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .signers([user.kp])
@@ -164,7 +206,7 @@ describe("cambi_pool", () => {
     const m = await createMints(connection, admin);
     await initialize(m, maxAge);
     const p = poolPda(pid, m.brl, m.usd);
-    return { m, ctx: { pool: p, brlVault: vaultPda(pid, p, m.brl), usdVault: vaultPda(pid, p, m.usd) } };
+    return { m, ctx: { pool: p, brlVault: vaultPda(pid, p, m.brl), usdVault: vaultPda(pid, p, m.usd), m } };
   }
 
   before(async () => {
@@ -195,6 +237,12 @@ describe("cambi_pool", () => {
     expect(p.paused).to.equal(false);
     expect(p.lockupSecs.toNumber()).to.equal(600);
     expect(p.maxPriceMoveBps).to.equal(1_000);
+    // v2: KYC exigido, guardião e emissor começam no admin, disjuntor e fila ligados.
+    expect(p.requireKyc).to.equal(true);
+    expect(p.guardian.toBase58()).to.equal(admin.publicKey.toBase58());
+    expect(p.breakerBps).to.equal(3_000);
+    expect(p.instantWithdrawBps).to.equal(1_000);
+    await enroll(main(), [alice, bob, whale, carol]);
   });
 
   it("recusa depósito abaixo de R$ 10", async () => {
@@ -299,6 +347,9 @@ describe("cambi_pool", () => {
     const rende = await setupUser(connection, admin, m, { brl: 0, usd: 1_000 }, { airdropSol: 1 });
     const baleia = await setupUser(connection, admin, m, { brl: 5_000, usd: 0 }, { airdropSol: 1 });
     const trader = await setupUser(connection, admin, m, { brl: 10_000, usd: 0 }, { airdropSol: 1 });
+    await enroll(ctx, [rende, baleia, trader]);
+    // Cenário da auditoria H-1 testa a regra júnior: saque imediato e disjuntor sem teto aqui.
+    await setSafety(ctx, { breakerBps: 10_000, instantBps: 10_000 });
     await deposit(rende, RENDE, USD, 1_000, ctx); // Rende em dólar: US$ 1.000
     await deposit(baleia, BALEIA, BRL, 5_000, ctx); // Baleia em reais
     // Antes de qualquer troca, as duas moedas cobrem a Rende: saque pequeno da Baleia passa.
@@ -314,6 +365,7 @@ describe("cambi_pool", () => {
     const { m, ctx } = await freshPool();
     const lp = await setupUser(connection, admin, m, { brl: 0, usd: 1_000 }, { airdropSol: 1 });
     const trader = await setupUser(connection, admin, m, { brl: 10_000, usd: 0 }, { airdropSol: 1 });
+    await enroll(ctx, [lp, trader]);
     await deposit(lp, BALEIA, USD, 1_000, ctx);
     await swap(trader, BRL, 1_000, { ctx }); // ~US$ 183 de saída, dentro dos 20% (US$ 200)
     await expectError(swap(trader, BRL, 200, { ctx }), "OutflowLimit");
@@ -399,8 +451,143 @@ describe("cambi_pool", () => {
   it("recusa trocas e depósitos com cotação desatualizada", async () => {
     const { m, ctx } = await freshPool(1);
     const dave = await setupUser(connection, admin, m, { brl: 1_000, usd: 0 }, { kp: Keypair.generate(), airdropSol: 1 });
+    await enroll(ctx, [dave]);
     await new Promise((r) => setTimeout(r, 3_000));
     await expectError(swap(dave, BRL, 100, { ctx }), "StalePrice");
     await expectError(deposit(dave, RENDE, BRL, 100, ctx), "StalePrice");
+  });
+
+  // ---------- v2: gargalos de segurança ----------
+
+  it("v2: só carteira com credencial KYC troca e deposita; teto por nível; revogada ainda saca", async () => {
+    const { m, ctx } = await freshPool();
+    await setLimits(ctx, 3600, 1_000, 0);
+    const lp = await setupUser(connection, admin, m, { brl: 100_000, usd: 20_000 }, { airdropSol: 1 });
+    const eve = await setupUser(connection, admin, m, { brl: 30_000, usd: 0 }, { airdropSol: 1 });
+    await enroll(ctx, [lp]);
+    await deposit(lp, BALEIA, BRL, 100_000, ctx);
+    await deposit(lp, BALEIA, USD, 20_000, ctx);
+    // Sem credencial: nada de troca nem depósito.
+    await expectError(swap(eve, BRL, 100, { ctx, noCredential: true }), "KycRequired");
+    await expectError(deposit(eve, RENDE, BRL, 100, ctx, null), "KycRequired");
+    // Nível básico: até R$ 10 mil por operação.
+    await enroll(ctx, [eve], 1);
+    await expectError(swap(eve, BRL, 10_001, { ctx }), "AboveKycLimit");
+    await swap(eve, BRL, 1_000, { ctx });
+    await deposit(eve, RENDE, BRL, 1_000, ctx);
+    // Revogada (ex.: sanção): não troca mais, mas o dinheiro dela não fica preso.
+    await program.methods
+      .revokeCredential()
+      .accountsPartial({ authority: admin.publicKey, pool: ctx.pool, credential: credentialPda(pid, ctx.pool, eve.kp.publicKey) })
+      .rpc();
+    await expectError(swap(eve, BRL, 100, { ctx }), "CredentialRevoked");
+    await withdraw(eve, RENDE, BRL, 1_000, ctx);
+    // Só o emissor de KYC cria credencial.
+    await expectError(
+      program.methods
+        .issueCredential(3, new anchor.BN(Math.floor(Date.now() / 1000) + 3600))
+        .accountsPartial({
+          issuer: eve.kp.publicKey,
+          pool: ctx.pool,
+          user: eve.kp.publicKey,
+          credential: credentialPda(pid, ctx.pool, eve.kp.publicKey),
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([eve.kp])
+        .rpc(),
+      "Unauthorized",
+    );
+  });
+
+  it("v2: guardião só pausa; despausar é do admin (multisig)", async () => {
+    const { ctx } = await freshPool();
+    const guard = Keypair.generate();
+    await connection.confirmTransaction(await connection.requestAirdrop(guard.publicKey, 1e9), "confirmed");
+    await program.methods.setGuardian(guard.publicKey).accountsPartial({ admin: admin.publicKey, pool: ctx.pool }).rpc();
+    await expectError(
+      program.methods.guardianPause().accountsPartial({ guardian: carol.kp.publicKey, pool: ctx.pool }).signers([carol.kp]).rpc(),
+      "ConstraintHasOne",
+    );
+    await program.methods.guardianPause().accountsPartial({ guardian: guard.publicKey, pool: ctx.pool }).signers([guard]).rpc();
+    expect((await program.account.pool.fetch(ctx.pool)).paused).to.equal(true);
+    await expectError(
+      program.methods.setPaused(false).accountsPartial({ admin: guard.publicKey, pool: ctx.pool }).signers([guard]).rpc(),
+      "ConstraintHasOne",
+    );
+    await expectError(
+      program.methods.setPrice(new anchor.BN(5_500_000)).accountsPartial({ oracle: guard.publicKey, pool: ctx.pool }).signers([guard]).rpc(),
+      "ConstraintHasOne",
+    );
+    await program.methods.setPaused(false).accountsPartial({ admin: admin.publicKey, pool: ctx.pool }).rpc();
+  });
+
+  it("v2: disjuntor soma a saída da janela e para o pool antes de drenar", async () => {
+    const { m, ctx } = await freshPool();
+    const lp = await setupUser(connection, admin, m, { brl: 0, usd: 1_000 }, { airdropSol: 1 });
+    const trader = await setupUser(connection, admin, m, { brl: 10_000, usd: 0 }, { airdropSol: 1 });
+    await enroll(ctx, [lp, trader]);
+    await setSafety(ctx, { breakerBps: 1_000 }); // 10% por hora
+    await deposit(lp, BALEIA, USD, 1_000, ctx);
+    await swap(trader, BRL, 500, { ctx }); // ~US$ 92: dentro dos 10%
+    await expectError(swap(trader, BRL, 100, { ctx }), "CircuitBreaker");
+  });
+
+  it("v2: saque grande vai para a fila com aviso prévio, e o valor reservado não serve para trocas", async () => {
+    const { m, ctx } = await freshPool();
+    await setLimits(ctx, 3600, 1_000, 0);
+    await setSafety(ctx, { notice: 2, breakerBps: 10_000 });
+    const lp = await setupUser(connection, admin, m, { brl: 1_000, usd: 0 }, { airdropSol: 1 });
+    await enroll(ctx, [lp]);
+    await deposit(lp, RENDE, BRL, 1_000, ctx);
+    await expectError(withdraw(lp, RENDE, BRL, 500, ctx), "UseWithdrawQueue");
+    await withdraw(lp, RENDE, BRL, 100, ctx); // até 10% da liquidez sai na hora
+    const position = positionPda(pid, ctx.pool, lp.kp.publicKey, RENDE, BRL);
+    const ticket = ticketPda(pid, position);
+    const accounts = {
+      user: lp.kp.publicKey,
+      pool: ctx.pool,
+      brlVault: ctx.brlVault,
+      usdVault: ctx.usdVault,
+      userBrl: lp.brl,
+      userUsd: lp.usd,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    };
+    await program.methods
+      .requestWithdraw(u(800))
+      .accountsPartial({ ...accounts, position, ticket, systemProgram: SystemProgram.programId })
+      .signers([lp.kp])
+      .rpc();
+    expect((await program.account.pool.fetch(ctx.pool)).queued[BRL].toString()).to.equal(u(800).toString());
+    const claim = () => program.methods.claimWithdraw().accountsPartial({ ...accounts, ticket }).signers([lp.kp]).rpc();
+    await expectError(claim(), "WithdrawNotReady");
+    await new Promise((r) => setTimeout(r, 3_000));
+    const before = await tokenBalance(connection, lp.brl);
+    await claim();
+    expect((await tokenBalance(connection, lp.brl)) - before).to.equal(800);
+    expect((await program.account.pool.fetch(ctx.pool)).queued[BRL].toNumber()).to.equal(0);
+  });
+
+  it("v2: prova de reserva trava a moeda emitida acima do lastro atestado", async () => {
+    const { m, ctx } = await freshPool();
+    const lp = await setupUser(connection, admin, m, { brl: 0, usd: 1_000 }, { airdropSol: 1 });
+    const trader = await setupUser(connection, admin, m, { brl: 1_000, usd: 0 }, { airdropSol: 1 });
+    await enroll(ctx, [lp, trader]);
+    await deposit(lp, BALEIA, USD, 1_000, ctx);
+    await program.methods.setReservePolicy(admin.publicKey, new anchor.BN(3600)).accountsPartial({ admin: admin.publicKey, pool: ctx.pool }).rpc();
+    const reserves = { brlReserve: reservePda(pid, ctx.pool, m.brl), usdReserve: reservePda(pid, ctx.pool, m.usd) };
+    await expectError(swap(trader, BRL, 100, { ctx }), "ReserveUnproven");
+    const attest = async (mint: PublicKey) => {
+      const supply = (await getMint(connection, mint, "confirmed")).supply;
+      await program.methods
+        .attestReserves(new anchor.BN(supply.toString()))
+        .accountsPartial({ attester: admin.publicKey, pool: ctx.pool, mint, reserve: reservePda(pid, ctx.pool, mint), systemProgram: SystemProgram.programId })
+        .rpc();
+    };
+    await attest(m.brl);
+    await attest(m.usd);
+    await swap(trader, BRL, 100, { ctx, reserves });
+    // O emissor solta moeda sem lastro: o pool para de aceitar trocas com ela.
+    await mintTo(connection, admin, m.usd, lp.usd, admin, 1_000_000n, [], CONFIRMED);
+    await expectError(swap(trader, BRL, 100, { ctx, reserves }), "ReserveUnproven");
   });
 });

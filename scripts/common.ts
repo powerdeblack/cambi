@@ -32,6 +32,18 @@ export function positionPda(programId: PublicKey, pool: PublicKey, owner: Public
 }
 
 /** Conta de dados do programa (BPF upgradeable): guarda quem é a autoridade de upgrade. */
+export function credentialPda(programId: PublicKey, pool: PublicKey, user: PublicKey) {
+  return PublicKey.findProgramAddressSync([Buffer.from("credential"), pool.toBuffer(), user.toBuffer()], programId)[0];
+}
+
+export function ticketPda(programId: PublicKey, position: PublicKey) {
+  return PublicKey.findProgramAddressSync([Buffer.from("ticket"), position.toBuffer()], programId)[0];
+}
+
+export function reservePda(programId: PublicKey, pool: PublicKey, mint: PublicKey) {
+  return PublicKey.findProgramAddressSync([Buffer.from("reserve"), pool.toBuffer(), mint.toBuffer()], programId)[0];
+}
+
 export function programDataPda(programId: PublicKey) {
   return PublicKey.findProgramAddressSync([programId.toBuffer()], new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111"))[0];
 }
