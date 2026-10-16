@@ -4,7 +4,7 @@
   "kind": "consortium-v2",
   "rpc": "https://api.devnet.solana.com",
   "createdAt": "2026-10-16T04:26:18.713Z",
-  "updatedAt": "2026-10-16T04:26:18.713Z",
+  "updatedAt": "2026-10-16T16:20:08.859Z",
   "programId": "3xdkEsUvcgRDKyqN8rY3RVVP6CRrtcuvLYz9iNE7rdhE",
   "pool": "2jpkRKaQULxp6BMjuDxu3KhEBsaiDgmWbpe4JmiMkQbP",
   "brlMint": "4mSzGAxxH1a2vmNK6nJ9zzHZjR9hmSFpiWVDKAqvcTrY",
@@ -87,7 +87,50 @@
       "multisig": "2NyjSjF7iSbqqFfjCDxaTdsHK4GLDw99M1K5LMcSeEmp",
       "vault": "3aCQmHtpncna2i7SyPDYGKbFUSapUTSeHhXL5SnxdoQv",
       "threshold": 7,
-      "timeLockSecs": 3600
+      "timeLockSecs": 3600,
+      "history": [
+        {
+          "index": 2,
+          "action": "Upgrade do programa: Prêmio de escassez no depósito (v2.5)",
+          "at": "2026-10-16T16:20:08.859Z",
+          "proposer": "6BbFYmyrUVPPtHxtfpvimD7pt3uKopohRHU7ATpN7Btt",
+          "approvals": [
+            {
+              "member": "6BbFYmyrUVPPtHxtfpvimD7pt3uKopohRHU7ATpN7Btt",
+              "signature": "UWbU31tVSE7zrhST5WgeECYw7JrTsWPd4jNXjkeBtNtHMUNbxVmZDvrH8A3wmajzHLLdu1q14x3wn9eDuFrtJDZ"
+            },
+            {
+              "member": "peyzuGEAxNJthjD5tP3ijBmkPKeWu4w9QwxJ2BrS25B",
+              "signature": "UWbU31tVSE7zrhST5WgeECYw7JrTsWPd4jNXjkeBtNtHMUNbxVmZDvrH8A3wmajzHLLdu1q14x3wn9eDuFrtJDZ"
+            },
+            {
+              "member": "6RT5kFixyirfvuUSVrpthonWz6n1RVKbhFmMA6TqDs9t",
+              "signature": "UWbU31tVSE7zrhST5WgeECYw7JrTsWPd4jNXjkeBtNtHMUNbxVmZDvrH8A3wmajzHLLdu1q14x3wn9eDuFrtJDZ"
+            },
+            {
+              "member": "tRVyXRUdydYMBQYYaarmqPKQu2fYw1cUF3naFXFS1yP",
+              "signature": "UWbU31tVSE7zrhST5WgeECYw7JrTsWPd4jNXjkeBtNtHMUNbxVmZDvrH8A3wmajzHLLdu1q14x3wn9eDuFrtJDZ"
+            },
+            {
+              "member": "G1nuCtqVK5mDZhjZWd72YL749pA8wdXWS43WX3tfEvHJ",
+              "signature": "UWbU31tVSE7zrhST5WgeECYw7JrTsWPd4jNXjkeBtNtHMUNbxVmZDvrH8A3wmajzHLLdu1q14x3wn9eDuFrtJDZ"
+            },
+            {
+              "member": "3dkk2ZA1w4yBheFT6kNpmvd3KuqC7W2op4VSoV3NjsPm",
+              "signature": "UWbU31tVSE7zrhST5WgeECYw7JrTsWPd4jNXjkeBtNtHMUNbxVmZDvrH8A3wmajzHLLdu1q14x3wn9eDuFrtJDZ"
+            },
+            {
+              "member": "HmieVS6pGjB2ywSdSJSXfEUtLKePQ8eJ1NGkbB6DuEHp",
+              "signature": "UWbU31tVSE7zrhST5WgeECYw7JrTsWPd4jNXjkeBtNtHMUNbxVmZDvrH8A3wmajzHLLdu1q14x3wn9eDuFrtJDZ"
+            }
+          ],
+          "createSignature": "4TBkMtDS2Ltr54Pw1VABCvbpDDqvnwPoYqiw7vG2Vb2rg8Ys1xC2vp3LKFHe3Yr6hhoMcBGjLgWha2Nmkif1cJaq",
+          "executeSignature": "3GwRhEam2HS271pLg5Gq32CP5X97S31KqdGM6EM5Hjiy2MRK5TPD6WcnjjRK2muwkvB657J6XaYGh8Xae3erMg6a",
+          "timeLockSecs": 3600,
+          "waitedMinutes": 61,
+          "earlyExecutionRefused": true
+        }
+      ]
     },
     "validations": [
       {
