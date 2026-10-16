@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-16T04:41:13.938Z",
+  "updatedAt": "2026-10-16T04:45:30.581Z",
   "program": "3xdkEsUvcgRDKyqN8rY3RVVP6CRrtcuvLYz9iNE7rdhE",
   "pool": "2jpkRKaQULxp6BMjuDxu3KhEBsaiDgmWbpe4JmiMkQbP",
   "transactionsRead": 43,
@@ -8,14 +8,14 @@
     "activeWallets30d": 8
   },
   "swaps": 13,
-  "volumeBRL": null,
-  "volume7dBRL": null,
+  "volumeBRL": 3489.6,
+  "volume7dBRL": 3489.6,
   "feesBRL": {
-    "total": 181.69,
-    "rende": null,
-    "baleia": null,
-    "platform": null,
-    "partner": null
+    "total": 39.4,
+    "rende": 7.29,
+    "baleia": 17.02,
+    "platform": 8.1,
+    "partner": 6.98
   },
   "rende": {
     "deposits": 22,
@@ -36,7 +36,7 @@
     {
       "day": "2026-10-16",
       "swaps": 13,
-      "volumeBRL": null
+      "volumeBRL": 3489.6
     }
   ],
   "note": "Rede de testes: moedas sem valor real. Só agregados; nenhum endereço de carteira é publicado."
