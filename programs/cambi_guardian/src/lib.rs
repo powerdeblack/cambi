@@ -82,10 +82,11 @@ pub mod cambi_guardian {
             3 => pool.paused,
             _ => true,
         };
-        if d.level == 1 {
-            w.strikes = w.strikes.saturating_add(1);
-        }
         if !already {
+            // Reincidência conta só respiros novos (vigílias repetidas durante o mesmo respiro não escalam).
+            if d.level == 1 {
+                w.strikes = w.strikes.saturating_add(1);
+            }
             let pool_key = ctx.accounts.pool.key();
             let seeds: &[&[u8]] = &[b"guardian", pool_key.as_ref(), &[ctx.bumps.guardian]];
             cambi_pool::cpi::guardian_lock(

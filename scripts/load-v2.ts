@@ -1,4 +1,5 @@
-// Teste em escala do programa v2 na devnet (branch v2): os testes do white paper refeitos com muitas contas.
+// Teste em escala do programa v2.6 na devnet (branch v2): os testes do white paper refeitos com muitas contas,
+// no pool v2.6 (guardião sem chave, reserva da Rende, conselho de teste com chaves derivadas do deployer).
 //
 // Cada afirmação do white paper vira uma checagem com o esperado ao lado do medido:
 //   - Cadastro com credencial de teste para centenas de carteiras.
@@ -7,7 +8,10 @@
 //   - Divisão da taxa (parceiro Pix, operação, provedores) conferida pelos contadores do pool.
 //   - Rende: depósitos em real e em dólar, prêmio de escassez, trava de depósito, desconto de depositante,
 //     rendimento colhido, saque imediato, fila de saque com aviso prévio.
-//   - Guardião pausa; trocas recusadas; pedido de saque funciona com o pool pausado; só a governança despausa.
+//   - Guardião (programa sem chave): nenhuma chave trava; vigílias entre os lotes não travam; salto de cotação faz
+//     descansar; pedido de saque funciona no descanso; só o conselho solta antes da hora.
+//   - Estresse: corrida ao dólar; o guardião manda respirar só no dólar; quem devolve dólar continua; o respiro solta
+//     sozinho pelo tempo.
 //
 // As carteiras de teste são descartáveis e nunca salvas. Uma carteira patrocinadora (o deployer) paga as taxas de
 // rede e o aluguel das contas, como o app faria; no fim, cada carteira devolve os tokens, fecha as contas de token
@@ -27,17 +31,18 @@ import {
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction, TransactionMessage } from "@solana/web3.js";
 import * as multisig from "@sqds/multisig";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import idl from "../idl/cambi_pool_v2.json";
-import { BALEIA, BRL, RENDE, USD, claimPda, credentialPda, mintAuthorityPda, positionPda, ticketPda, u } from "./common";
+import { BRL, RENDE, USD, claimPda, credentialPda, mintAuthorityPda, positionPda, ticketPda, u } from "./common";
+import { deriveKey } from "./derive-key";
 
 const RPC = "https://api.devnet.solana.com";
-const DEPLOYMENT = "deployments/devnet-v2.json";
+const DEPLOYMENT = "deployments/devnet-v26.json";
 const REPORT = "deployments/load-v2-report.json";
-const KEYS = ".consortium-keys";
+const idl = JSON.parse(readFileSync("idl/cambi_pool_v26.json", "utf8"));
+const guardianIdl = JSON.parse(readFileSync("idl/cambi_guardian.json", "utf8"));
 const TOTAL = Number(process.env.LOAD_USERS ?? 1000);
 const COHORT = 100;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const errors: { code: number; name: string }[] = (idl as any).errors;
+const errors: { code: number; name: string }[] = [...idl.errors, ...(guardianIdl.errors ?? [])];
 
 // ---------- RPC educada: a devnet pública aceita ~10 chamadas/s por IP e ~4 envios/s ----------
 let lastCall = 0;
@@ -206,7 +211,8 @@ async function main() {
   payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(process.env.ANCHOR_WALLET!, "utf8"))));
   const program = new Program(idl as Idl, new anchor.AnchorProvider(connection, new anchor.Wallet(payer), { commitment: "confirmed" }));
   const pid = program.programId;
-  if (pid.toBase58() !== dep.programId) throw new Error("IDL v2 não corresponde ao programa implantado");
+  if (pid.toBase58() !== dep.programId) throw new Error("IDL v2.6 não corresponde ao programa implantado");
+  const guardianProgram = new Program(guardianIdl as Idl, program.provider);
   const pool = new PublicKey(dep.pool);
   const brlMint = new PublicKey(dep.brlMint);
   const usdMint = new PublicKey(dep.usdMint);
@@ -220,6 +226,76 @@ async function main() {
 
   // ---------- Estado inicial ----------
   const fetchPool = async () => acc.pool.fetch(pool);
+
+  // Conselho de teste (chaves derivadas da chave do deployer) e vigília do guardião (qualquer carteira chama).
+  const councilKeys = Array.from({ length: 10 }, (_, i) => deriveKey(payer, `conselho-${i + 1}`));
+  const msPda = new PublicKey(dep.council.multisig);
+  const councilVault = new PublicKey(dep.council.vault);
+  async function council(builder: { instruction: () => Promise<TransactionInstruction> }, label: string): Promise<boolean> {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const ix = await builder.instruction();
+        const ms = await multisig.accounts.Multisig.fromAccountAddress(connection, msPda, "confirmed");
+        const transactionIndex = BigInt(Number(ms.transactionIndex) + 1);
+        const signers = councilKeys.slice().sort(() => Math.random() - 0.5).slice(0, 7);
+        const { blockhash: bh } = await connection.getLatestBlockhash("confirmed");
+        const a = await stage(`${label}: proposta`, [
+          {
+            stage: "conselho: proposta",
+            signers: [signers[0]],
+            expect: "ok",
+            build: async () => [
+              multisig.instructions.vaultTransactionCreate({
+                multisigPda: msPda,
+                transactionIndex,
+                creator: signers[0].publicKey,
+                rentPayer: payer.publicKey,
+                vaultIndex: 0,
+                ephemeralSigners: 0,
+                transactionMessage: new TransactionMessage({ payerKey: councilVault, recentBlockhash: bh, instructions: [ix] }),
+                memo: `cambI: ${label}`.slice(0, 80),
+              }),
+              multisig.instructions.proposalCreate({ multisigPda: msPda, transactionIndex, creator: signers[0].publicKey, rentPayer: payer.publicKey }),
+            ],
+          },
+        ]);
+        if (a[0].result !== "ok") throw new Error(a[0].result);
+        const b = await stage(`${label}: 7 aprovações`, [
+          { stage: "conselho: aprovações", signers, expect: "ok", build: async () => signers.map((m) => multisig.instructions.proposalApprove({ multisigPda: msPda, transactionIndex, member: m.publicKey })) },
+        ]);
+        if (b[0].result !== "ok") throw new Error(b[0].result);
+        const { instruction } = await multisig.instructions.vaultTransactionExecute({ connection, multisigPda: msPda, transactionIndex, member: signers[0].publicKey });
+        const c = await stage(`${label}: execução`, [{ stage: "conselho: execução", signers: [signers[0]], expect: "ok", build: async () => [instruction] }]);
+        if (c[0].result !== "ok") throw new Error(c[0].result);
+        return true;
+      } catch (e) {
+        console.log(`${label}, tentativa ${attempt}: ${(e as Error).message}`);
+      }
+    }
+    return false;
+  }
+  const guardianPda = new PublicKey(dep.guardian);
+  const watchPda = new PublicKey(dep.watch);
+  const lockLog: { at: string; level: number; restUntil: number; breatheUntil: number; side?: number }[] = [];
+  /** Vigília do guardião; devolve a trava que ficou valendo no pool (0 nenhuma, 1 respirar, 2 descansar, 3 parar). */
+  async function vigil(label: string): Promise<number> {
+    await stage(label, [
+      {
+        stage: "guardião: vigília",
+        signers: [],
+        expect: "ok",
+        build: async () => [
+          await guardianProgram.methods
+            .vigiar()
+            .accountsPartial({ watch: watchPda, pool, brlVault, usdVault, guardian: guardianPda, cambiPoolProgram: pid })
+            .instruction(),
+        ],
+      },
+    ]);
+    const p = await fetchPool();
+    const now = Math.floor(Date.now() / 1000);
+    return p.paused ? 3 : Number(p.restUntil) > now ? 2 : Number(p.breatheUntil) > now ? 1 : 0;
+  }
   const p0 = await fetchPool();
   const price = Number(p0.price.toString()) / 1e6;
   const priceAge = Math.floor(Date.now() / 1000) - Number(p0.priceUpdatedAt);
@@ -554,6 +630,7 @@ async function main() {
   let profitable = 0;
   let maxBreaker = { BRL: 0, USD: 0 };
   let traderIndex = 0;
+  const cohortVigils: number[] = [];
   for (let c = 0; c * COHORT < traderCount; c++) {
     const n = Math.min(COHORT, traderCount - c * COHORT);
     const ks = Array.from({ length: n }, () => Keypair.generate());
@@ -610,6 +687,8 @@ async function main() {
     const used = (s: number) => (open && Number(p.breakerBase[s]) > 0 ? (Number(p.breakerOut[s]) / ((Number(p.breakerBase[s]) * p.breakerBps) / 10_000)) * 100 : 0);
     maxBreaker = { BRL: Math.max(maxBreaker.BRL, used(BRL)), USD: Math.max(maxBreaker.USD, used(USD)) };
     await cleanup(`${label}: devolução`, [...ks, ...outsiders]);
+    // Vigília depois de cada lote: uso normal não deve travar nada.
+    cohortVigils.push(await vigil(`${label}: vigília do guardião`));
   }
   const pTradersEnd = await fetchPool();
 
@@ -628,80 +707,51 @@ async function main() {
     providersPctOfNet: Math.round((lp / (platform + lp)) * 10_000) / 100,
   };
 
-  // ---------- Guardião e governança ----------
-  const guardian = (await fetchPool()).guardian as PublicKey;
+  // ---------- Guardião (programa sem chave) e conselho ----------
+  // Nenhuma chave trava o pool: o deployer tenta e é recusado. Um salto de cotação de 5% (feito pelo conselho de
+  // teste, dentro do limite do pool) faz o guardião mandar "descansar" na vigília seguinte: trocas e depósitos param,
+  // pedidos de saque continuam. O conselho volta a cotação e solta as travas.
   let guardianNote = "";
   const queued = rende.filter((r) => r.kind === "pequeno").slice(0, 20);
-  const pausedSwappers = rende.filter((r) => r.kind === "pequeno").slice(20, 40);
-  if (guardian.equals(payer.publicKey) && existsSync(KEYS)) {
-    const members = Array.from({ length: 10 }, (_, i) => Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(`${KEYS}/baleia-${i + 1}.json`, "utf8")))));
-    await stage("guardião pausa", [{ stage: "guardião: pausa", signers: [], expect: "ok", build: async () => [await program.methods.guardianPause().accountsPartial({ guardian: payer.publicKey, pool }).instruction()] }]);
+  const restSwappers = rende.filter((r) => r.kind === "pequeno").slice(20, 40);
+  await stage("guardião: nenhuma chave trava", [
+    { stage: "guardião: chave tenta travar", signers: [], expect: "ConstraintHasOne", build: async () => [await program.methods.guardianLock(2, 0, new anchor.BN(60), 0).accountsPartial({ guardian: payer.publicKey, pool }).instruction()] },
+  ]);
+  const p1 = await fetchPool();
+  const jumped = new anchor.BN(Math.round(Number(p1.price.toString()) * 1.05));
+  const c1 = await council(program.methods.setPrice(jumped).accountsPartial({ oracle: councilVault, pool }), "conselho: cotação +5% (teste do guardião)");
+  if (c1) {
+    const v = await vigil("vigília depois do salto");
+    const p2 = await fetchPool();
+    lockLog.push({ at: "salto de cotação", level: v, restUntil: Number(p2.restUntil), breatheUntil: Number(p2.breatheUntil) });
     await stage(
-      "pool pausado: trocas",
-      pausedSwappers.map((r) => ({ stage: "guardião: troca com pool pausado", signers: [r.k], expect: "Paused", build: async () => [await swapIx(r.k.publicKey, BRL, 2)] })),
+      "descanso: trocas e depósitos",
+      [
+        ...restSwappers.map((r) => ({ stage: "guardião: troca durante o descanso", signers: [r.k], expect: "GuardianResting", build: async () => [await swapIx(r.k.publicKey, BRL, 2)] })),
+        ...restSwappers.slice(0, 5).map((r) => ({ stage: "guardião: depósito durante o descanso", signers: [r.k], expect: "GuardianResting", build: async () => [await depositIx(r.k.publicKey, BRL, 1_000_000)] })),
+      ],
     );
     // Esperar a trava de depósito antes de pedir saque.
     const lockMs = Number(pBeforeDeposit.lockupSecs) * 1000 + 5_000 - (Date.now() - depositedAt);
     if (lockMs > 0) await sleep(lockMs);
     await stage(
-      "pool pausado: pedido na fila de saque",
-      queued.map((r) => ({ stage: "rende: pedido na fila com pool pausado", signers: [r.k], expect: "ok", build: async () => [fund(r.k.publicKey, rent.ticket + MARGIN), await requestIx(r.k.publicKey, BRL, 5_000_000)] })),
+      "descanso: pedido na fila de saque",
+      queued.map((r) => ({ stage: "rende: pedido na fila durante o descanso", signers: [r.k], expect: "ok", build: async () => [fund(r.k.publicKey, rent.ticket + MARGIN), await requestIx(r.k.publicKey, BRL, 5_000_000)] })),
     );
-    await stage("guardião tenta despausar", [
-      { stage: "guardião: tenta despausar", signers: [], expect: "ConstraintHasOne", build: async () => [await program.methods.setPaused(false).accountsPartial({ admin: payer.publicKey, pool }).instruction()] },
-    ]);
-    const msPda = new PublicKey(dep.consortium.multisig);
-    const vault = new PublicKey(dep.consortium.vault);
-    const tg = Date.now();
-    let unpaused = false;
-    for (let attempt = 1; attempt <= 3 && !unpaused; attempt++) {
-      try {
-        const ix = await program.methods.setPaused(false).accountsPartial({ admin: vault, pool }).instruction();
-        const ms = await multisig.accounts.Multisig.fromAccountAddress(connection, msPda, "confirmed");
-        const transactionIndex = BigInt(Number(ms.transactionIndex) + 1);
-        const signers = members.slice().sort(() => Math.random() - 0.5).slice(0, 7);
-        const { blockhash: bh } = await connection.getLatestBlockhash("confirmed");
-        const a = await stage("governança: proposta", [
-          {
-            stage: "governança: proposta",
-            signers: [signers[0]],
-            expect: "ok",
-            build: async () => [
-              multisig.instructions.vaultTransactionCreate({
-                multisigPda: msPda,
-                transactionIndex,
-                creator: signers[0].publicKey,
-                rentPayer: payer.publicKey,
-                vaultIndex: 0,
-                ephemeralSigners: 0,
-                transactionMessage: new TransactionMessage({ payerKey: vault, recentBlockhash: bh, instructions: [ix] }),
-                memo: "cambI: despausar depois do teste em escala",
-              }),
-              multisig.instructions.proposalCreate({ multisigPda: msPda, transactionIndex, creator: signers[0].publicKey, rentPayer: payer.publicKey }),
-            ],
-          },
-        ]);
-        if (a[0].result !== "ok") throw new Error(a[0].result);
-        const b = await stage("governança: 7 aprovações", [
-          { stage: "governança: aprovações", signers, expect: "ok", build: async () => signers.map((m) => multisig.instructions.proposalApprove({ multisigPda: msPda, transactionIndex, member: m.publicKey })) },
-        ]);
-        if (b[0].result !== "ok") throw new Error(b[0].result);
-        const { instruction } = await multisig.instructions.vaultTransactionExecute({ connection, multisigPda: msPda, transactionIndex, member: signers[0].publicKey });
-        const c = await stage("governança: execução", [{ stage: "governança: despausa", signers: [signers[0]], expect: "ok", build: async () => [instruction] }]);
-        if (c[0].result !== "ok") throw new Error(c[0].result);
-        unpaused = true;
-      } catch (e) {
-        console.log(`Despausar pela governança, tentativa ${attempt}: ${(e as Error).message}`);
-      }
-    }
-    guardianNote = unpaused ? `governança despausou em ${((Date.now() - tg) / 1000).toFixed(0)} s` : "governança não conseguiu despausar";
-    await stage("pool aberto de novo", [{ stage: "guardião: troca depois de despausar", signers: [pausedSwappers[0].k], expect: "ok", build: async () => [await swapIx(pausedSwappers[0].k.publicKey, BRL, 2)] }]);
+    // O conselho volta a cotação; a vigília seguinte registra o preço de volta (o descanso já está valendo) e o
+    // conselho solta as travas antes da hora.
+    const t0g = Date.now();
+    const back = await council(program.methods.setPrice(p1.price).accountsPartial({ oracle: councilVault, pool }), "conselho: cotação de volta");
+    await vigil("vigília com a cotação de volta");
+    const cleared = back && (await council(program.methods.clearGuardianLocks().accountsPartial({ admin: councilVault, pool }), "conselho: solta as travas"));
+    guardianNote = cleared ? `guardião descansou sozinho; conselho soltou em ${((Date.now() - t0g) / 1000).toFixed(0)} s` : "conselho não conseguiu soltar";
+    await stage("pool aberto de novo", [{ stage: "guardião: troca depois de soltar", signers: [restSwappers[0].k], expect: "ok", build: async () => [await swapIx(restSwappers[0].k.publicKey, BRL, 2)] }]);
     await stage(
       "fila: resgate antes do aviso prévio",
       queued.slice(0, 10).map((r) => ({ stage: "rende: resgate antes do aviso", signers: [r.k], expect: "WithdrawNotReady", build: async () => [await claimIx(r.k.publicKey, BRL)] })),
     );
   } else {
-    guardianNote = "guardião não é o deployer ou chaves da governança ausentes: cenário pulado";
+    guardianNote = "conselho de teste não executou a cotação: cenário do guardião pulado";
   }
 
   // ---------- Rende: colher rendimento, saque imediato, resgate da fila ----------
@@ -803,7 +853,7 @@ async function main() {
   );
   const ready = (await accounts(stressKs.map((k) => ata(k.publicKey, BRL)))).map((a) => tokenAmount(a) >= 1_000_000_000);
   let waiting = stressKs.map((k, i) => ({ k, i })).filter((x) => ready[x.i]);
-  const stressRounds: { round: number; tried: number; ok: number; refused: Record<string, number>; after: Awaited<ReturnType<typeof imbalanceNow>> }[] = [];
+  const stressRounds: { round: number; tried: number; ok: number; refused: Record<string, number>; after: Awaited<ReturnType<typeof imbalanceNow>>; guardianLevel: number }[] = [];
   const buyOrder: number[] = [];
   let peak = stressBefore;
   for (let round = 1; round <= 4 && waiting.length; round++) {
@@ -816,13 +866,19 @@ async function main() {
     const refused = histogram(res.filter((d) => d.result !== "ok"));
     const after = await imbalanceNow();
     if (after.imbalancePct > peak.imbalancePct) peak = after;
-    stressRounds.push({ round, tried: res.length, ok: okTags.length, refused, after });
+    // Depois de cada rajada, alguém chama a vigília: o guardião decide sozinho.
+    const level = await vigil(`estresse: vigília depois da rajada ${round}`);
+    const pv = await fetchPool();
+    lockLog.push({ at: `rajada ${round}`, level, restUntil: Number(pv.restUntil), breatheUntil: Number(pv.breatheUntil), side: pv.breatheSide });
+    stressRounds.push({ round, tried: res.length, ok: okTags.length, refused, after, guardianLevel: level });
     waiting = waiting.filter((x) => !okTags.includes(x.i));
     if (!okTags.length) break; // travado: nenhuma compra passou nesta rajada
     if (waiting.length) await sleep(61_000); // nova janela do limite por minuto
   }
-  // Os erros esperados de trava não contam como falha do teste.
-  for (const d of done) if (d.stage === "estresse: real → dólar (R$ 1.000)" && (d.result === "OutflowLimit" || d.result === "CircuitBreaker")) d.pass = true;
+  // As recusas das travas (limite por minuto, disjuntor, respiro do guardião) são o esperado, não falha do teste.
+  const STRESS_LOCKS = ["OutflowLimit", "CircuitBreaker", "GuardianBreathing", "GuardianResting"];
+  for (const d of done) if (d.stage === "estresse: real → dólar (R$ 1.000)" && STRESS_LOCKS.includes(d.result)) d.pass = true;
+  const breathed = lockLog.find((l) => l.at.startsWith("rajada") && l.level === 1);
   info = await accounts(stressKs.flatMap((k) => [ata(k.publicKey, BRL), ata(k.publicKey, USD)]));
   const stressUsd = stressKs.map((_, i) => tokenAmount(info[2 * i + 1]));
   const stressBrl = stressKs.map((_, i) => tokenAmount(info[2 * i]));
@@ -844,6 +900,21 @@ async function main() {
     if (back > 1_000) stressProfit++;
   }
   const stressAfter = await imbalanceNow();
+  // O respiro solta sozinho: espera a hora e uma compra pequena de dólar volta a passar, sem ninguém soltar nada.
+  let autoRelease = "respiro não disparou";
+  const pr = await fetchPool();
+  if (Number(pr.breatheUntil) > 0) {
+    const waitMs = Number(pr.breatheUntil) * 1000 + 5_000 - Date.now();
+    if (waitMs > 0) {
+      console.log(`Esperando o respiro do guardião acabar sozinho (${Math.round(waitMs / 1000)} s)…`);
+      await sleep(waitMs);
+    }
+    const buyer = stressKs.find((_, i) => sellBack.some((d) => d.tag === i && d.result === "ok"));
+    if (buyer) {
+      const r = await stage("estresse: compra depois do respiro acabar", [{ stage: "estresse: respiro soltou sozinho", signers: [buyer], expect: "ok", build: async () => [await swapIx(buyer.publicKey, BRL, 50)] }]);
+      autoRelease = r[0].result === "ok" ? "soltou sozinho pelo tempo" : `compra recusada: ${r[0].result}`;
+    }
+  }
   await cleanup("estresse: devolução", stressKs);
   const firstFees = stressBuyFees.slice(0, 5);
   const lastFees = stressBuyFees.slice(-5);
@@ -859,6 +930,7 @@ async function main() {
     buyFeePct: { first5: Math.round(mean(firstFees) * 1000) / 1000, last5: Math.round(mean(lastFees) * 1000) / 1000, all: stats(stressBuyFees) },
     sellBackFeePct: stats(stressSellFees),
     profitableRoundTrips: stressProfit,
+    guardian: { breathed: breathed ? { at: breathed.at, side: breathed.side === USD ? "dólar" : "real" } : null, autoRelease },
   };
   console.log("Estresse:", JSON.stringify(stress));
 
@@ -904,16 +976,21 @@ async function main() {
     { claim: "Depositante a partir de R$ 1.000 paga 0,5% (varejo 1%)", expected: "depositante paga cerca de metade do varejo", measured: disc ? `depositante ${disc.depositorAvgPct}% · varejo ${disc.retailAvgPct}%` : "–", ok: !!disc && disc.depositorAvgPct < disc.retailAvgPct * 0.6 },
     { claim: "Rende recebe parte das taxas", expected: "rendimento colhido maior que zero", measured: `R$ ${yieldBrl.toFixed(4)} para ${earners} de ${okDeposit.length} depositantes`, ok: earners > 0 },
     { claim: "Saque imediato do principal", expected: "todos sacam", measured: `${st("rende: saque imediato").asExpected}/${st("rende: saque imediato").total}`, ok: allOk("rende: saque imediato") },
-    { claim: "Guardião só pausa; trocas param", expected: "Paused em todas", measured: `${st("guardião: troca com pool pausado").asExpected}/${st("guardião: troca com pool pausado").total}`, ok: allOk("guardião: troca com pool pausado") },
-    { claim: "Saque continua funcionando com o pool pausado (pedido na fila)", expected: "todos os pedidos aceitos", measured: `${st("rende: pedido na fila com pool pausado").asExpected}/${st("rende: pedido na fila com pool pausado").total}`, ok: allOk("rende: pedido na fila com pool pausado") },
-    { claim: "Guardião não despausa; só a governança", expected: "guardião recusado; governança despausa", measured: guardianNote, ok: allOk("guardião: tenta despausar") && allOk("governança: despausa") },
+    { claim: "Guardião é um programa: nenhuma chave consegue travar o pool", expected: "ConstraintHasOne para a chave do deployer", measured: `${st("guardião: chave tenta travar").asExpected}/${st("guardião: chave tenta travar").total}`, ok: allOk("guardião: chave tenta travar") },
+    { claim: "Uso normal: as vigílias entre os lotes não travam nada", expected: "nenhuma trava", measured: `${cohortVigils.filter((l) => l === 0).length} de ${cohortVigils.length} vigílias sem trava`, ok: cohortVigils.length > 0 && cohortVigils.every((l) => l === 0) },
+    { claim: "Salto de cotação de 5%: o guardião descansa sozinho; trocas e depósitos param", expected: "GuardianResting em todas", measured: `${st("guardião: troca durante o descanso").asExpected}/${st("guardião: troca durante o descanso").total} trocas · ${st("guardião: depósito durante o descanso").asExpected}/${st("guardião: depósito durante o descanso").total} depósitos`, ok: allOk("guardião: troca durante o descanso") && allOk("guardião: depósito durante o descanso") },
+    { claim: "Saque continua funcionando com o guardião descansando (pedido na fila)", expected: "todos os pedidos aceitos", measured: `${st("rende: pedido na fila durante o descanso").asExpected}/${st("rende: pedido na fila durante o descanso").total}`, ok: allOk("rende: pedido na fila durante o descanso") },
+    { claim: "O guardião nunca solta; o conselho solta antes da hora", expected: "conselho solta e a troca volta", measured: guardianNote, ok: allOk("guardião: troca depois de soltar") },
     { claim: "Fila de saque: resgate só depois do aviso prévio", expected: "WithdrawNotReady antes; ok depois", measured: `antes ${st("rende: resgate antes do aviso").asExpected}/${st("rende: resgate antes do aviso").total} · depois ${st("rende: resgate da fila").asExpected}/${st("rende: resgate da fila").total}`, ok: allOk("rende: resgate antes do aviso") && allOk("rende: resgate da fila") },
     {
       claim: "Estresse: uma corrida ao dólar é segurada pelas travas de saída",
-      expected: "as primeiras compras passam; depois OutflowLimit ou CircuitBreaker",
+      expected: "as primeiras compras passam; depois limite por minuto, disjuntor ou respiro do guardião",
       measured: `${stress.bought} de ${stress.wallets} compras passaram; recusas ${JSON.stringify(stress.rounds.reduce<Record<string, number>>((h, r) => { for (const [k, v] of Object.entries(r.refused)) h[k] = (h[k] ?? 0) + v; return h; }, {}))}`,
-      ok: stress.bought > 0 && stress.bought < stress.wallets && stress.rounds.every((r) => Object.keys(r.refused).every((k) => k === "OutflowLimit" || k === "CircuitBreaker")),
+      ok: stress.bought > 0 && stress.bought < stress.wallets && stress.rounds.every((r) => Object.keys(r.refused).every((k) => STRESS_LOCKS.includes(k))),
     },
+    { claim: "Estresse: o guardião manda respirar sozinho na corrida, só no sentido que drena", expected: "respiro no dólar numa vigília da corrida", measured: stress.guardian.breathed ? `respiro no ${stress.guardian.breathed.side} (${stress.guardian.breathed.at})` : "não disparou", ok: !!stress.guardian.breathed && stress.guardian.breathed.side === "dólar" },
+    { claim: "Estresse: com o respiro, quem devolve dólar continua trocando", expected: "todas as devoluções aceitas", measured: `${st("estresse: dólar → real (recuperação)").asExpected}/${st("estresse: dólar → real (recuperação)").total}`, ok: allOk("estresse: dólar → real (recuperação)") },
+    { claim: "Estresse: o respiro solta sozinho pelo tempo, sem ninguém", expected: "compra de dólar volta a passar", measured: stress.guardian.autoRelease, ok: stress.guardian.autoRelease === "soltou sozinho pelo tempo" },
     { claim: "Estresse: a taxa sobe conforme falta dólar", expected: "últimas compras pagam mais que as primeiras", measured: `primeiras ${stress.buyFeePct.first5}% · últimas ${stress.buyFeePct.last5}%`, ok: stress.bought >= 10 && stress.buyFeePct.last5 > stress.buyFeePct.first5 },
     { claim: "Estresse: quem devolve a moeda que falta paga menos", expected: "taxa da devolução menor que a da compra", measured: `devolução mediana ${stress.sellBackFeePct?.p50 ?? "–"}% · compra mediana ${stress.buyFeePct.all?.p50 ?? "–"}%`, ok: !!stress.sellBackFeePct && !!stress.buyFeePct.all && stress.sellBackFeePct.p50 < stress.buyFeePct.all.p50 },
     { claim: "Estresse: ida e volta sem lucro mesmo no pico", expected: "nenhuma carteira com lucro", measured: `${stress.profitableRoundTrips} de ${stress.sellBackFeePct?.n ?? 0}`, ok: stress.profitableRoundTrips === 0 && (stress.sellBackFeePct?.n ?? 0) > 0 },
@@ -944,6 +1021,7 @@ async function main() {
     fees: { buyPct: stats(buyFees), sellPct: stats(sellFees), roundTripPct: stats(roundTrip), depositorDiscount: disc, split },
     premium,
     stress,
+    guardian: { cohortVigils, lockLog },
     rende: { depositors: okDeposit.length, yieldBRL: Math.round(yieldBrl * 10_000) / 10_000, earners },
     breakerMaxUsedPct: { BRL: Math.round(maxBreaker.BRL * 10) / 10, USD: Math.round(maxBreaker.USD * 10) / 10 },
     poolCounters: {
@@ -960,7 +1038,7 @@ async function main() {
   writeFileSync(REPORT, JSON.stringify(report, null, 2) + "\n");
 
   const md = [
-    `## Teste em escala do programa v2 (devnet): ${users} carteiras`,
+    `## Teste em escala do programa v2.6 (devnet): ${users} carteiras`,
     ``,
     `**${report.coherent} de ${checks.length} afirmações do white paper conferem** · ${report.summary.asExpected} de ${report.summary.transactions} transações com o resultado esperado · ${report.summary.elapsedMin} min`,
     ``,

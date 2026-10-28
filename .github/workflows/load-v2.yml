@@ -1,8 +1,8 @@
-name: Teste em escala v2 (devnet, branch v2)
+name: Teste em escala v2.6 (devnet, branch v2)
 
 # Só no branch v2. Refaz com muitas carteiras os testes citados no white paper (cadastro, KYC, trocas, divisão da
 # taxa, Rende, fila, guardião + governança) e termina com um estresse econômico (corrida ao dólar e recuperação).
-# Antes, uma rodada de cotação pela governança deixa o preço do pool em dia.
+# Roda no pool v2.6 (guardião sem chave). Antes, uma rodada de cotação pelo conselho de teste deixa o preço em dia.
 # Relatório: deployments/load-v2-report.json (sem endereços de carteira).
 # Para rodar: altere deployments/load-round.txt no branch v2 (a primeira linha pode ser o número de carteiras).
 on:
@@ -37,35 +37,27 @@ jobs:
         with:
           path: .devnet-keys
           key: devnet-keys-v2
-      - name: Restaurar chaves das 10 Baleias
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: .consortium-keys
-          key: consortium-keys-v1
-      - name: Rodada de cotação pela governança
+      - name: Rodada de cotação pelo conselho de teste
         continue-on-error: true
         env:
           ANCHOR_WALLET: .devnet-keys/deployer.json
-        run: npx tsx scripts/consortium-v2.ts
+        run: npx tsx scripts/pool-v26.ts
       - name: Teste em escala e estresse econômico
         env:
           ANCHOR_WALLET: .devnet-keys/deployer.json
         run: |
           USERS=$(head -n1 deployments/load-round.txt | grep -oE '^[0-9]+' || true)
           LOAD_USERS=${USERS:-1000} npx tsx scripts/load-v2.ts
-      - name: Métricas do pool (só agregados)
-        if: always()
-        run: npx tsx scripts/metrics-v2.ts
       - name: Publicar o relatório no branch v2
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          rm -rf .devnet-keys .consortium-keys
+          rm -rf .devnet-keys
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for f in deployments/load-v2-report.json deployments/devnet-v2.json deployments/metrics-v2.json app/src/metrics-v2.json; do if [ -f "$f" ]; then git add "$f"; fi; done
-          git commit -q -m "Teste em escala v2: relatório [skip ci]" || exit 0
+          for f in deployments/load-v2-report.json deployments/devnet-v26.json; do if [ -f "$f" ]; then git add "$f"; fi; done
+          git commit -q -m "Teste em escala v2.6: relatório [skip ci]" || exit 0
           url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git pull -q --rebase "$url" v2
           git push -q "$url" HEAD:v2
