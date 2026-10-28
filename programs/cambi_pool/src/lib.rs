@@ -76,6 +76,15 @@ pub const MAX_DEPOSIT_PREMIUM_BPS: u128 = 1_000;
 pub const MAX_CREDENTIAL_SECS: i64 = 400 * 86_400;
 /// Aviso prévio mínimo da fila de saque (com zero, a fila viraria saque imediato fora do disjuntor).
 pub const MIN_WITHDRAW_NOTICE_SECS: i64 = 60;
+/// Travas do programa guardião (v2.6): "respirar" bloqueia só o sentido que drena uma moeda; "descansar" pausa
+/// trocas e depósitos. As duas soltam sozinhas pelo tempo e têm teto, para o guardião nunca virar uma arma.
+pub const MAX_BREATHE_SECS: i64 = 30 * 60;
+pub const MAX_REST_SECS: i64 = 2 * 3_600;
+/// Teto de descanso somado por dia: o guardião não consegue deixar o pool parado o dia todo.
+pub const MAX_REST_PER_DAY_SECS: i64 = 6 * 3_600;
+pub const LOCK_BREATHE: u8 = 1;
+pub const LOCK_REST: u8 = 2;
+pub const LOCK_STOP: u8 = 3;
 #[cfg(feature = "devnet")]
 pub const DEVNET_CREDENTIAL_SECS: i64 = 30 * 86_400;
 
@@ -172,6 +181,26 @@ pub mod cambi_pool {
     pub fn guardian_pause(ctx: Context<GuardianPause>) -> Result<()> {
         ctx.accounts.pool.paused = true;
         emit!(PauseEvent { by: ctx.accounts.guardian.key(), paused: true });
+        Ok(())
+    }
+
+    /// Guardião (v2.6, em geral o PDA do programa guardião): trava com hora para acabar.
+    /// Nível 1 "respirar": só trocas que tiram a moeda `side` param. Nível 2 "descansar": trocas e depósitos param.
+    /// Nível 3 "parar": pausa total, que só o admin (conselho) solta. Saques nunca são bloqueados.
+    pub fn guardian_lock(ctx: Context<GuardianPause>, level: u8, side: u8, secs: i64, reason: u8) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
+        let pool = &mut ctx.accounts.pool;
+        let until = apply_lock(pool, now, level, side, secs)?;
+        emit!(GuardianLockEvent { by: ctx.accounts.guardian.key(), level, side, until, reason });
+        Ok(())
+    }
+
+    /// O admin (conselho) solta as travas com tempo antes da hora, se concluir que foi alarme falso.
+    pub fn clear_guardian_locks(ctx: Context<AdminOnly>) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+        pool.rest_until = 0;
+        pool.breathe_until = 0;
+        emit!(GuardianLockEvent { by: ctx.accounts.admin.key(), level: 0, side: 0, until: 0, reason: 0 });
         Ok(())
     }
 
@@ -343,6 +372,7 @@ pub mod cambi_pool {
     pub fn deposit(ctx: Context<Deposit>, tranche: u8, side: u8, amount: u64) -> Result<()> {
         require!(amount > 0, CambiError::ZeroAmount);
         require!(!ctx.accounts.pool.paused, CambiError::Paused);
+        require!(Clock::get()?.unix_timestamp >= ctx.accounts.pool.rest_until, CambiError::GuardianResting);
         let t = tranche_idx(tranche)?;
         let s = side_idx(side)?;
         let now = Clock::get()?.unix_timestamp;
@@ -524,6 +554,7 @@ pub mod cambi_pool {
             let pool = &ctx.accounts.pool;
             require!(!pool.paused, CambiError::Paused);
             let now = Clock::get()?.unix_timestamp;
+            lock_allows_swap(pool, now, s_out)?;
             require!(price_fresh(pool, now), CambiError::StalePrice);
 
             let kind = if let Some(p) = &ctx.accounts.partner {
@@ -1091,6 +1122,48 @@ pub fn quote(pool: &Pool, s_in: usize, amount_in: u64, kind: UserKind, brl_avail
     })
 }
 
+/// Trocas respeitam as travas com tempo do guardião: descanso bloqueia tudo; respiro bloqueia só quem tira `s_out`.
+pub fn lock_allows_swap(pool: &Pool, now: i64, s_out: usize) -> Result<()> {
+    require!(now >= pool.rest_until, CambiError::GuardianResting);
+    require!(now >= pool.breathe_until || pool.breathe_side as usize != s_out, CambiError::GuardianBreathing);
+    Ok(())
+}
+
+/// Aplica uma trava do guardião e devolve até quando ela vale (0 para a pausa total, que não tem hora).
+pub fn apply_lock(pool: &mut Pool, now: i64, level: u8, side: u8, secs: i64) -> Result<i64> {
+    match level {
+        LOCK_BREATHE => {
+            let s = side_idx(side)?;
+            require!(secs > 0 && secs <= MAX_BREATHE_SECS, CambiError::InvalidLock);
+            let until = now.saturating_add(secs);
+            // Um respiro novo no outro sentido substitui o anterior; no mesmo sentido, só estende.
+            pool.breathe_until = if pool.breathe_side as usize == s { pool.breathe_until.max(until) } else { until };
+            pool.breathe_side = s as u8;
+            Ok(pool.breathe_until)
+        }
+        LOCK_REST => {
+            require!(secs > 0 && secs <= MAX_REST_SECS, CambiError::InvalidLock);
+            if now.saturating_sub(pool.rest_day_start) >= 86_400 {
+                pool.rest_day_start = now;
+                pool.rest_day_used = 0;
+            }
+            // Só conta o que estende além do descanso em curso.
+            let until = now.saturating_add(secs).max(pool.rest_until);
+            let added = until.saturating_sub(pool.rest_until.max(now));
+            let used = pool.rest_day_used.saturating_add(added);
+            require!(used <= MAX_REST_PER_DAY_SECS, CambiError::InvalidLock);
+            pool.rest_day_used = used;
+            pool.rest_until = until;
+            Ok(until)
+        }
+        LOCK_STOP => {
+            pool.paused = true;
+            Ok(0)
+        }
+        _ => err!(CambiError::InvalidLock),
+    }
+}
+
 /// Saldo do cofre que pode ser usado em trocas e saques de principal (exclui taxas reservadas).
 pub fn available(pool: &Pool, vault_amount: u64, s: usize) -> u64 {
     let reserved = pool.platform_fees[s] + pool.partner_fees[s] + pool.lp_fees_unclaimed[s] + pool.queued[s];
@@ -1279,6 +1352,13 @@ pub struct Pool {
     pub level_daily_brl: [u64; 3],
     /// Desconto para quem reequilibra: bps de preço por 100% de desequilíbrio restante (200 = até 2%).
     pub rebalance_k_bps: u16,
+    /// Travas do guardião com hora para acabar (v2.6): descanso total e "respirar" num sentido.
+    pub rest_until: i64,
+    pub breathe_until: i64,
+    pub breathe_side: u8,
+    /// Descanso usado no dia corrente (teto MAX_REST_PER_DAY_SECS).
+    pub rest_day_start: i64,
+    pub rest_day_used: i64,
 }
 
 #[account]
@@ -1383,6 +1463,17 @@ pub struct ReserveEvent {
     pub reserves: u64,
     pub supply: u64,
     pub at: i64,
+}
+
+#[event]
+pub struct GuardianLockEvent {
+    pub by: Pubkey,
+    /// 0 = travas soltas pelo admin; 1 respirar; 2 descansar; 3 parar.
+    pub level: u8,
+    pub side: u8,
+    pub until: i64,
+    /// Motivo informado pelo guardião (código do programa guardião).
+    pub reason: u8,
 }
 
 #[event]
@@ -1841,6 +1932,12 @@ pub enum CambiError {
     AssetsFrozen,
     #[msg("Depósito na Baleia exige credencial institucional (nível 3)")]
     BaleiaNeedsLevel3,
+    #[msg("Guardião em descanso: trocas e depósitos voltam sozinhos em poucos minutos; saques seguem liberados")]
+    GuardianResting,
+    #[msg("Guardião pediu respiro: esta moeda está saindo rápido demais; a troca no sentido contrário segue liberada")]
+    GuardianBreathing,
+    #[msg("Trava do guardião inválida (nível, moeda, tempo ou teto diário)")]
+    InvalidLock,
 }
 
 #[cfg(test)]
@@ -1893,6 +1990,11 @@ mod tests {
             reserve_max_age: 0,
             level_daily_brl: DEFAULT_DAILY_LIMITS,
             rebalance_k_bps: 0,
+            rest_until: 0,
+            breathe_until: 0,
+            breathe_side: 0,
+            rest_day_start: 0,
+            rest_day_used: 0,
         }
     }
 
@@ -2127,5 +2229,49 @@ mod tests {
         assert!(reserves_ok(1_000, 1_000, 100, 200, 3_600));
         assert!(!reserves_ok(1_001, 1_000, 100, 200, 3_600)); // emitiu mais do que tem
         assert!(!reserves_ok(1_000, 1_000, 100, 100 + 3_601, 3_600)); // atestado vencido
+    }
+
+    #[test]
+    fn respirar_bloqueia_so_o_sentido_que_drena_e_solta_pelo_tempo() {
+        let mut p = pool(5 * R);
+        let until = apply_lock(&mut p, 1_000, LOCK_BREATHE, USD as u8, 15 * 60).unwrap();
+        assert_eq!(until, 1_000 + 900);
+        assert!(lock_allows_swap(&p, 1_100, USD).is_err()); // quem tira dólar espera
+        assert!(lock_allows_swap(&p, 1_100, BRL).is_ok()); // quem traz dólar (tira real) passa
+        assert!(lock_allows_swap(&p, 1_900, USD).is_ok()); // passou o tempo: solta sozinho
+        assert!(apply_lock(&mut p, 1_000, LOCK_BREATHE, USD as u8, MAX_BREATHE_SECS + 1).is_err());
+        assert!(apply_lock(&mut p, 1_000, LOCK_BREATHE, 7, 60).is_err());
+    }
+
+    #[test]
+    fn descansar_para_tudo_e_tem_teto_diario() {
+        let mut p = pool(5 * R);
+        let until = apply_lock(&mut p, 10_000, LOCK_REST, 0, 3_600).unwrap();
+        assert!(lock_allows_swap(&p, 10_100, BRL).is_err());
+        assert!(lock_allows_swap(&p, 10_100, USD).is_err());
+        assert!(lock_allows_swap(&p, until, USD).is_ok());
+        // Estender um descanso em curso conta só o tempo a mais.
+        apply_lock(&mut p, 10_100, LOCK_REST, 0, 3_600).unwrap();
+        assert_eq!(p.rest_day_used, 3_600 + 100);
+        // Teto de 6 h por dia: não passa disso, nem em pedaços.
+        let mut t = 20_000;
+        let mut ok = 0;
+        while apply_lock(&mut p, t, LOCK_REST, 0, MAX_REST_SECS).is_ok() {
+            ok += 1;
+            t += MAX_REST_SECS + 1;
+        }
+        assert!(p.rest_day_used <= MAX_REST_PER_DAY_SECS);
+        assert!(ok >= 1);
+        // No dia seguinte, o teto renova.
+        assert!(apply_lock(&mut p, 10_000 + 86_400, LOCK_REST, 0, 600).is_ok());
+        assert!(apply_lock(&mut p, 0, LOCK_REST, 0, MAX_REST_SECS + 1).is_err());
+    }
+
+    #[test]
+    fn parar_pausa_sem_hora_para_acabar() {
+        let mut p = pool(5 * R);
+        assert_eq!(apply_lock(&mut p, 1, LOCK_STOP, 0, 0).unwrap(), 0);
+        assert!(p.paused);
+        assert!(apply_lock(&mut p, 1, 9, 0, 60).is_err());
     }
 }
