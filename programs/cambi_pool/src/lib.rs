@@ -82,6 +82,9 @@ pub const MAX_BREATHE_SECS: i64 = 30 * 60;
 pub const MAX_REST_SECS: i64 = 2 * 3_600;
 /// Teto de descanso somado por dia: o guardião não consegue deixar o pool parado o dia todo.
 pub const MAX_REST_PER_DAY_SECS: i64 = 6 * 3_600;
+/// Reserva da Rende: parte do principal que fica guardada na própria moeda (a definir; 30% por enquanto).
+pub const DEFAULT_RENDE_RESERVE_BPS: u16 = 3_000;
+pub const MIN_RENDE_RESERVE_BPS: u16 = 2_000;
 pub const LOCK_BREATHE: u8 = 1;
 pub const LOCK_REST: u8 = 2;
 pub const LOCK_STOP: u8 = 3;
@@ -122,6 +125,7 @@ pub mod cambi_pool {
         pool.level_limit_brl = DEFAULT_LEVEL_LIMITS;
         pool.level_daily_brl = DEFAULT_DAILY_LIMITS;
         pool.rebalance_k_bps = DEFAULT_REBALANCE_K_BPS;
+        pool.rende_reserve_bps = DEFAULT_RENDE_RESERVE_BPS;
         Ok(())
     }
 
@@ -214,6 +218,13 @@ pub mod cambi_pool {
         let pool = &mut ctx.accounts.pool;
         pool.kyc_issuer = issuer;
         pool.require_kyc = require_kyc;
+        Ok(())
+    }
+
+    /// Reserva da Rende em cada moeda (de 20% a 100% do principal dela).
+    pub fn set_rende_reserve(ctx: Context<AdminOnly>, bps: u16) -> Result<()> {
+        require!((MIN_RENDE_RESERVE_BPS as u128..=BPS).contains(&(bps as u128)), CambiError::InvalidConfig);
+        ctx.accounts.pool.rende_reserve_bps = bps;
         Ok(())
     }
 
@@ -419,8 +430,8 @@ pub mod cambi_pool {
                 pool,
                 s,
                 amount,
-                available(pool, ctx.accounts.brl_vault.amount, BRL),
-                available(pool, ctx.accounts.usd_vault.amount, USD),
+                swap_available(pool, ctx.accounts.brl_vault.amount, BRL),
+                swap_available(pool, ctx.accounts.usd_vault.amount, USD),
             );
             let added = value_in_brl(pool.price, s, amount)? * (BPS + premium) / BPS;
             pos.amount = pos.amount.checked_add(amount).ok_or(CambiError::MathOverflow)?;
@@ -488,13 +499,17 @@ pub mod cambi_pool {
             );
         }
         if amount > 0 {
-            // Saque grande vai para a fila (request_withdraw); o imediato também conta no disjuntor.
+            // Saque grande vai para a fila (request_withdraw).
             require!(
                 instant_withdraw_ok(avail, amount, ctx.accounts.pool.instant_withdraw_bps),
                 CambiError::UseWithdrawQueue
             );
+            // O saque imediato também conta no disjuntor (base: a liquidez das trocas).
             let now = Clock::get()?.unix_timestamp;
-            let free = [available(&ctx.accounts.pool, vaults[BRL], BRL), available(&ctx.accounts.pool, vaults[USD], USD)];
+            let free = [
+                swap_available(&ctx.accounts.pool, vaults[BRL], BRL),
+                swap_available(&ctx.accounts.pool, vaults[USD], USD),
+            ];
             breaker_take(&mut ctx.accounts.pool, now, free, s, amount)?;
         }
 
@@ -572,9 +587,10 @@ pub mod cambi_pool {
                 UserKind::Retail
             };
 
+            // Trocas não tocam a reserva da Rende: uma parte do principal dela fica guardada 1 para 1 em cada moeda.
             let avail = [
-                available(pool, ctx.accounts.brl_vault.amount, BRL),
-                available(pool, ctx.accounts.usd_vault.amount, USD),
+                swap_available(pool, ctx.accounts.brl_vault.amount, BRL),
+                swap_available(pool, ctx.accounts.usd_vault.amount, USD),
             ];
             if kind == UserKind::B2b {
                 // App parceiro (B2B): KYB no cadastro feito pelo admin; teto institucional por operação.
@@ -1164,10 +1180,34 @@ pub fn apply_lock(pool: &mut Pool, now: i64, level: u8, side: u8, secs: i64) -> 
     }
 }
 
-/// Saldo do cofre que pode ser usado em trocas e saques de principal (exclui taxas reservadas).
+/// Saldo do cofre que pode ser usado em saques de principal (exclui taxas reservadas e a fila de saque).
 pub fn available(pool: &Pool, vault_amount: u64, s: usize) -> u64 {
     let reserved = pool.platform_fees[s] + pool.partner_fees[s] + pool.lp_fees_unclaimed[s] + pool.queued[s];
     vault_amount.saturating_sub(reserved)
+}
+
+/// Reserva da Rende (v2.6): a parte do principal da Rende, em cada moeda, que as trocas nunca tocam.
+/// O resto trabalha nas trocas junto com as Baleias.
+pub fn rende_reserve(pool: &Pool, s: usize) -> u64 {
+    ((pool.principal[idx(RENDE, s)] as u128) * (pool.rende_reserve_bps as u128) / BPS) as u64
+}
+
+/// Liquidez das trocas (v2.6): o que sobra no cofre depois das taxas reservadas, da fila e da reserva da Rende.
+pub fn swap_available(pool: &Pool, vault_amount: u64, s: usize) -> u64 {
+    available(pool, vault_amount, s).saturating_sub(rende_reserve(pool, s))
+}
+
+/// Invariante de lastro (v2.6): cada cofre cobre as taxas reservadas, a fila de saque e a reserva da Rende na
+/// mesma moeda. O programa guardião confere isso a cada vigília; se falhar, é defeito e ele para o pool.
+pub fn rende_backed(pool: &Pool, vaults: [u64; 2]) -> bool {
+    (0..2).all(|s| {
+        let reserved = (pool.platform_fees[s] as u128)
+            + (pool.partner_fees[s] as u128)
+            + (pool.lp_fees_unclaimed[s] as u128)
+            + (pool.queued[s] as u128)
+            + (rende_reserve(pool, s) as u128);
+        (vaults[s] as u128) >= reserved
+    })
 }
 
 fn harvest(pool: &mut Pool, pos: &Position) -> Result<[u64; 2]> {
@@ -1359,6 +1399,8 @@ pub struct Pool {
     /// Descanso usado no dia corrente (teto MAX_REST_PER_DAY_SECS).
     pub rest_day_start: i64,
     pub rest_day_used: i64,
+    /// Parte do principal da Rende guardada 1 para 1 em cada moeda, fora das trocas (bps).
+    pub rende_reserve_bps: u16,
 }
 
 #[account]
@@ -1995,6 +2037,7 @@ mod tests {
             breathe_side: 0,
             rest_day_start: 0,
             rest_day_used: 0,
+            rende_reserve_bps: DEFAULT_RENDE_RESERVE_BPS,
         }
     }
 
@@ -2273,5 +2316,19 @@ mod tests {
         assert_eq!(apply_lock(&mut p, 1, LOCK_STOP, 0, 0).unwrap(), 0);
         assert!(p.paused);
         assert!(apply_lock(&mut p, 1, 9, 0, 60).is_err());
+    }
+
+    #[test]
+    fn reserva_da_rende_fica_fora_das_trocas() {
+        let mut p = pool(5 * R);
+        p.principal[idx(RENDE, BRL)] = 1_000 * R;
+        p.rende_reserve_bps = 3_000;
+        // Cofre com R$ 1.500: R$ 300 são a reserva da Rende; as trocas enxergam R$ 1.200.
+        assert_eq!(swap_available(&p, 1_500 * R, BRL), 1_200 * R);
+        assert_eq!(available(&p, 1_500 * R, BRL), 1_500 * R);
+        assert!(rende_backed(&p, [300 * R, 0]));
+        assert!(!rende_backed(&p, [299 * R, 0]));
+        p.rende_reserve_bps = 10_000;
+        assert_eq!(swap_available(&p, 1_500 * R, BRL), 500 * R);
     }
 }

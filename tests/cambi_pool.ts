@@ -355,8 +355,9 @@ describe("cambi_pool", () => {
     await deposit(baleia, BALEIA, BRL, 5_000, ctx); // Baleia em reais
     // Antes de qualquer troca, as duas moedas cobrem a Rende: saque pequeno da Baleia passa.
     await withdraw(baleia, BALEIA, BRL, 50, ctx);
-    // Trocas tiram dólar do cofre: agora o cofre de dólar não cobre mais os US$ 1.000 da Rende.
-    await swap(trader, BRL, 900, { ctx });
+    // Trocas tiram dólar do cofre (até a reserva da Rende, que elas não tocam): o cofre de dólar não cobre mais
+    // os US$ 1.000 inteiros da Rende, então a Baleia júnior não sai.
+    await swap(trader, BRL, 700, { ctx });
     await expectError(withdraw(baleia, BALEIA, BRL, 100, ctx), "BaleiaJuniorLiquidity");
     // A Rende continua podendo sair com o que há.
     await withdraw(rende, RENDE, USD, 500, ctx);
