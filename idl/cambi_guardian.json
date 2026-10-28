@@ -1,0 +1,280 @@
+{
+  "address": "2pxrxRUENAopmSjet6mwieussPutCR52ja5ygLL9FpE2",
+  "metadata": {
+    "name": "cambi_guardian",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "cambI guardião: programa sem chave que vigia o pool e aciona travas com hora para acabar"
+  },
+  "instructions": [
+    {
+      "name": "init_watch",
+      "docs": [
+        "Cria a ficha de vigília de um pool, com a primeira foto. Qualquer pessoa pode criar."
+      ],
+      "discriminator": [
+        121,
+        63,
+        131,
+        213,
+        190,
+        44,
+        55,
+        129
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "watch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "brl_vault"
+        },
+        {
+          "name": "usd_vault"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "vigiar",
+      "docs": [
+        "Vigília: lê o pool, decide e, se for o caso, aciona a trava no pool assinando como guardião (PDA)."
+      ],
+      "discriminator": [
+        134,
+        80,
+        68,
+        150,
+        229,
+        26,
+        98,
+        7
+      ],
+      "accounts": [
+        {
+          "name": "watch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "relations": [
+            "watch"
+          ]
+        },
+        {
+          "name": "brl_vault"
+        },
+        {
+          "name": "usd_vault"
+        },
+        {
+          "name": "guardian",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  117,
+                  97,
+                  114,
+                  100,
+                  105,
+                  97,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "cambi_pool_program",
+          "address": "8b6oXzaazxCm7SrPNi6A3deyY8eftZRrx5bDoL55FeKA"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Watch",
+      "discriminator": [
+        158,
+        177,
+        254,
+        108,
+        184,
+        190,
+        42,
+        13
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "VigilEvent",
+      "discriminator": [
+        125,
+        2,
+        119,
+        48,
+        222,
+        103,
+        82,
+        196
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NotAPool",
+      "msg": "Conta não é um pool do cambI"
+    },
+    {
+      "code": 6001,
+      "name": "WrongVault",
+      "msg": "Cofre não é o do pool"
+    }
+  ],
+  "types": [
+    {
+      "name": "VigilEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "level",
+            "type": "u8"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "secs",
+            "type": "i64"
+          },
+          {
+            "name": "reason",
+            "type": "u8"
+          },
+          {
+            "name": "applied",
+            "docs": [
+              "false quando a mesma trava já estava valendo."
+            ],
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Watch",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "window_start",
+            "type": "i64"
+          },
+          {
+            "name": "base_avail",
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "last_price",
+            "type": "u64"
+          },
+          {
+            "name": "day_start",
+            "type": "i64"
+          },
+          {
+            "name": "strikes",
+            "type": "u8"
+          },
+          {
+            "name": "vigils",
+            "type": "u64"
+          },
+          {
+            "name": "locks",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
