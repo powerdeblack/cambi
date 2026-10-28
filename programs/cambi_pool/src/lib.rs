@@ -711,8 +711,11 @@ pub mod cambi_pool {
 
         let vaults = [ctx.accounts.brl_vault.amount, ctx.accounts.usd_vault.amount];
         let avail = available(&ctx.accounts.pool, vaults[s], s);
-        require!(amount <= avail, CambiError::InsufficientLiquidity);
+        // A Rende entra na fila mesmo com a moeda em falta (v2.6): a fila passa a ter prioridade sobre essa moeda
+        // (trocas que a tiram param até a fila ser coberta) e, no fim do aviso, a pessoa espera ou recebe o valor
+        // na outra moeda pelo preço do oráculo. A Baleia, júnior, só pede o que existe.
         if t == BALEIA {
+            require!(amount <= avail, CambiError::InsufficientLiquidity);
             let o = 1 - s;
             let avail_o = available(&ctx.accounts.pool, vaults[o], o);
             let p = ctx.accounts.pool.principal;
@@ -768,6 +771,8 @@ pub mod cambi_pool {
         require!(now >= ticket.ready_at, CambiError::WithdrawNotReady);
         let s = side_idx(ticket.side)?;
         let amount = ticket.amount;
+        let vaults = [ctx.accounts.brl_vault.amount, ctx.accounts.usd_vault.amount];
+        require!(amount <= queue_payable(&ctx.accounts.pool, vaults[s], s), CambiError::QueueCurrencyShort);
         let (vault, dest) = match s {
             BRL => (&ctx.accounts.brl_vault, &ctx.accounts.user_brl),
             _ => (&ctx.accounts.usd_vault, &ctx.accounts.user_usd),
@@ -776,6 +781,38 @@ pub mod cambi_pool {
         let pool = &mut ctx.accounts.pool;
         pool.queued[s] = pool.queued[s].checked_sub(amount).ok_or(CambiError::MathOverflow)?;
         emit!(WithdrawEvent { user: ctx.accounts.user.key(), tranche: u8::MAX, side: s as u8, amount, fees: [0, 0] });
+        Ok(())
+    }
+
+    /// Fila com a moeda em falta (v2.6): passado o aviso prévio, quem preferir não esperar recebe o mesmo valor na
+    /// outra moeda, pelo preço do oráculo e sem taxa. Só vale enquanto a moeda pedida não cobre o pedido (senão
+    /// viraria câmbio grátis), e a saída conta no disjuntor da outra moeda.
+    pub fn claim_withdraw_other(ctx: Context<ClaimWithdraw>) -> Result<()> {
+        ensure_not_frozen(&ctx.accounts.credential)?;
+        let now = Clock::get()?.unix_timestamp;
+        let ticket = &ctx.accounts.ticket;
+        require!(now >= ticket.ready_at, CambiError::WithdrawNotReady);
+        let s = side_idx(ticket.side)?;
+        let o = 1 - s;
+        let amount = ticket.amount;
+        let vaults = [ctx.accounts.brl_vault.amount, ctx.accounts.usd_vault.amount];
+        require!(amount > queue_payable(&ctx.accounts.pool, vaults[s], s), CambiError::QueueCurrencyAvailable);
+        require!(price_fresh(&ctx.accounts.pool, now), CambiError::StalePrice);
+        let out = convert_at_price(ctx.accounts.pool.price, s, amount)?;
+        let free = [
+            swap_available(&ctx.accounts.pool, vaults[BRL], BRL),
+            swap_available(&ctx.accounts.pool, vaults[USD], USD),
+        ];
+        require!(out > 0 && out <= free[o], CambiError::InsufficientLiquidity);
+        breaker_take(&mut ctx.accounts.pool, now, free, o, out)?;
+        let (vault, dest) = match o {
+            BRL => (&ctx.accounts.brl_vault, &ctx.accounts.user_brl),
+            _ => (&ctx.accounts.usd_vault, &ctx.accounts.user_usd),
+        };
+        pay_from_vault(&ctx.accounts.pool, vault, dest, &ctx.accounts.token_program, out)?;
+        let pool = &mut ctx.accounts.pool;
+        pool.queued[s] = pool.queued[s].checked_sub(amount).ok_or(CambiError::MathOverflow)?;
+        emit!(WithdrawEvent { user: ctx.accounts.user.key(), tranche: u8::MAX, side: o as u8, amount: out, fees: [0, 0] });
         Ok(())
     }
 
@@ -1197,17 +1234,32 @@ pub fn swap_available(pool: &Pool, vault_amount: u64, s: usize) -> u64 {
     available(pool, vault_amount, s).saturating_sub(rende_reserve(pool, s))
 }
 
-/// Invariante de lastro (v2.6): cada cofre cobre as taxas reservadas, a fila de saque e a reserva da Rende na
-/// mesma moeda. O programa guardião confere isso a cada vigília; se falhar, é defeito e ele para o pool.
+/// Invariante de lastro (v2.6): cada cofre cobre as taxas reservadas e a reserva da Rende na mesma moeda.
+/// (A fila pode esperar a moeda voltar ou ser paga na outra; a reserva e as taxas, nunca.) O programa guardião
+/// confere isso a cada vigília; se falhar, é defeito e ele para o pool.
 pub fn rende_backed(pool: &Pool, vaults: [u64; 2]) -> bool {
     (0..2).all(|s| {
         let reserved = (pool.platform_fees[s] as u128)
             + (pool.partner_fees[s] as u128)
             + (pool.lp_fees_unclaimed[s] as u128)
-            + (pool.queued[s] as u128)
             + (rende_reserve(pool, s) as u128);
         (vaults[s] as u128) >= reserved
     })
+}
+
+/// Quanto da fila de uma moeda o cofre consegue pagar agora (o saldo menos as taxas reservadas).
+pub fn queue_payable(pool: &Pool, vault_amount: u64, s: usize) -> u64 {
+    vault_amount.saturating_sub(pool.platform_fees[s] + pool.partner_fees[s] + pool.lp_fees_unclaimed[s])
+}
+
+/// Converte um valor de uma moeda para a outra pelo preço do oráculo, sem taxa.
+pub fn convert_at_price(price: u64, s: usize, amount: u64) -> Result<u64> {
+    let v = if s == BRL {
+        (amount as u128) * PRICE_SCALE / (price as u128)
+    } else {
+        (amount as u128) * (price as u128) / PRICE_SCALE
+    };
+    u64::try_from(v).map_err(|_| error!(CambiError::MathOverflow))
 }
 
 fn harvest(pool: &mut Pool, pos: &Position) -> Result<[u64; 2]> {
@@ -1980,6 +2032,10 @@ pub enum CambiError {
     GuardianBreathing,
     #[msg("Trava do guardião inválida (nível, moeda, tempo ou teto diário)")]
     InvalidLock,
+    #[msg("A moeda do seu saque ainda está em falta: espere ela voltar ou receba o mesmo valor na outra moeda")]
+    QueueCurrencyShort,
+    #[msg("A moeda do seu saque já está disponível: resgate nela")]
+    QueueCurrencyAvailable,
 }
 
 #[cfg(test)]
@@ -2330,5 +2386,20 @@ mod tests {
         assert!(!rende_backed(&p, [299 * R, 0]));
         p.rende_reserve_bps = 10_000;
         assert_eq!(swap_available(&p, 1_500 * R, BRL), 500 * R);
+    }
+
+    #[test]
+    fn fila_com_moeda_em_falta_espera_ou_recebe_na_outra() {
+        let mut p = pool(5 * R);
+        p.queued[BRL] = 1_000 * R;
+        p.lp_fees_unclaimed[BRL] = 10 * R;
+        // Cofre de real com R$ 600: paga só R$ 590 da fila (as taxas são de outros).
+        assert_eq!(queue_payable(&p, 600 * R, BRL), 590 * R);
+        assert_eq!(available(&p, 600 * R, BRL), 0); // trocas que tiram real param
+        // Na outra moeda, pelo preço: R$ 1.000 a R$ 5 por dólar = US$ 200.
+        assert_eq!(convert_at_price(5 * R, BRL, 1_000 * R).unwrap(), 200 * R);
+        assert_eq!(convert_at_price(5 * R, USD, 200 * R).unwrap(), 1_000 * R);
+        // A fila não entra no invariante: só taxas e reserva da Rende.
+        assert!(rende_backed(&p, [600 * R, 0]));
     }
 }
