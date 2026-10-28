@@ -2,7 +2,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { AuthorityType, TOKEN_PROGRAM_ID, getMint, mintTo, setAuthority } from "@solana/spl-token";
-import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { expect } from "chai";
 import { CambiGuardian } from "../target/types/cambi_guardian";
 import { CambiPool } from "../target/types/cambi_pool";
@@ -684,12 +684,13 @@ describe("cambi_pool", () => {
     // Qualquer carteira chama a vigília (aqui, uma sem nenhum papel no pool).
     const anyone = Keypair.generate();
     await connection.confirmTransaction(await connection.requestAirdrop(anyone.publicKey, 1e9), "confirmed");
-    const vigiar = () =>
-      guardianProgram.methods
+    const vigiar = async () => {
+      const ix = await guardianProgram.methods
         .vigiar()
         .accountsPartial({ watch, pool: ctx.pool, brlVault: ctx.brlVault, usdVault: ctx.usdVault, guardian, cambiPoolProgram: pid })
-        .signers([anyone])
-        .rpc();
+        .instruction();
+      await sendAndConfirmTransaction(connection, new Transaction().add(ix), [anyone], { commitment: "confirmed" });
+    };
     const state = () => program.account.pool.fetch(ctx.pool);
 
     // Uso normal: nada trava.
