@@ -265,8 +265,17 @@ export default function App() {
 
   async function chainClaim(side: Side) {
     const t = live!.state.queue.find((x) => x.side === idx(side));
-    const sig = await run((c, s) => c.claimWithdraw(s, idx(side)));
-    record({ kind: "withdraw", side, amountIn: t ? fromUnits(t.amount) : 0, sig });
+    try {
+      const sig = await run((c, s) => c.claimWithdraw(s, idx(side)));
+      record({ kind: "withdraw", side, amountIn: t ? fromUnits(t.amount) : 0, sig });
+    } catch (e) {
+      // v2.6: se a moeda pedida está em falta, a pessoa escolhe esperar ou receber na outra moeda, pela cotação e sem taxa.
+      if (!/ainda está em falta/.test((e as Error).message)) throw e;
+      const otherName = side === "BRL" ? "dólares" : "reais";
+      if (!window.confirm(`A moeda do seu saque está em falta no pool agora. Quer receber o mesmo valor em ${otherName}, pela cotação do pool e sem taxa? (Cancelar = esperar a moeda voltar.)`)) throw e;
+      const sig = await run((c, s) => c.claimWithdraw(s, idx(side), true));
+      record({ kind: "withdraw", side, amountIn: t ? fromUnits(t.amount) : 0, sig });
+    }
   }
 
   async function chainSend(side: Side, amount: number, fee: number, recipient: Recipient, payReference?: string) {

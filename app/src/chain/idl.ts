@@ -8,6 +8,8 @@ export const DISCRIMINATOR = {
   devnet_credential: [54, 62, 76, 183, 91, 191, 107, 122],
   request_withdraw: [137, 95, 187, 96, 250, 138, 31, 182],
   claim_withdraw: [232, 89, 154, 117, 16, 204, 182, 224],
+  // Programa v2.6
+  claim_withdraw_other: [239, 237, 178, 148, 121, 103, 5, 159],
 } as const;
 
 /** Mensagens de erro do programa (códigos 6000+). */
@@ -50,4 +52,10 @@ export const PROGRAM_ERRORS: Record<number, string> = {
   6034: "Limite diário do seu nível de verificação atingido; tente amanhã ou suba de nível",
   6035: "Bens indisponíveis por determinação legal; fale com o atendimento",
   6036: "Depósito na Baleia exige credencial institucional (nível 3)",
+  // Programa v2.6
+  6037: "Guardião em descanso: trocas e depósitos voltam sozinhos em poucos minutos; saques seguem liberados",
+  6038: "Guardião pediu respiro: esta moeda está saindo rápido demais; a troca no sentido contrário segue liberada",
+  6039: "Trava do guardião inválida (nível, moeda, tempo ou teto diário)",
+  6040: "A moeda do seu saque ainda está em falta: espere ela voltar ou receba o mesmo valor na outra moeda",
+  6041: "A moeda do seu saque já está disponível: resgate nela",
 };

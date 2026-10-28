@@ -11,6 +11,7 @@ import {
   RENDE,
   USD,
   available,
+  swapAvailable,
   decodePoolRaw,
   decodePositionRaw,
   discountPosition,
@@ -163,6 +164,7 @@ export interface ChainState {
   pool: PoolRaw;
   vaults: [bigint, bigint];
   avail: [bigint, bigint];
+  swapAvail: [bigint, bigint];
   positions: { side: number; raw: PositionRaw; pending: [bigint, bigint] }[];
   /** Saques na fila (programa v2): valor reservado e quando libera (segundos Unix). */
   queue: { side: number; amount: bigint; readyAt: number }[];
@@ -203,6 +205,7 @@ export async function fetchState(owner: PublicKey): Promise<ChainState> {
     pool: p,
     vaults,
     avail: [available(p, vaults[0], BRL), available(p, vaults[1], USD)],
+    swapAvail: [swapAvailable(p, vaults[0], BRL), swapAvailable(p, vaults[1], USD)],
     positions,
   };
 }
@@ -441,11 +444,14 @@ export async function requestWithdraw(signer: ChainSigner, side: number, amount:
   return sendTx([ix], owner, signer.signTransaction);
 }
 
-/** Resgata o saque da fila depois do aviso prévio. */
-export async function claimWithdraw(signer: ChainSigner, side: number) {
+/**
+ * Resgata o saque da fila depois do aviso prévio. `other` (v2.6): recebe o mesmo valor na outra moeda, pela cotação
+ * do pool e sem taxa; o programa só aceita enquanto a moeda pedida estiver em falta.
+ */
+export async function claimWithdraw(signer: ChainSigner, side: number, other = false) {
   const { pool, vault } = ids();
   const owner = signer.publicKey;
-  const ix = programIx("claim_withdraw", [], [
+  const ix = programIx(other ? "claim_withdraw_other" : "claim_withdraw", [], [
     { pubkey: owner, isSigner: true, isWritable: true },
     w(pool),
     w(ticketPda(owner, side)),

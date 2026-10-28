@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { FeeConfig, PoolRaw, chainQuote, decodePoolRaw, decodePositionRaw, pendingFees, swapBlocker } from "./accounts";
+import { FeeConfig, PoolRaw, PoolSafety, chainQuote, decodePoolRaw, decodePositionRaw, pendingFees, swapAvailable, swapBlocker } from "./accounts";
 import { DISCRIMINATOR, PROGRAM_ERRORS } from "./idl";
 
 const idl = JSON.parse(readFileSync(new URL("../../../idl/cambi_pool.json", import.meta.url), "utf8"));
@@ -95,6 +95,27 @@ describe("cotação idêntica à do programa", () => {
     const q = chainQuote(p, 0, 20_000n * M, "retail", 50_000n * M, 10_000n * M);
     expect(swapBlocker(p, 0, q, 50_000n * M, 10_000n * M, 1_500)).toMatch(/20%/);
     expect(swapBlocker(p, 0, q, 50_000n * M, 10_000n * M, 99_999)).toMatch(/desatualizada/);
+  });
+
+  it("v2.6: guardião em descanso bloqueia tudo; respiro só bloqueia a moeda que sai rápido", () => {
+    const safety: PoolSafety = {
+      requireKyc: true, levelLimitBrl: [0n, 0n, 0n], breakerWindowSecs: 3600, breakerBps: 10_000n, breakerStart: 0,
+      breakerBase: [0n, 0n], breakerOut: [0n, 0n], instantWithdrawBps: 1000n, withdrawNoticeSecs: 600, queued: [0n, 0n],
+      reserveMaxAge: 0, levelDailyBrl: [0n, 0n, 0n], rebalanceKBps: 0n, restUntil: 2_000, breatheUntil: 0, breatheSide: 1, rendeReserveBps: 3000n,
+    };
+    const p = { ...pool(), safety };
+    const q = chainQuote(p, 0, 100n * M, "retail", 50_000n * M, 10_000n * M);
+    expect(swapBlocker(p, 0, q, 50_000n * M, 10_000n * M, 1_500)).toMatch(/descanso/);
+    const breathing = { ...p, safety: { ...safety, restUntil: 0, breatheUntil: 2_000, breatheSide: 1 } };
+    expect(swapBlocker(breathing, 0, q, 50_000n * M, 10_000n * M, 1_500)).toMatch(/respiro/); // real → dólar: sai dólar
+    const back = chainQuote(breathing, 1, 10n * M, "retail", 50_000n * M, 10_000n * M);
+    expect(swapBlocker(breathing, 1, back, 50_000n * M, 10_000n * M, 1_500)).toBeNull(); // sentido contrário liberado
+  });
+
+  it("v2.6: a liquidez das trocas deixa de fora 30% do principal da Rende", () => {
+    const p = { ...pool(), principal: [10_000n * M, 0n, 40_000n * M, 0n] };
+    p.safety = { queued: [0n, 0n], rendeReserveBps: 3000n } as PoolSafety;
+    expect(swapAvailable(p, 50_000n * M, 0)).toBe(47_000n * M);
   });
 
   it("taxas pendentes de uma posição", () => {
@@ -199,12 +220,12 @@ describe("TransferChecked montado à mão (igual à spl-token)", async () => {
   });
 });
 
-describe("programa v2: instruções e erros iguais ao IDL publicado", () => {
-  const v2 = JSON.parse(readFileSync(new URL("../../../idl/cambi_pool_v2.json", import.meta.url), "utf8"));
+describe("programa v2.6: instruções e erros iguais ao IDL publicado", () => {
+  const v2 = JSON.parse(readFileSync(new URL("../../../idl/cambi_pool_v26.json", import.meta.url), "utf8"));
   const names = (n: string) => v2.instructions.find((i: { name: string }) => i.name === n).accounts.map((a: { name: string }) => a.name);
 
   it("discriminadores das instruções v2 conferem", () => {
-    for (const name of ["swap", "deposit", "withdraw", "faucet_claim", "devnet_credential", "request_withdraw", "claim_withdraw"] as const) {
+    for (const name of ["swap", "deposit", "withdraw", "faucet_claim", "devnet_credential", "request_withdraw", "claim_withdraw", "claim_withdraw_other"] as const) {
       const ix = v2.instructions.find((i: { name: string }) => i.name === name);
       expect(Array.from(DISCRIMINATOR[name])).toEqual(ix.discriminator);
     }
@@ -228,6 +249,15 @@ describe("programa v2: instruções e erros iguais ao IDL publicado", () => {
       "user", "pool", "position", "ticket", "brl_vault", "usd_vault", "user_brl", "user_usd", "credential", "token_program", "system_program",
     ]);
     expect(names("claim_withdraw")).toEqual(["user", "pool", "ticket", "brl_vault", "usd_vault", "user_brl", "user_usd", "credential", "token_program"]);
+    expect(names("claim_withdraw_other")).toEqual(names("claim_withdraw"));
     expect(names("devnet_credential")).toEqual(["user", "pool", "credential", "system_program"]);
+  });
+
+  it("decodifica as travas do guardião e a reserva da Rende no fim da conta do pool", () => {
+    const fields: { name: string; type: unknown }[] = v2.types.find((t: { name: string }) => t.name === "Pool").type.fields;
+    const tail = fields.slice(-6).map((f) => [f.name, f.type]);
+    expect(tail).toEqual([
+      ["rest_until", "i64"], ["breathe_until", "i64"], ["breathe_side", "u8"], ["rest_day_start", "i64"], ["rest_day_used", "i64"], ["rende_reserve_bps", "u16"],
+    ]);
   });
 });

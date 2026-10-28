@@ -65,6 +65,11 @@ export interface PoolSafety {
   reserveMaxAge: number;
   levelDailyBrl: bigint[];
   rebalanceKBps: bigint; // desconto para quem reequilibra (0 = desligado)
+  /** Programa v2.6: travas por tempo do guardião e reserva da Rende (ausentes antes do v2.6). */
+  restUntil: number;
+  breatheUntil: number;
+  breatheSide: number;
+  rendeReserveBps: bigint;
 }
 
 export interface PositionRaw {
@@ -177,9 +182,16 @@ export function decodePoolRaw(data: Uint8Array): PoolRaw {
     const more = data.length >= r.offset + 24 + 2;
     const levelDailyBrl = more ? [r.u64(), r.u64(), r.u64()] : [0n, 0n, 0n];
     const rebalanceKBps = more ? r.u16() : 0n;
+    // v2.6: rest_until, breathe_until, breathe_side, rest_day_start, rest_day_used, rende_reserve_bps.
+    const v26 = more && data.length >= r.offset + 8 + 8 + 1 + 16 + 2;
+    const restUntil = v26 ? r.i64() : 0;
+    const breatheUntil = v26 ? r.i64() : 0;
+    const breatheSide = v26 ? r.u8() : 0;
+    if (v26) r.skip(16); // rest_day_start, rest_day_used
+    const rendeReserveBps = v26 ? r.u16() : 0n;
     safety = {
       requireKyc, levelLimitBrl, breakerWindowSecs, breakerBps, breakerStart, breakerBase, breakerOut, instantWithdrawBps,
-      withdrawNoticeSecs, queued, reserveMaxAge, levelDailyBrl, rebalanceKBps,
+      withdrawNoticeSecs, queued, reserveMaxAge, levelDailyBrl, rebalanceKBps, restUntil, breatheUntil, breatheSide, rendeReserveBps,
     };
   }
   return {
@@ -206,6 +218,13 @@ export function decodePositionRaw(data: Uint8Array): PositionRaw {
 export function available(pool: PoolRaw, vaultAmount: bigint, s: number): bigint {
   const reserved = pool.platformFees[s] + pool.partnerFees[s] + pool.lpFeesUnclaimed[s] + (pool.safety?.queued[s] ?? 0n);
   return vaultAmount > reserved ? vaultAmount - reserved : 0n;
+}
+
+/** Liquidez das trocas (v2.6, igual a `swap_available`): a livre menos a reserva da Rende, que as trocas não tocam. */
+export function swapAvailable(pool: PoolRaw, vaultAmount: bigint, s: number): bigint {
+  const free = available(pool, vaultAmount, s);
+  const reserve = (pool.principal[RENDE * 2 + s] * (pool.safety?.rendeReserveBps ?? 0n)) / BPS;
+  return free > reserve ? free - reserve : 0n;
 }
 
 export interface ChainQuote {
@@ -265,6 +284,10 @@ export function chainQuote(pool: PoolRaw, sIn: number, amountIn: bigint, kind: K
 export function swapBlocker(pool: PoolRaw, sIn: number, q: ChainQuote, brlAvail: bigint, usdAvail: bigint, nowSec: number): string | null {
   if (pool.paused) return "O pool está pausado para trocas no momento.";
   if (nowSec - pool.priceUpdatedAt > pool.maxPriceAge) return "Cotação do pool desatualizada. Tente em alguns minutos.";
+  const g = pool.safety;
+  if (g && nowSec < g.restUntil) return "Guardião em descanso: trocas e depósitos voltam sozinhos em poucos minutos; saques seguem liberados.";
+  if (g && nowSec < g.breatheUntil && g.breatheSide === 1 - sIn)
+    return "Guardião pediu respiro: esta moeda está saindo rápido demais. A troca no sentido contrário segue liberada.";
   if (q.amountOut <= 0n) return "Valor muito pequeno.";
   const availOut = sIn === BRL ? usdAvail : brlAvail;
   if (q.amountOut > availOut) return "Liquidez insuficiente no pool para esta troca.";
@@ -305,6 +328,8 @@ export const fromUnits = (v: bigint) => Number(v) / UNIT;
 export interface PreviewInput {
   pool: PoolRaw;
   avail: [bigint, bigint];
+  /** Liquidez das trocas (v2.6: sem a reserva da Rende). Sem ela, vale `avail`. */
+  swapAvail?: [bigint, bigint];
   positions: { side: number; raw: PositionRaw }[];
 }
 
@@ -320,7 +345,8 @@ export function discountPosition(s: PreviewInput) {
 /** Prévia exata da troca, com o tipo de cliente que o programa vai reconhecer (depositante se tem posição na Rende). */
 export function previewSwap(s: PreviewInput, sideIn: number, amountIn: bigint, nowSec = Math.floor(Date.now() / 1000)) {
   const kind: Kind = discountPosition(s) ? "depositor" : "retail";
-  const q = chainQuote(s.pool, sideIn, amountIn, kind, s.avail[0], s.avail[1]);
-  const blocker = amountIn > 0n ? swapBlocker(s.pool, sideIn, q, s.avail[0], s.avail[1], nowSec) : null;
+  const [brl, usd] = s.swapAvail ?? s.avail;
+  const q = chainQuote(s.pool, sideIn, amountIn, kind, brl, usd);
+  const blocker = amountIn > 0n ? swapBlocker(s.pool, sideIn, q, brl, usd, nowSec) : null;
   return { kind, q, blocker };
 }

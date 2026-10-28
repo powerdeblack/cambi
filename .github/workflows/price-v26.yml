@@ -1,0 +1,56 @@
+name: Cotação do pool v2.6 (devnet, branch v2)
+
+# Só no branch v2. Uma rodada de cotação pelo conselho de teste (7 de 10) no pool v2.6, sem compilar nada.
+# O pool aceita cotação de até 24 h; o app do v2 precisa de uma rodada por dia para trocar.
+# Para rodar: altere deployments/price-v26-round.txt no branch v2.
+on:
+  push:
+    branches: [v2]
+    paths:
+      - deployments/price-v26-round.txt
+
+permissions:
+  contents: write
+
+concurrency:
+  group: program-v2-devnet
+  cancel-in-progress: false
+
+jobs:
+  price:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: v2
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Restaurar chave do deployer (devnet)
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .devnet-keys
+          key: devnet-keys-v2
+      - name: Rodada de cotação pelo conselho de teste
+        env:
+          ANCHOR_WALLET: .devnet-keys/deployer.json
+        run: |
+          test -f .devnet-keys/deployer.json || { echo "::error::Chave do deployer não encontrada no cache"; exit 1; }
+          npx tsx scripts/pool-v26.ts
+      - name: Publicar o registro no branch v2
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf .devnet-keys
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -f deployments/devnet-v26.json ]; then git add deployments/devnet-v26.json; fi
+          git commit -q -m "Cotação do pool v2.6 [skip ci]" || exit 0
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git pull -q --rebase "$url" v2
+          git push -q "$url" HEAD:v2
