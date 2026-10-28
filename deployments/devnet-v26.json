@@ -1,0 +1,204 @@
+{
+  "cluster": "devnet",
+  "version": "2.6",
+  "rpc": "https://api.devnet.solana.com",
+  "createdAt": "2026-10-28T12:30:53.541Z",
+  "updatedAt": "2026-10-28T12:30:53.541Z",
+  "programId": "8b6oXzaazxCm7SrPNi6A3deyY8eftZRrx5bDoL55FeKA",
+  "guardianProgramId": "2pxrxRUENAopmSjet6mwieussPutCR52ja5ygLL9FpE2",
+  "pool": "9M2dP4qVM9ywYGY2MaDfiZkQcH7MX2NApgZmauX31v76",
+  "brlMint": "2GhKSSSmALfD1x6ZaRCtyWvQqXCVvRzsk4uAkpNJqszS",
+  "usdMint": "D9JV9tKFenHmBpfxGaU4JewXNAjfc4J3J9t3tr7yaxsV",
+  "brlVault": "8zSK6zJCNNYGLnpDKC12sUD8pVJR8tc5LRMPZJcChFop",
+  "usdVault": "3S6uHo27aWES8FSP2fjwJ59iXMzMDcmKsvKmVsDdvG75",
+  "mintAuthority": "3ozsd57psdaoVTwEJuLzk7DygLjVPsR6yGR9HJ4NHqQX",
+  "guardian": "52vvYsJJS13Yr14DkMrWM3BWHEa4ZPcbFK4t7RxMMSYD",
+  "watch": "6puu3Uqbm1ug7q5aDBJJSSwWy8dn3eJ9owHKhimZGKks",
+  "admin": "5dBnNHcKEFZi5nGky3uGbKVbPytYz9FUzgYaQLD25YXU",
+  "oracle": "5dBnNHcKEFZi5nGky3uGbKVbPytYz9FUzgYaQLD25YXU",
+  "upgradeAuthority": "2dkFwL55XBiMyrDQPJFetzcVtWabJncXzmXsaR4U4QCM",
+  "upgradeAuthorityNote": "Na devnet o upgrade fica com o deployer; a v3 final será imutável depois das auditorias.",
+  "council": {
+    "note": "Conselho de TESTE (chaves de teste derivadas da chave do deployer), no papel do conselho misto de produção.",
+    "squadsProgram": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf",
+    "multisig": "8PxeD9tYtnEhaY6x59sEirKeFdrCP3Bx3yEyThU1RiFQ",
+    "vault": "5dBnNHcKEFZi5nGky3uGbKVbPytYz9FUzgYaQLD25YXU",
+    "threshold": 7,
+    "members": [
+      "8LYX1i1o1hYKq5zi8MMNyPcrCwkHfSaFn8KMEchv7uUt",
+      "7ip3qYo4Us9LifMVmVTM6EZ1qAt5Epuzp7URQSLbvVY",
+      "8Ne42CkyizhmxqEyzcVELhqz74BsxoPHZWHzaGwHcEFy",
+      "H6RofnUQiCEi6wm8dCARFaJ1RfmEWLJMwAQYr294PDf5",
+      "HfXueho9PxyWL7uGhEkh4uzHsv1fPSDHr8xWpHd13Zho",
+      "An8QVBgmrED9jzRazs7Ho1W4EjxzLRBxoaLxa5SJLWaJ",
+      "FGPtUFKpyiECWVUangQ1AXdZWGYsy3wBSzqJKEFuXV7r",
+      "6BhAcmyGQvaSFAM8LsmjxWbQMsVHMWZp71MdJv7Me7AW",
+      "4QFQ5QTHK4VEujTfpSX3FwtMe1vm52XUraczFSqNqebJ",
+      "62nvZpcPZUvpfdsgZ2PbKRW8jXkZEzmT73EXT36caYTf"
+    ],
+    "validations": [
+      {
+        "index": 2,
+        "action": "Primeira cotação: R$ 5.3502 (Coinbase 5.3518, Mercado Bitcoin 5.3502, ExchangeRate-API 5.3484)",
+        "at": "2026-10-28T12:30:53.139Z",
+        "approvals": 7,
+        "createSignature": "Ka67uy8o4nYbivNKuXn4PeLTC9L9woocZPGAXQzE2ucsEsXQSJSXK1cvBEuj94qqujszEPdwBsDLKMFLSSSUJLq",
+        "approveSignature": "61u5GTtZFPj5HP4v9UAZAsJSfxKjJ2otTaF14fE8kSQKy5m2HWTreXeoMbk5fdtey7YKkRVayGcjxQRNgtzZFM6C",
+        "executeSignature": "36ytChhDKHgwzqZ1XTnykSJhAmwsy42GkbC7AScNqc7upG1T7FdEAe7rLHApv1RA9Dpq8yrNfFPcNmD331rsqgUk"
+      },
+      {
+        "index": 1,
+        "action": "Conselho assume o admin do pool",
+        "at": "2026-10-28T12:30:43.354Z",
+        "approvals": 7,
+        "createSignature": "3Uh3R1K5Zqbt8Xrx628MUu6nT2bmTjodhoKZZBfKTeEFUMieqeK9LhiytkxrR52gFMN8eqEetryzRsBZtQV6CBuJ",
+        "approveSignature": "2euwGHLEbh3XrE9C1oqpdtTG82pjfumfzxeJmdn5xJ9L7TDtakzUHxeRVLmgvVdBRmVkGJYZcSLPYDRnxGNMUh3U",
+        "executeSignature": "3xEnsx3Aci4MDRHiUsJ7WPvp3bQDqaLT6kBdu19RouQa4Nfq3HWNkmqwasTQCstxmaj3PBZnV8brAee4bNRVyfgK"
+      }
+    ]
+  },
+  "liquidity": {
+    "baleias": [
+      {
+        "brl": 20000,
+        "usd": 3738
+      },
+      {
+        "brl": 15000,
+        "usd": 2804
+      },
+      {
+        "brl": 12000,
+        "usd": 2243
+      },
+      {
+        "brl": 10000,
+        "usd": 1869
+      },
+      {
+        "brl": 10000,
+        "usd": 1869
+      },
+      {
+        "brl": 8000,
+        "usd": 1495
+      },
+      {
+        "brl": 8000,
+        "usd": 1495
+      },
+      {
+        "brl": 6000,
+        "usd": 1121
+      },
+      {
+        "brl": 6000,
+        "usd": 1121
+      },
+      {
+        "brl": 5000,
+        "usd": 935
+      }
+    ],
+    "rendeBRL": 50000
+  },
+  "security": {
+    "kycIssuer": "2dkFwL55XBiMyrDQPJFetzcVtWabJncXzmXsaR4U4QCM",
+    "kycIssuerNote": "Na devnet o deployer simula o parceiro regulado que faz o KYC.",
+    "levelLimitsBRL": [
+      10000,
+      100000,
+      0
+    ],
+    "breaker": {
+      "windowSecs": 3600,
+      "bps": 3000
+    },
+    "instantWithdrawBps": 1000,
+    "withdrawNoticeSecs": 600,
+    "rendeReserveBps": 3000
+  },
+  "transactions": [
+    {
+      "label": "Conselho de teste criado (7 de 10, chaves separadas das Baleias)",
+      "signature": "2aVQ2FrNfWwBsnHwfsda6SSeYsNHTJKhzrzq8eZWVMusRuPhiXk3vdKqxeFQeYHbuh7JPZdsv9ZTo3vRkcuKu81E",
+      "url": "https://explorer.solana.com/tx/2aVQ2FrNfWwBsnHwfsda6SSeYsNHTJKhzrzq8eZWVMusRuPhiXk3vdKqxeFQeYHbuh7JPZdsv9ZTo3vRkcuKu81E?cluster=devnet"
+    },
+    {
+      "label": "Moedas de teste (cBRL e cUSD)",
+      "signature": "HDg1VJtuoTAfAEJp2GxTvzNiusygjTyQn5MNALyVjh4Mwz8baBVmWigusXJmmJAdaGP7coXrhoXNxNEuiERuQX6",
+      "url": "https://explorer.solana.com/tx/HDg1VJtuoTAfAEJp2GxTvzNiusygjTyQn5MNALyVjh4Mwz8baBVmWigusXJmmJAdaGP7coXrhoXNxNEuiERuQX6?cluster=devnet"
+    },
+    {
+      "label": "Pool v2.6 criado (R$ 5.3502 por dólar): KYC exigido, disjuntor 30%/h, saque imediato até 10%, fila com 10 min de aviso, reserva da Rende 30%",
+      "signature": "4adingJ7RgMCcJtyQyz5C1WwBYgGtUGTWKa64CrUTMRrNidrNPjCU5tgXzSbwhEUA7ZY1RHBVRoxm5RC3mArtgNV",
+      "url": "https://explorer.solana.com/tx/4adingJ7RgMCcJtyQyz5C1WwBYgGtUGTWKa64CrUTMRrNidrNPjCU5tgXzSbwhEUA7ZY1RHBVRoxm5RC3mArtgNV?cluster=devnet"
+    },
+    {
+      "label": "Baleia de teste 1 deposita R$ 20.000 + US$ 3.738",
+      "signature": "4p2A1w6DmRoXEQVq6L41zKQ5dKgxsH72PBVmLQEtyyjpcmmQxus1AQZm2VpndBYQgjnoT3yaTyN7DJa4vfBRebD4",
+      "url": "https://explorer.solana.com/tx/4p2A1w6DmRoXEQVq6L41zKQ5dKgxsH72PBVmLQEtyyjpcmmQxus1AQZm2VpndBYQgjnoT3yaTyN7DJa4vfBRebD4?cluster=devnet"
+    },
+    {
+      "label": "Baleia de teste 2 deposita R$ 15.000 + US$ 2.804",
+      "signature": "4sp8cQefgJhgNhJC2LPiqdMbRVeQH1Likn6sEr2rN1ZRcLhKzkbapKN4agRyig2XWxrtKGxJ1TSpPpKsRVmSayNf",
+      "url": "https://explorer.solana.com/tx/4sp8cQefgJhgNhJC2LPiqdMbRVeQH1Likn6sEr2rN1ZRcLhKzkbapKN4agRyig2XWxrtKGxJ1TSpPpKsRVmSayNf?cluster=devnet"
+    },
+    {
+      "label": "Baleia de teste 3 deposita R$ 12.000 + US$ 2.243",
+      "signature": "15yFzYP19nvPAwnNvxi7ywrGvsgb4YXP8sA9XFJbx3Hz9hsnsYQbGNwoxWVdLLv37jy8Pr5GSHjwhdGDWF74VB2",
+      "url": "https://explorer.solana.com/tx/15yFzYP19nvPAwnNvxi7ywrGvsgb4YXP8sA9XFJbx3Hz9hsnsYQbGNwoxWVdLLv37jy8Pr5GSHjwhdGDWF74VB2?cluster=devnet"
+    },
+    {
+      "label": "Baleia de teste 4 deposita R$ 10.000 + US$ 1.869",
+      "signature": "3xKB8d6UCTGn5sA7Bmqu8tm4orGm3RaEPvSV7RgJKskXQnMnihBwevWwj9aJ3UCsYo8GJg16AGzWY9txunVxm8TJ",
+      "url": "https://explorer.solana.com/tx/3xKB8d6UCTGn5sA7Bmqu8tm4orGm3RaEPvSV7RgJKskXQnMnihBwevWwj9aJ3UCsYo8GJg16AGzWY9txunVxm8TJ?cluster=devnet"
+    },
+    {
+      "label": "Baleia de teste 5 deposita R$ 10.000 + US$ 1.869",
+      "signature": "65deQ28JJexA3UAvLXyQU5QSPuoqyrHTZyXvsjNJUnEtcVDPNQNBZ71MCqFYEX4CTs4Bckat13K4Sy2He1kZVVFr",
+      "url": "https://explorer.solana.com/tx/65deQ28JJexA3UAvLXyQU5QSPuoqyrHTZyXvsjNJUnEtcVDPNQNBZ71MCqFYEX4CTs4Bckat13K4Sy2He1kZVVFr?cluster=devnet"
+    },
+    {
+      "label": "Baleia de teste 6 deposita R$ 8.000 + US$ 1.495",
+      "signature": "3ic1RGya42cEaEUVD8BcWo4Yrivw5iYRvMpWSciVmVD3BtB2knSjUVfgSBbW9LCxssYX387GdqZNBQxsvbjJoa4x",
+      "url": "https://explorer.solana.com/tx/3ic1RGya42cEaEUVD8BcWo4Yrivw5iYRvMpWSciVmVD3BtB2knSjUVfgSBbW9LCxssYX387GdqZNBQxsvbjJoa4x?cluster=devnet"
+    },
+    {
+      "label": "Baleia de teste 7 deposita R$ 8.000 + US$ 1.495",
+      "signature": "3N9znZAdiMQCWPd7tsfB3D9nKMU3H38V1qHWLB1mj4a1yv8AdKvmpq1BY6i92rFoDQUJ4SA3ZmtwW5MxoZgNnsrg",
+      "url": "https://explorer.solana.com/tx/3N9znZAdiMQCWPd7tsfB3D9nKMU3H38V1qHWLB1mj4a1yv8AdKvmpq1BY6i92rFoDQUJ4SA3ZmtwW5MxoZgNnsrg?cluster=devnet"
+    },
+    {
+      "label": "Baleia de teste 8 deposita R$ 6.000 + US$ 1.121",
+      "signature": "5gubrh5UqJedfkSw9vroTLzaVEcuTk8KSCUJxv5yxD2a56dkECgDf1t3Rz1pxza3PMGBueReAHpSnkyDN9DeKn7q",
+      "url": "https://explorer.solana.com/tx/5gubrh5UqJedfkSw9vroTLzaVEcuTk8KSCUJxv5yxD2a56dkECgDf1t3Rz1pxza3PMGBueReAHpSnkyDN9DeKn7q?cluster=devnet"
+    },
+    {
+      "label": "Baleia de teste 9 deposita R$ 6.000 + US$ 1.121",
+      "signature": "5amuVeiPafSieC9ooXo9x7AzELGx82R7o59JhcDYs92UKG8VdYJJ64iNxg75ejP46s6WBke6yPHMcYmvyPdwR2HZ",
+      "url": "https://explorer.solana.com/tx/5amuVeiPafSieC9ooXo9x7AzELGx82R7o59JhcDYs92UKG8VdYJJ64iNxg75ejP46s6WBke6yPHMcYmvyPdwR2HZ?cluster=devnet"
+    },
+    {
+      "label": "Baleia de teste 10 deposita R$ 5.000 + US$ 935",
+      "signature": "5Qu9edfd2FJo73wDnjVHeKsbAgDNhJPVJReQu7AsHuuBTSEHnTW3hQFLGfoawNTANgv84eUEnfUGFqqQMcdiAqA7",
+      "url": "https://explorer.solana.com/tx/5Qu9edfd2FJo73wDnjVHeKsbAgDNhJPVJReQu7AsHuuBTSEHnTW3hQFLGfoawNTANgv84eUEnfUGFqqQMcdiAqA7?cluster=devnet"
+    },
+    {
+      "label": "Depósito Rende de teste: R$ 50.000 (credencial nível 2)",
+      "signature": "2ipEiRzk9XqVhTSwxQ7oUiWVapLRzXVFBp4cVsePMCwXm9GLZmfgdgr7gK7bmM2XzzaWQQ6nf6QWxShadB3B5Yxw",
+      "url": "https://explorer.solana.com/tx/2ipEiRzk9XqVhTSwxQ7oUiWVapLRzXVFBp4cVsePMCwXm9GLZmfgdgr7gK7bmM2XzzaWQQ6nf6QWxShadB3B5Yxw?cluster=devnet"
+    },
+    {
+      "label": "Guardião = programa guardião (sem chave); ficha de vigília criada; oráculo e admin passam ao conselho",
+      "signature": "5pdabLchcWvQRX1G146sHXJtkZhfmWqVY3JgapQ6MoBHtWZToMg2PeJ6zaahCgMgWv1xNouTSbq7pCnXVef1Rfz2",
+      "url": "https://explorer.solana.com/tx/5pdabLchcWvQRX1G146sHXJtkZhfmWqVY3JgapQ6MoBHtWZToMg2PeJ6zaahCgMgWv1xNouTSbq7pCnXVef1Rfz2?cluster=devnet"
+    }
+  ],
+  "links": {
+    "program": "https://explorer.solana.com/address/8b6oXzaazxCm7SrPNi6A3deyY8eftZRrx5bDoL55FeKA?cluster=devnet",
+    "guardian": "https://explorer.solana.com/address/2pxrxRUENAopmSjet6mwieussPutCR52ja5ygLL9FpE2?cluster=devnet",
+    "pool": "https://explorer.solana.com/address/9M2dP4qVM9ywYGY2MaDfiZkQcH7MX2NApgZmauX31v76?cluster=devnet",
+    "council": "https://explorer.solana.com/address/8PxeD9tYtnEhaY6x59sEirKeFdrCP3Bx3yEyThU1RiFQ?cluster=devnet"
+  }
+}
