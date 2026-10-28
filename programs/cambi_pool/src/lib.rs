@@ -21,6 +21,14 @@
 //! - prova de reserva: o custodiante de cada moeda tokenizada atesta a reserva on-chain; se o total emitido
 //!   passar da reserva atestada, ou o atestado ficar velho, trocas e depósitos param (saques seguem livres).
 //!
+//! Versão 2.6:
+//! - o guardião passa a ser um programa sem chave (cambi_guardian) que aciona travas com hora para acabar:
+//!   "respirar" (só o sentido que drena uma moeda), "descansar" (trocas e depósitos) e "parar" (só o conselho
+//!   solta). O pool limita o tempo de cada trava e o total de descanso por dia; saques nunca são bloqueados;
+//! - reserva da Rende: 30% do principal da Rende fica guardado 1 para 1 em cada moeda, fora das trocas;
+//! - a fila da Rende aceita pedido mesmo com a moeda em falta; no fim do aviso, a pessoa espera ou recebe o
+//!   mesmo valor na outra moeda, pelo preço do oráculo e sem taxa.
+//!
 //! Auditoria e correções: docs/AUDITORIA.md.
 
 use anchor_lang::prelude::*;

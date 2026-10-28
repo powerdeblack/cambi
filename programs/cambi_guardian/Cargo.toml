@@ -1,0 +1,25 @@
+[package]
+name = "cambi_guardian"
+version = "0.1.0"
+description = "cambI guardião: programa sem chave que vigia o pool e aciona travas com hora para acabar"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "cambi_guardian"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build", "cambi_pool/idl-build"]
+# O pool de devnet é compilado com esta feature; o guardião só repassa (não muda nada nele).
+devnet = []
+
+[dependencies]
+anchor-lang = "0.31.1"
+anchor-spl = "0.31.1"
+cambi_pool = { path = "../cambi_pool", features = ["cpi"] }

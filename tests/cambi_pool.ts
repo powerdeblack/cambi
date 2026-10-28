@@ -4,6 +4,7 @@ import { Program } from "@coral-xyz/anchor";
 import { AuthorityType, TOKEN_PROGRAM_ID, getMint, mintTo, setAuthority } from "@solana/spl-token";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { expect } from "chai";
+import { CambiGuardian } from "../target/types/cambi_guardian";
 import { CambiPool } from "../target/types/cambi_pool";
 import {
   BALEIA,
@@ -655,5 +656,122 @@ describe("cambi_pool", () => {
     // O emissor solta moeda sem lastro: o pool para de aceitar trocas com ela.
     await mintTo(connection, admin, m.usd, lp.usd, admin, 1_000_000n, [], CONFIRMED);
     await expectError(swap(trader, BRL, 100, { ctx, reserves }), "ReserveUnproven");
+  });
+
+  // ---------- v2.6: programa guardião (sem chave) e travas com hora para acabar ----------
+
+  it("v2.6: guardião sem chave: uso normal não trava; corrida faz respirar num sentido; salto de cotação faz descansar; só o conselho solta antes", async () => {
+    const guardianProgram = anchor.workspace.CambiGuardian as Program<CambiGuardian>;
+    const { m, ctx } = await freshPool();
+    await setLimits(ctx, 3600, 1_000, 0);
+    const lp = await setupUser(connection, admin, m, { brl: 20_000, usd: 4_000 }, { airdropSol: 1 });
+    const trader = await setupUser(connection, admin, m, { brl: 20_000, usd: 0 }, { airdropSol: 1 });
+    await enroll(ctx, [lp, trader]);
+    await deposit(lp, BALEIA, BRL, 20_000, ctx);
+    await deposit(lp, BALEIA, USD, 4_000, ctx);
+    // Para provocar uma corrida numa troca só: limite por troca/minuto de 50% e disjuntor sem teto neste pool.
+    const fees = (await program.account.pool.fetch(ctx.pool)).fees;
+    await program.methods.updateFees({ ...fees, maxTradeBps: 5_000 }).accountsPartial({ admin: admin.publicKey, pool: ctx.pool }).rpc();
+    await setSafety(ctx, { breakerBps: 10_000 });
+
+    const [guardian] = PublicKey.findProgramAddressSync([Buffer.from("guardian"), ctx.pool.toBuffer()], guardianProgram.programId);
+    const [watch] = PublicKey.findProgramAddressSync([Buffer.from("watch"), ctx.pool.toBuffer()], guardianProgram.programId);
+    await program.methods.setGuardian(guardian).accountsPartial({ admin: admin.publicKey, pool: ctx.pool }).rpc();
+    await guardianProgram.methods
+      .initWatch()
+      .accountsPartial({ payer: admin.publicKey, pool: ctx.pool, watch, brlVault: ctx.brlVault, usdVault: ctx.usdVault, systemProgram: SystemProgram.programId })
+      .rpc();
+    // Qualquer carteira chama a vigília (aqui, uma sem nenhum papel no pool).
+    const anyone = Keypair.generate();
+    await connection.confirmTransaction(await connection.requestAirdrop(anyone.publicKey, 1e9), "confirmed");
+    const vigiar = () =>
+      guardianProgram.methods
+        .vigiar()
+        .accountsPartial({ watch, pool: ctx.pool, brlVault: ctx.brlVault, usdVault: ctx.usdVault, guardian, cambiPoolProgram: pid })
+        .signers([anyone])
+        .rpc();
+    const state = () => program.account.pool.fetch(ctx.pool);
+
+    // Uso normal: nada trava.
+    await swap(trader, BRL, 500, { ctx });
+    await vigiar();
+    let p = await state();
+    expect(p.breatheUntil.toNumber()).to.equal(0);
+    expect(p.restUntil.toNumber()).to.equal(0);
+    expect(p.paused).to.equal(false);
+
+    // Nenhuma chave consegue travar no lugar do guardião.
+    await expectError(
+      program.methods.guardianLock(2, 0, new anchor.BN(60), 0).accountsPartial({ guardian: admin.publicKey, pool: ctx.pool }).rpc(),
+      "ConstraintHasOne",
+    );
+
+    // Corrida ao dólar: ~30% da liquidez de dólar sai de uma vez. O guardião manda respirar só nesse sentido.
+    await swap(trader, BRL, 6_500, { ctx });
+    await vigiar();
+    p = await state();
+    expect(p.breatheSide).to.equal(USD);
+    expect(p.breatheUntil.toNumber()).to.be.greaterThan(Math.floor(Date.now() / 1000));
+    await expectError(swap(trader, BRL, 100, { ctx }), "GuardianBreathing");
+    await swap(trader, USD, 100, { ctx }); // quem traz dólar continua trocando
+
+    // Cotação salta 5% (o pool aceita até 10%, o guardião desconfia a partir de 3%): descansar.
+    await program.methods.setPrice(new anchor.BN(Math.round(PRICE * 1.05 * 1e6))).accountsPartial({ oracle: admin.publicKey, pool: ctx.pool }).rpc();
+    await vigiar();
+    p = await state();
+    expect(p.restUntil.toNumber()).to.be.greaterThan(Math.floor(Date.now() / 1000));
+    await expectError(swap(trader, USD, 10, { ctx }), "GuardianResting");
+    await expectError(deposit(trader, RENDE, BRL, 100, ctx), "GuardianResting");
+    await withdraw(lp, BALEIA, USD, 10, ctx); // saques seguem livres
+
+    // O conselho (admin) pode soltar antes da hora; o guardião nunca solta nada.
+    await program.methods.clearGuardianLocks().accountsPartial({ admin: admin.publicKey, pool: ctx.pool }).rpc();
+    await swap(trader, USD, 10, { ctx });
+  });
+
+  it("v2.6: a reserva da Rende fica fora das trocas; com a moeda em falta, a fila espera ou paga na outra moeda", async () => {
+    const { m, ctx } = await freshPool();
+    await setLimits(ctx, 3600, 1_000, 0);
+    await setSafety(ctx, { notice: 60, breakerBps: 10_000, instantBps: 10_000 });
+    const saver = await setupUser(connection, admin, m, { brl: 1_000, usd: 0 }, { airdropSol: 1 });
+    const lp = await setupUser(connection, admin, m, { brl: 0, usd: 1_000 }, { airdropSol: 1 });
+    const trader = await setupUser(connection, admin, m, { brl: 0, usd: 1_000 }, { airdropSol: 1 });
+    await enroll(ctx, [saver, lp, trader]);
+    const fees = (await program.account.pool.fetch(ctx.pool)).fees;
+    await program.methods.updateFees({ ...fees, maxTradeBps: 10_000 }).accountsPartial({ admin: admin.publicKey, pool: ctx.pool }).rpc();
+    await deposit(saver, RENDE, BRL, 1_000, ctx); // reserva da Rende em real: 30% = R$ 300
+    await deposit(lp, BALEIA, USD, 1_000, ctx);
+    // Trocas tiram real até a reserva: R$ 700 é o máximo que as trocas enxergam.
+    await expectError(swap(trader, USD, 140, { ctx }), "InsufficientLiquidity"); // ~R$ 750 de saída
+    await swap(trader, USD, 120, { ctx }); // ~R$ 640 de saída
+    const vault = await tokenBalance(connection, ctx.brlVault);
+    expect(vault).to.be.greaterThan(300); // a reserva da Rende ficou
+    // A Rende pede tudo na fila, mesmo sem ter real para pagar agora.
+    const position = positionPda(pid, ctx.pool, saver.kp.publicKey, RENDE, BRL);
+    const ticket = ticketPda(pid, position);
+    const accounts = {
+      user: saver.kp.publicKey,
+      pool: ctx.pool,
+      credential: credentialPda(pid, ctx.pool, saver.kp.publicKey),
+      brlVault: ctx.brlVault,
+      usdVault: ctx.usdVault,
+      userBrl: saver.brl,
+      userUsd: saver.usd,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    };
+    await program.methods
+      .requestWithdraw(u(1_000))
+      .accountsPartial({ ...accounts, position, ticket, systemProgram: SystemProgram.programId })
+      .signers([saver.kp])
+      .rpc();
+    // Com a fila maior que o cofre de real, as trocas que tiram real param.
+    await expectError(swap(trader, USD, 1, { ctx }), "InsufficientLiquidity");
+    await new Promise((r) => setTimeout(r, 62_000));
+    await expectError(program.methods.claimWithdraw().accountsPartial({ ...accounts, ticket }).signers([saver.kp]).rpc(), "QueueCurrencyShort");
+    // Prefere não esperar: recebe o mesmo valor em dólar, pelo oráculo e sem taxa.
+    const before = await tokenBalance(connection, saver.usd);
+    await program.methods.claimWithdrawOther().accountsPartial({ ...accounts, ticket }).signers([saver.kp]).rpc();
+    const got = (await tokenBalance(connection, saver.usd)) - before;
+    expect(got).to.be.closeTo(1_000 / PRICE, 0.01);
   });
 });

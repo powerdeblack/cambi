@@ -6,9 +6,11 @@ skip-lint = false
 
 [programs.devnet]
 cambi_pool = "AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ"
+cambi_guardian = "AjmN13L2r1Kx5YVf5b93Wu3aqjkVkYaewaStqFPiXeRR"
 
 [programs.localnet]
 cambi_pool = "AgZtr464VxDFXuYnr3THUUa8Ww1jxBWJXEKQJEQc35XJ"
+cambi_guardian = "AjmN13L2r1Kx5YVf5b93Wu3aqjkVkYaewaStqFPiXeRR"
 
 [registry]
 url = "https://api.apr.dev"

@@ -27,6 +27,7 @@ jobs:
           anchor build -- --features devnet
           anchor keys sync
           sed -i "s/^cambi_pool = \".*\"/cambi_pool = \"$(solana address -k target/deploy/cambi_pool-keypair.json)\"/" Anchor.toml
+          sed -i "s/^cambi_guardian = \".*\"/cambi_guardian = \"$(solana address -k target/deploy/cambi_guardian-keypair.json)\"/" Anchor.toml
           anchor build -- --features devnet
           # O faucet de testes tem que estar nesta versão (devnet) e no IDL.
           node -e 'const i=require("./target/idl/cambi_pool.json").instructions.map(x=>x.name); if(!i.includes("faucet_claim")) { console.error("IDL sem faucet_claim:", i); process.exit(1) } console.log(i.join(", "))'
@@ -40,7 +41,8 @@ jobs:
           echo "chave:    $(solana address -k target/deploy/cambi_pool-keypair.json)"
           echo "código:   $(grep -o 'declare_id!("[^"]*")' programs/cambi_pool/src/lib.rs)"
           echo "IDL:      $(node -e 'console.log(require("./target/idl/cambi_pool.json").address)')"
-          grep -A1 "programs.localnet" Anchor.toml
+          echo "guardião: $(solana address -k target/deploy/cambi_guardian-keypair.json) / $(grep -o 'declare_id!("[^"]*")' programs/cambi_guardian/src/lib.rs)"
+          grep -A2 "programs.localnet" Anchor.toml
       - name: Testar numa Solana local
         run: anchor test --skip-build
       - name: Tamanho do programa
@@ -50,4 +52,6 @@ jobs:
           name: cambi_pool-build
           path: |
             target/deploy/cambi_pool.so
+            target/deploy/cambi_guardian.so
             target/idl/cambi_pool.json
+            target/idl/cambi_guardian.json
