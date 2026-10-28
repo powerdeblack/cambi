@@ -1,0 +1,1046 @@
+{
+  "at": "2026-10-28T15:06:03.207Z",
+  "program": "8b6oXzaazxCm7SrPNi6A3deyY8eftZRrx5bDoL55FeKA",
+  "pool": "9M2dP4qVM9ywYGY2MaDfiZkQcH7MX2NApgZmauX31v76",
+  "plan": {
+    "requested": 1000,
+    "wallets": 1000,
+    "rende": 100,
+    "traders": 900,
+    "notes": []
+  },
+  "summary": {
+    "transactions": 4547,
+    "asExpected": 4547,
+    "unexpected": [],
+    "elapsedMin": 76.4,
+    "throughputTxPerS": 0.96,
+    "confirmLatencyMs": {
+      "n": 4413,
+      "min": 920,
+      "p50": 3203,
+      "p95": 6026,
+      "max": 10775
+    },
+    "avgFeeSol": 0.000010065573770491823,
+    "computeUnits": {
+      "cadastro": 42650,
+      "troca": 23085,
+      "deposito": 25344,
+      "saque": 20883,
+      "fila": 30988
+    },
+    "solSpent": 1.6315,
+    "solPerWallet": 0.001632,
+    "rpcCalls": 6731
+  },
+  "checks": [
+    {
+      "claim": "Cadastro com credencial on-chain",
+      "expected": "todas as carteiras cadastradas",
+      "measured": "1000 de 1000",
+      "ok": true
+    },
+    {
+      "claim": "Sem credencial, o programa recusa a troca",
+      "expected": "KycRequired em todas",
+      "measured": "18/18",
+      "ok": true
+    },
+    {
+      "claim": "Teto por operação do nível 1: R$ 10 mil",
+      "expected": "AboveKycLimit em todas",
+      "measured": "18/18",
+      "ok": true
+    },
+    {
+      "claim": "Taxa de varejo: base 1%, multiplicador dinâmico entre 0,7x e 1,5x",
+      "expected": "taxa efetiva da compra de dólar entre 0,7% e 1,5%",
+      "measured": "1.23% a 1.24% (mediana 1.23%)",
+      "ok": true
+    },
+    {
+      "claim": "Ida e volta nunca dá lucro",
+      "expected": "nenhuma carteira termina com mais real",
+      "measured": "0 de 900 com lucro",
+      "ok": true
+    },
+    {
+      "claim": "Parceiro Pix: 0,2% do volume via Pix",
+      "expected": "0,2% do volume",
+      "measured": "0.2%",
+      "ok": true
+    },
+    {
+      "claim": "Operação: 25% da taxa depois do parceiro",
+      "expected": "25%",
+      "measured": "25%",
+      "ok": true
+    },
+    {
+      "claim": "Provedores de liquidez (Baleias + Rende): 75% da taxa depois do parceiro",
+      "expected": "75%",
+      "measured": "75%",
+      "ok": true
+    },
+    {
+      "claim": "Prêmio de escassez: só quem deposita a moeda que falta ganha cotas a mais, até 10%",
+      "expected": "dólar com prêmio (0% a 10%); real sem prêmio",
+      "measured": "dólar 2.23% · real 0% (desequilíbrio 25.9%)",
+      "ok": true
+    },
+    {
+      "claim": "Trava de depósito: sacar logo depois é recusado",
+      "expected": "PositionLocked em todas",
+      "measured": "20/20",
+      "ok": true
+    },
+    {
+      "claim": "Depositante a partir de R$ 1.000 paga 0,5% (varejo 1%)",
+      "expected": "depositante paga cerca de metade do varejo",
+      "measured": "depositante 0.61% · varejo 1.23%",
+      "ok": true
+    },
+    {
+      "claim": "Rende recebe parte das taxas",
+      "expected": "rendimento colhido maior que zero",
+      "measured": "R$ 9.8531 para 100 de 100 depositantes",
+      "ok": true
+    },
+    {
+      "claim": "Saque imediato do principal",
+      "expected": "todos sacam",
+      "measured": "100/100",
+      "ok": true
+    },
+    {
+      "claim": "Guardião é um programa: nenhuma chave consegue travar o pool",
+      "expected": "ConstraintHasOne para a chave do deployer",
+      "measured": "1/1",
+      "ok": true
+    },
+    {
+      "claim": "Uso normal: as vigílias entre os lotes não travam nada",
+      "expected": "nenhuma trava",
+      "measured": "9 de 9 vigílias sem trava",
+      "ok": true
+    },
+    {
+      "claim": "Salto de cotação de 5%: o guardião descansa sozinho; trocas e depósitos param",
+      "expected": "GuardianResting em todas",
+      "measured": "20/20 trocas · 5/5 depósitos",
+      "ok": true
+    },
+    {
+      "claim": "Saque continua funcionando com o guardião descansando (pedido na fila)",
+      "expected": "todos os pedidos aceitos",
+      "measured": "20/20",
+      "ok": true
+    },
+    {
+      "claim": "O guardião nunca solta; o conselho solta antes da hora",
+      "expected": "conselho solta e a troca volta",
+      "measured": "guardião descansou sozinho; conselho soltou em 17 s",
+      "ok": true
+    },
+    {
+      "claim": "Fila de saque: resgate só depois do aviso prévio",
+      "expected": "WithdrawNotReady antes; ok depois",
+      "measured": "antes 10/10 · depois 20/20",
+      "ok": true
+    },
+    {
+      "claim": "Estresse: uma corrida ao dólar é segurada pelas travas de saída",
+      "expected": "as primeiras compras passam; depois limite por minuto, disjuntor ou respiro do guardião",
+      "measured": "19 de 40 compras passaram; recusas {\"OutflowLimit\":21,\"GuardianBreathing\":21}",
+      "ok": true
+    },
+    {
+      "claim": "Estresse: o guardião manda respirar sozinho na corrida, só no sentido que drena",
+      "expected": "respiro no dólar numa vigília da corrida",
+      "measured": "respiro no dólar (rajada 1)",
+      "ok": true
+    },
+    {
+      "claim": "Estresse: com o respiro, quem devolve dólar continua trocando",
+      "expected": "todas as devoluções aceitas",
+      "measured": "19/19",
+      "ok": true
+    },
+    {
+      "claim": "Estresse: o respiro solta sozinho pelo tempo, sem ninguém",
+      "expected": "compra de dólar volta a passar",
+      "measured": "soltou sozinho pelo tempo",
+      "ok": true
+    },
+    {
+      "claim": "Estresse: a taxa sobe conforme falta dólar",
+      "expected": "últimas compras pagam mais que as primeiras",
+      "measured": "primeiras 1.218% · últimas 1.33%",
+      "ok": true
+    },
+    {
+      "claim": "Estresse: quem devolve a moeda que falta paga menos",
+      "expected": "taxa da devolução menor que a da compra",
+      "measured": "devolução mediana 0.15% · compra mediana 1.27%",
+      "ok": true
+    },
+    {
+      "claim": "Estresse: ida e volta sem lucro mesmo no pico",
+      "expected": "nenhuma carteira com lucro",
+      "measured": "0 de 19",
+      "ok": true
+    },
+    {
+      "claim": "Estresse: o pool volta ao equilíbrio depois",
+      "expected": "desequilíbrio final perto do inicial (até 2 pontos)",
+      "measured": "26.2% → pico 40.4% → 26.3%",
+      "ok": true
+    }
+  ],
+  "coherent": 27,
+  "fees": {
+    "buyPct": {
+      "n": 900,
+      "min": 1.23,
+      "p50": 1.23,
+      "p95": 1.24,
+      "max": 1.24
+    },
+    "sellPct": {
+      "n": 900,
+      "min": 0.26,
+      "p50": 0.29,
+      "p95": 0.3,
+      "max": 0.3
+    },
+    "roundTripPct": {
+      "n": 900,
+      "min": -1.54,
+      "p50": -1.52,
+      "p95": -1.5,
+      "max": -1.49
+    },
+    "depositorDiscount": {
+      "n": 10,
+      "depositorAvgPct": 0.61,
+      "retailAvgPct": 1.23
+    },
+    "split": {
+      "volumeBRL": 30590.11,
+      "feesBRL": 304.82,
+      "partnerPctOfVolume": 0.2,
+      "platformPctOfNet": 25,
+      "providersPctOfNet": 75
+    }
+  },
+  "premium": {
+    "imbalanceAtDepositPct": 25.9,
+    "dolar": {
+      "n": 20,
+      "avgPct": 2.23,
+      "minPct": 2.21,
+      "maxPct": 2.25
+    },
+    "real": {
+      "n": 70,
+      "avgPct": 0,
+      "minPct": 0,
+      "maxPct": 0
+    }
+  },
+  "stress": {
+    "wallets": 40,
+    "perWalletBRL": 1000,
+    "before": {
+      "imbalancePct": 26.2,
+      "freeUSD": 18333.72,
+      "breakerUsedUSDPct": 6.9
+    },
+    "peak": {
+      "imbalancePct": 40.4,
+      "freeUSD": 14809.85,
+      "breakerUsedUSDPct": 68.4
+    },
+    "after": {
+      "imbalancePct": 26.3,
+      "freeUSD": 18308.23,
+      "breakerUsedUSDPct": 3.2
+    },
+    "rounds": [
+      {
+        "round": 1,
+        "tried": 40,
+        "ok": 19,
+        "refused": {
+          "OutflowLimit": 21
+        },
+        "after": {
+          "imbalancePct": 40.4,
+          "freeUSD": 14809.85,
+          "breakerUsedUSDPct": 68.4
+        },
+        "guardianLevel": 1
+      },
+      {
+        "round": 2,
+        "tried": 21,
+        "ok": 0,
+        "refused": {
+          "GuardianBreathing": 21
+        },
+        "after": {
+          "imbalancePct": 40.4,
+          "freeUSD": 14809.85,
+          "breakerUsedUSDPct": 68.4
+        },
+        "guardianLevel": 1
+      }
+    ],
+    "bought": 19,
+    "buyFeePct": {
+      "first5": 1.218,
+      "last5": 1.33,
+      "all": {
+        "n": 19,
+        "min": 1.2,
+        "p50": 1.27,
+        "p95": 1.35,
+        "max": 1.35
+      }
+    },
+    "sellBackFeePct": {
+      "n": 19,
+      "min": -0.01,
+      "p50": 0.15,
+      "p95": 0.36,
+      "max": 0.36
+    },
+    "profitableRoundTrips": 0,
+    "guardian": {
+      "breathed": {
+        "at": "rajada 1",
+        "side": "dólar"
+      },
+      "autoRelease": "soltou sozinho pelo tempo"
+    }
+  },
+  "guardian": {
+    "cohortVigils": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "lockLog": [
+      {
+        "at": "salto de cotação",
+        "level": 2,
+        "restUntil": 1793201482,
+        "breatheUntil": 0
+      },
+      {
+        "at": "rajada 1",
+        "level": 1,
+        "restUntil": 0,
+        "breatheUntil": 1793199934,
+        "side": 1
+      },
+      {
+        "at": "rajada 2",
+        "level": 1,
+        "restUntil": 0,
+        "breatheUntil": 1793199934,
+        "side": 1
+      }
+    ]
+  },
+  "rende": {
+    "depositors": 100,
+    "yieldBRL": 9.8531,
+    "earners": 100
+  },
+  "breakerMaxUsedPct": {
+    "BRL": 4,
+    "USD": 5.4
+  },
+  "poolCounters": {
+    "swapsBefore": 20,
+    "swapsAfter": 1900,
+    "volumeBRLBefore": 1400,
+    "volumeBRLAfter": 71600.010917,
+    "paused": false
+  },
+  "byStage": {
+    "preparo": {
+      "total": 18,
+      "asExpected": 18,
+      "results": {
+        "ok": 18
+      },
+      "latencyMs": {
+        "n": 18,
+        "min": 2172,
+        "p50": 3202,
+        "p95": 6025,
+        "max": 6025
+      }
+    },
+    "faucet": {
+      "total": 17,
+      "asExpected": 17,
+      "results": {
+        "ok": 17
+      },
+      "latencyMs": {
+        "n": 17,
+        "min": 1461,
+        "p50": 2827,
+        "p95": 4714,
+        "max": 4714
+      }
+    },
+    "rende: cadastro": {
+      "total": 100,
+      "asExpected": 100,
+      "results": {
+        "ok": 100
+      },
+      "latencyMs": {
+        "n": 100,
+        "min": 922,
+        "p50": 3202,
+        "p95": 5815,
+        "max": 6564
+      }
+    },
+    "rende: compra de dólar": {
+      "total": 20,
+      "asExpected": 20,
+      "results": {
+        "ok": 20
+      },
+      "latencyMs": {
+        "n": 20,
+        "min": 921,
+        "p50": 3030,
+        "p95": 5373,
+        "max": 5373
+      }
+    },
+    "rende: depósito": {
+      "total": 100,
+      "asExpected": 100,
+      "results": {
+        "ok": 100
+      },
+      "latencyMs": {
+        "n": 100,
+        "min": 1256,
+        "p50": 3202,
+        "p95": 6023,
+        "max": 6354
+      }
+    },
+    "rende: trava de depósito": {
+      "total": 20,
+      "asExpected": 20,
+      "results": {
+        "PositionLocked": 20
+      },
+      "latencyMs": null
+    },
+    "comparação: cadastro": {
+      "total": 10,
+      "asExpected": 10,
+      "results": {
+        "ok": 10
+      },
+      "latencyMs": {
+        "n": 10,
+        "min": 2284,
+        "p50": 3202,
+        "p95": 5166,
+        "max": 5166
+      }
+    },
+    "rende: troca com desconto de depositante": {
+      "total": 10,
+      "asExpected": 10,
+      "results": {
+        "ok": 10
+      },
+      "latencyMs": {
+        "n": 10,
+        "min": 2391,
+        "p50": 2392,
+        "p95": 4402,
+        "max": 4402
+      }
+    },
+    "comparação: troca de varejo": {
+      "total": 10,
+      "asExpected": 10,
+      "results": {
+        "ok": 10
+      },
+      "latencyMs": {
+        "n": 10,
+        "min": 2172,
+        "p50": 2173,
+        "p95": 2173,
+        "max": 2173
+      }
+    },
+    "varejo de comparação: devolução": {
+      "total": 10,
+      "asExpected": 10,
+      "results": {
+        "ok": 10
+      },
+      "latencyMs": {
+        "n": 10,
+        "min": 2286,
+        "p50": 3635,
+        "p95": 4552,
+        "max": 4552
+      }
+    },
+    "trocas: cadastro": {
+      "total": 900,
+      "asExpected": 900,
+      "results": {
+        "ok": 900
+      },
+      "latencyMs": {
+        "n": 900,
+        "min": 920,
+        "p50": 3202,
+        "p95": 6025,
+        "max": 7011
+      }
+    },
+    "kyc: cadastro sem credencial": {
+      "total": 18,
+      "asExpected": 18,
+      "results": {
+        "ok": 18
+      },
+      "latencyMs": {
+        "n": 18,
+        "min": 2171,
+        "p50": 2500,
+        "p95": 4563,
+        "max": 4563
+      }
+    },
+    "kyc: troca sem credencial": {
+      "total": 18,
+      "asExpected": 18,
+      "results": {
+        "KycRequired": 18
+      },
+      "latencyMs": null
+    },
+    "kyc: troca acima do teto do nível 1 (R$ 10 mil)": {
+      "total": 18,
+      "asExpected": 18,
+      "results": {
+        "AboveKycLimit": 18
+      },
+      "latencyMs": null
+    },
+    "trocas: real → dólar": {
+      "total": 900,
+      "asExpected": 900,
+      "results": {
+        "ok": 900
+      },
+      "latencyMs": {
+        "n": 900,
+        "min": 1190,
+        "p50": 3203,
+        "p95": 6026,
+        "max": 9117
+      }
+    },
+    "trocas: dólar → real": {
+      "total": 900,
+      "asExpected": 900,
+      "results": {
+        "ok": 900
+      },
+      "latencyMs": {
+        "n": 900,
+        "min": 923,
+        "p50": 3203,
+        "p95": 6025,
+        "max": 9711
+      }
+    },
+    "lote 1: devolução": {
+      "total": 102,
+      "asExpected": 102,
+      "results": {
+        "ok": 102
+      },
+      "latencyMs": {
+        "n": 102,
+        "min": 1192,
+        "p50": 3203,
+        "p95": 6026,
+        "max": 9384
+      }
+    },
+    "guardião: vigília": {
+      "total": 13,
+      "asExpected": 13,
+      "results": {
+        "ok": 13
+      },
+      "latencyMs": {
+        "n": 13,
+        "min": 2228,
+        "p50": 2231,
+        "p95": 2235,
+        "max": 2235
+      }
+    },
+    "lote 2: devolução": {
+      "total": 102,
+      "asExpected": 102,
+      "results": {
+        "ok": 102
+      },
+      "latencyMs": {
+        "n": 102,
+        "min": 921,
+        "p50": 3203,
+        "p95": 6026,
+        "max": 6298
+      }
+    },
+    "lote 3: devolução": {
+      "total": 102,
+      "asExpected": 102,
+      "results": {
+        "ok": 102
+      },
+      "latencyMs": {
+        "n": 102,
+        "min": 2281,
+        "p50": 3204,
+        "p95": 6025,
+        "max": 6554
+      }
+    },
+    "lote 4: devolução": {
+      "total": 102,
+      "asExpected": 102,
+      "results": {
+        "ok": 102
+      },
+      "latencyMs": {
+        "n": 102,
+        "min": 1192,
+        "p50": 3201,
+        "p95": 6025,
+        "max": 6565
+      }
+    },
+    "lote 5: devolução": {
+      "total": 102,
+      "asExpected": 102,
+      "results": {
+        "ok": 102
+      },
+      "latencyMs": {
+        "n": 102,
+        "min": 1462,
+        "p50": 3203,
+        "p95": 6025,
+        "max": 6355
+      }
+    },
+    "lote 6: devolução": {
+      "total": 102,
+      "asExpected": 102,
+      "results": {
+        "ok": 102
+      },
+      "latencyMs": {
+        "n": 102,
+        "min": 1192,
+        "p50": 3203,
+        "p95": 6082,
+        "max": 6652
+      }
+    },
+    "lote 7: devolução": {
+      "total": 102,
+      "asExpected": 102,
+      "results": {
+        "ok": 102
+      },
+      "latencyMs": {
+        "n": 102,
+        "min": 1191,
+        "p50": 3205,
+        "p95": 6083,
+        "max": 6727
+      }
+    },
+    "lote 8: devolução": {
+      "total": 102,
+      "asExpected": 102,
+      "results": {
+        "ok": 102
+      },
+      "latencyMs": {
+        "n": 102,
+        "min": 921,
+        "p50": 3202,
+        "p95": 6022,
+        "max": 6294
+      }
+    },
+    "lote 9: devolução": {
+      "total": 102,
+      "asExpected": 102,
+      "results": {
+        "ok": 102
+      },
+      "latencyMs": {
+        "n": 102,
+        "min": 920,
+        "p50": 3204,
+        "p95": 6028,
+        "max": 6297
+      }
+    },
+    "guardião: chave tenta travar": {
+      "total": 1,
+      "asExpected": 1,
+      "results": {
+        "ConstraintHasOne": 1
+      },
+      "latencyMs": null
+    },
+    "conselho: proposta": {
+      "total": 3,
+      "asExpected": 3,
+      "results": {
+        "ok": 3
+      },
+      "latencyMs": {
+        "n": 3,
+        "min": 2230,
+        "p50": 2231,
+        "p95": 2341,
+        "max": 2341
+      }
+    },
+    "conselho: aprovações": {
+      "total": 3,
+      "asExpected": 3,
+      "results": {
+        "ok": 3
+      },
+      "latencyMs": {
+        "n": 3,
+        "min": 2229,
+        "p50": 2230,
+        "p95": 2230,
+        "max": 2230
+      }
+    },
+    "conselho: execução": {
+      "total": 3,
+      "asExpected": 3,
+      "results": {
+        "ok": 3
+      },
+      "latencyMs": {
+        "n": 3,
+        "min": 2230,
+        "p50": 2232,
+        "p95": 2341,
+        "max": 2341
+      }
+    },
+    "guardião: troca durante o descanso": {
+      "total": 20,
+      "asExpected": 20,
+      "results": {
+        "GuardianResting": 20
+      },
+      "latencyMs": null
+    },
+    "guardião: depósito durante o descanso": {
+      "total": 5,
+      "asExpected": 5,
+      "results": {
+        "GuardianResting": 5
+      },
+      "latencyMs": null
+    },
+    "rende: pedido na fila durante o descanso": {
+      "total": 20,
+      "asExpected": 20,
+      "results": {
+        "ok": 20
+      },
+      "latencyMs": {
+        "n": 20,
+        "min": 2171,
+        "p50": 3473,
+        "p95": 6356,
+        "max": 6356
+      }
+    },
+    "guardião: troca depois de soltar": {
+      "total": 1,
+      "asExpected": 1,
+      "results": {
+        "ok": 1
+      },
+      "latencyMs": {
+        "n": 1,
+        "min": 2228,
+        "p50": 2228,
+        "p95": 2228,
+        "max": 2228
+      }
+    },
+    "rende: resgate antes do aviso": {
+      "total": 10,
+      "asExpected": 10,
+      "results": {
+        "WithdrawNotReady": 10
+      },
+      "latencyMs": null
+    },
+    "rende: colher rendimento (saque zero)": {
+      "total": 100,
+      "asExpected": 100,
+      "results": {
+        "ok": 100
+      },
+      "latencyMs": {
+        "n": 100,
+        "min": 2281,
+        "p50": 3361,
+        "p95": 6027,
+        "max": 6625
+      }
+    },
+    "rende: saque imediato": {
+      "total": 100,
+      "asExpected": 100,
+      "results": {
+        "ok": 100
+      },
+      "latencyMs": {
+        "n": 100,
+        "min": 2282,
+        "p50": 3203,
+        "p95": 6025,
+        "max": 6563
+      }
+    },
+    "rende: resgate da fila": {
+      "total": 20,
+      "asExpected": 20,
+      "results": {
+        "ok": 20
+      },
+      "latencyMs": {
+        "n": 20,
+        "min": 1193,
+        "p50": 2935,
+        "p95": 5253,
+        "max": 5253
+      }
+    },
+    "rende: devolução": {
+      "total": 100,
+      "asExpected": 100,
+      "results": {
+        "ok": 100
+      },
+      "latencyMs": {
+        "n": 100,
+        "min": 1193,
+        "p50": 3205,
+        "p95": 6295,
+        "max": 9025
+      }
+    },
+    "estresse: cadastro": {
+      "total": 40,
+      "asExpected": 40,
+      "results": {
+        "ok": 40
+      },
+      "latencyMs": {
+        "n": 40,
+        "min": 921,
+        "p50": 3794,
+        "p95": 10504,
+        "max": 10775
+      }
+    },
+    "estresse: real → dólar (R$ 1.000)": {
+      "total": 61,
+      "asExpected": 61,
+      "results": {
+        "ok": 19,
+        "OutflowLimit": 21,
+        "GuardianBreathing": 21
+      },
+      "latencyMs": {
+        "n": 19,
+        "min": 2662,
+        "p50": 3742,
+        "p95": 6297,
+        "max": 6297
+      }
+    },
+    "estresse: dólar → real (recuperação)": {
+      "total": 19,
+      "asExpected": 19,
+      "results": {
+        "ok": 19
+      },
+      "latencyMs": {
+        "n": 19,
+        "min": 1191,
+        "p50": 2934,
+        "p95": 5905,
+        "max": 5905
+      }
+    },
+    "estresse: respiro soltou sozinho": {
+      "total": 1,
+      "asExpected": 1,
+      "results": {
+        "ok": 1
+      },
+      "latencyMs": {
+        "n": 1,
+        "min": 2245,
+        "p50": 2245,
+        "p95": 2245,
+        "max": 2245
+      }
+    },
+    "estresse: devolução": {
+      "total": 40,
+      "asExpected": 40,
+      "results": {
+        "ok": 40
+      },
+      "latencyMs": {
+        "n": 40,
+        "min": 1190,
+        "p50": 3042,
+        "p95": 9156,
+        "max": 9427
+      }
+    }
+  },
+  "sampleTransactions": {
+    "preparo: contas do deployer": "https://explorer.solana.com/tx/o1X7JZszSLdBemhK5ev1AxYiH6LgJzQbmQExJsEhysAyKi26m6jbeXnY7eX1Lzp7qJf8zeTuxVB4J6Huwc2HJMi?cluster=devnet",
+    "preparo: faucet": "https://explorer.solana.com/tx/ww313uUVLQeQVsXSMLub11oKG57Nt9GyqHtRLeaMVspKTbJaXrFimwL4qDMBWe4PtY1KmjyjmQfyL3vmLZADkfq?cluster=devnet",
+    "preparo: SOL das sementes de volta": "https://explorer.solana.com/tx/3wnTwQwFiqd959aSjzKKCfa78nJH8DpsBEEzQMZuvBvyposSaEjQWNDzxUMoDCMVk4xujv8NLsw5zUiz74yx7iKQ?cluster=devnet",
+    "rende: cadastro": "https://explorer.solana.com/tx/2zRHWKVLbZGGobDEzNtJApSbDQx5b43YU6TBjasxftAfhhmFC4wY75t7z9rrA675SaeZF12TyAMP5ex2xVGcHvA1?cluster=devnet",
+    "rende: depositantes em dólar compram dólar": "https://explorer.solana.com/tx/3AeEdYpnQ4YZFcgfQmJJvNx7ygjQwbTAHjhVpD39evZ4HE1udUUKdmttHZ4A6kjGE1JENPT3FWXySK37ZzFaebVL?cluster=devnet",
+    "rende: depósitos": "https://explorer.solana.com/tx/27VphP5Zq546QzizNRswa4YcNkcWiQ1TkgQownFcwZPvji4DQ3vVYx3TwT68XktJm5w1Ab6p4w7osAYVkpNaK7ui?cluster=devnet",
+    "varejo de comparação: cadastro": "https://explorer.solana.com/tx/4MyqBsZUtQASkHakZ3reBKUVYnC5eeFzjGkoLeYtiQ1GwVRHJNGCoNwwRMVzW1NRXdDJDHnkXUsir63xM6ZV1QDE?cluster=devnet",
+    "desconto 1": "https://explorer.solana.com/tx/qcjZLphQyvPsJmibWcWeNu11VzbFkCRMRwJnz6v4ubmZ2vuymYogmMSMmHvjcCuiEKnkDFQgm6kLAxqmGhyZF4T?cluster=devnet",
+    "desconto 2": "https://explorer.solana.com/tx/3gyV3q9jzMxQu1LPjFBpnY5k3TSLeQ6WRD1BG4f6jhs2owcQ2mbtMgCUwVNNLj9wCAHdiJgerUvPr3ZaHrF2aL67?cluster=devnet",
+    "desconto 3": "https://explorer.solana.com/tx/31RrEYoNUsvfmGKrGs4Nbrp1FnbqdDUkutcNwKPDoKcssuEaXKKziAm4ULjbHvbSEePxs7pecJSt1u1fdHL6woNr?cluster=devnet",
+    "desconto 4": "https://explorer.solana.com/tx/5LdNJBz17tamqrnJepTR7MtGLyejkHznX7oDiY9grpnimeNk8LWYsjrdyFf1QWXqwa5MzXNyQLZD2SsMWxtv54Ge?cluster=devnet",
+    "desconto 5": "https://explorer.solana.com/tx/58HVwZ2DP51o3HkwC4k9s9u1VW7U1yS7mBd1b3oLUe3sZ93PNK1EWTsLodXTNiJiTRPo1CN16qDrpeMawBCbwdzR?cluster=devnet",
+    "desconto 6": "https://explorer.solana.com/tx/3Mi2aw896Bv4mfsH4eYwFjsTnaT8th8H89zCrFP4fpfWk6vfD7oHtB8H7Wk8ByUgYd7oAXiRHR7iDqmuWMrPTNeg?cluster=devnet",
+    "desconto 7": "https://explorer.solana.com/tx/55fNqLenCrK86MbXBL9JrGz3PS9xdPWSSmnwtHuNKKW7qkh7FEPhZ9rx8WbzDBjENVkAJs7eJmdsR5nA1Kq69zqN?cluster=devnet",
+    "desconto 8": "https://explorer.solana.com/tx/fMQt8USLUpBdTCJSxYF6GQieuBWeB2pBVVaPJLKjHhehxN8voAji4DSgMyUMey4QY9cTg9vRXsEvuEYXMtb85sJ?cluster=devnet",
+    "desconto 9": "https://explorer.solana.com/tx/2tsH9fJ31uZoeEytxVWjby3ciKEfR5NUH96Fq9CRyvxyaUngXiDMLZp8zY5gz1hMLbEbiRcsij4vRvxqscwc4Aaf?cluster=devnet",
+    "desconto 10": "https://explorer.solana.com/tx/5Jd2o9QaVFXjdRqzR5umnkHNJ2JtciXkb1H7MarLup3dnitMh8exfy6aKuowwRiuEatAEGdrNkMZAvcCeCspSGM7?cluster=devnet",
+    "varejo de comparação: devolução": "https://explorer.solana.com/tx/NnQaDuzpCLv4RmPUPeKqAMtm8qeEnG2cnwH1yfRsdxAJhCr7u8BPGLyCVgVV2x6zBFxw9uhpBsXz4ng9iEMAiUQ?cluster=devnet",
+    "lote 1: cadastro": "https://explorer.solana.com/tx/4Lq2PNEgoe4EmR9m9PARGcrYX6ACvjfz9y1kwPNapD57Yz2ebqPWr3tbpkVC9g5BEnx1Lgg2Q7wB9MFjgmN5oTZE?cluster=devnet",
+    "lote 1: real → dólar": "https://explorer.solana.com/tx/w2C3p5DMcM4yaqDQfi4xiMCWQ79cJpriu5s7Lc95WsqCWgcDoTeMKzfnJ4hdUiDvb7xDxnu3UmcNdjwajrVNmvu?cluster=devnet",
+    "lote 1: dólar → real (ida e volta)": "https://explorer.solana.com/tx/QrYRF6LSefBFug1CAGLQmeyrxKWRAwVFSUc3zkUFkiGdhNbXYKW2MXbSvyHakd6SjCUH2gyiw3bSTfZ8LUgDqbj?cluster=devnet",
+    "lote 1: devolução": "https://explorer.solana.com/tx/4stY4seA8cQLeKR96XThogLYRa4a1Fff3uLjqNMeqE56HHCFS8bDLfqim6my3F29xiq4DTufvPccvBvoK2iaoZZi?cluster=devnet",
+    "lote 1: vigília do guardião": "https://explorer.solana.com/tx/3rBaN6d6HDCCf5XHvY58N7TeQs4pD6LFvDFemQxwGAYLKbp2YdpMgdgPBWk3k6j9F8fT9nUxYWTCqUz5DDJj3edP?cluster=devnet",
+    "lote 2: cadastro": "https://explorer.solana.com/tx/KS4wmAsna86172NgRsBUwqeH9ADF8jaaZHTFkiSnRam6qwenrbny3AiTzeHBCc2QWc6zX8igsKtoZSsGgNY17Sx?cluster=devnet",
+    "lote 2: real → dólar": "https://explorer.solana.com/tx/36Y642fTrvVyBSDK1b3DqxZC9K41UKNSBXF1DWa7TA4vNqhpoVaC76AyCSP6pTv9nbKnQW3w7HniD1i7m8NL9RLF?cluster=devnet",
+    "lote 2: dólar → real (ida e volta)": "https://explorer.solana.com/tx/31VvcAfYUDYprwzTaQu37LqAgw9Cj3Wxb2kQ7dZa9SZt5EdE6xwPMvCa1nxJHR6oEUg1hoiJMiujv6yygJZCKhUE?cluster=devnet",
+    "lote 2: devolução": "https://explorer.solana.com/tx/4E4y8uWK7UEpPidQaw4J3TKoL1EnnSkL6KA4nPK8pq3QfonC6WDBvS1UfCrkoQuyNTniqcdKQtpAPFfbyE1mPgPa?cluster=devnet",
+    "lote 2: vigília do guardião": "https://explorer.solana.com/tx/3jGhUP2tJhPhkxJL96N6YxZVQXuFP7TfHhFohHPHp19QTcnc7HEWNBbD74jGa7Juwm3L3SDqe6sVnMMFCy7KGCpe?cluster=devnet",
+    "lote 3: cadastro": "https://explorer.solana.com/tx/2zKo61veo7PrBEKxTUkktcF2xst2Xc4KiaQ25daD79w4nqcYuyrd1TQjffhfUtcVW5KJg6jefRYuiSyNqanFJJMz?cluster=devnet",
+    "lote 3: real → dólar": "https://explorer.solana.com/tx/23Bp5tE55tpV9cnhEQMSfk1HysxCp5wR1nzj8mNAH2WhefXRTiaD6X8pkvA2FgrHaZYUpqUoRCgn5wAP7WdQKbdR?cluster=devnet",
+    "lote 3: dólar → real (ida e volta)": "https://explorer.solana.com/tx/5oKHvgLr9PBeZuEXi8nncFu2xAK5xMvDnoj72QwCBaASYfYbfrHmhrwHaqB6Njn53bZ7CRDiGqTtLBoBxfjk6qjL?cluster=devnet",
+    "lote 3: devolução": "https://explorer.solana.com/tx/5up1Xaytf2wVojZQkPd6ZgzBpVLZ8ygXrQbtxnv4UjyxoHtZZ3ZL9QV57ESYpvFCuTwAi7xBbHmQpe5Bt6gomwM7?cluster=devnet",
+    "lote 3: vigília do guardião": "https://explorer.solana.com/tx/3WHmwz3E98qp6mT4q3f5MQKWfmH2YDuyeMYG6w1RNy26oNRwQdk9Syb3742AButkR6qhmbsqUjhHFPbN22dzrnYw?cluster=devnet",
+    "lote 4: cadastro": "https://explorer.solana.com/tx/2BPrA8KaSXR2KDERsiPNe4WH5Af7gPN7bKvY5N9ZepiA7eSr2vkcPj6AdtzQm3UnPApkXUYqraKoHvrZvw6iUGA1?cluster=devnet",
+    "lote 4: real → dólar": "https://explorer.solana.com/tx/5XRaedFs76UaM15WG2Q6Uxpxmwi5hEaR8kbj7QVbfmdbyM4bSNFUW3MksJ6WwW1dL1hLKmtSzzD8zKGkPfcCbYiA?cluster=devnet",
+    "lote 4: dólar → real (ida e volta)": "https://explorer.solana.com/tx/5dMSrc32LiL6ZByw2oJWrHYspWQtJLg68Ug2xrDBRdxJVVZsHGQzXumSorctW6zBFSSNGLrYXV4Totwhv8PmTt5Y?cluster=devnet",
+    "lote 4: devolução": "https://explorer.solana.com/tx/3vbvuxaK9DQUUF1WC4bmzSr5Q2FvH8iEvLX135qwsUiBrVffZhehz5cAwLAR88fxdgcP6ERtbojKuBBRrnt6WUfd?cluster=devnet",
+    "lote 4: vigília do guardião": "https://explorer.solana.com/tx/5KzWSJ2KPP97HsUk6tkFU8N5Ex5CRknni6S1DFi7SbFfdE5Z9JV9hxpP8eb6xFQnVE18YziN4GyvKM2PRf8V5q9v?cluster=devnet",
+    "lote 5: cadastro": "https://explorer.solana.com/tx/vQ4uiEpNC7NyHeP1PmZ7tcgSscaERfHY6vg5yzfnWpD1tKWD22b9B6rjdCHPYATionNmHHZddnSTy8PzVCdWVT8?cluster=devnet",
+    "lote 5: real → dólar": "https://explorer.solana.com/tx/vz1i9D3YZ8z5BA7vGViAN8Q51hmNvvM5mdYnKF6F7LbbGL94sNoFuyExCeyfhUHacUCuiwRNgQrTWcwDcgYxSXL?cluster=devnet",
+    "lote 5: dólar → real (ida e volta)": "https://explorer.solana.com/tx/4WdgGKaQ2qr1q3nZMZeGCnX1fzYwYeSGRULdmLjKxj6BvqNf2x4R8RvqSQeXc1f7CLYYto2TLLdspiKTWQwvqYg5?cluster=devnet",
+    "lote 5: devolução": "https://explorer.solana.com/tx/3FYStFUcTpPiKgXKbaPs5kVxULhR4vMZ1ZdjM43JiryRMfctUupz1iXKoGBx8U6Hy3NdCEBNgojBV2w37Ynrit39?cluster=devnet",
+    "lote 5: vigília do guardião": "https://explorer.solana.com/tx/5kowxNGaDgt6trVc3m6J9zqYc3PQDwp5x53apa347ADWhiTxWyWoXduKv4EbUNujwJrM6FADzFF15bhkMisobWB3?cluster=devnet",
+    "lote 6: cadastro": "https://explorer.solana.com/tx/5xg21WntZBqBd5AKEYWUMSNwkCFZ3tggFoj1gjSK8HricSsV9GRVtmb29JNM9EzjA4JudH28dQNSFrtBiXVz1voM?cluster=devnet",
+    "lote 6: real → dólar": "https://explorer.solana.com/tx/5C6QcjymH3m6gd4hi4jqib3svGLkP8LQaQtzZiRxxpHpMXW3ZqD2yDBT7CMaWDn2FRix1CPYXihw5CD3b2T6yRcc?cluster=devnet",
+    "lote 6: dólar → real (ida e volta)": "https://explorer.solana.com/tx/5Mi1udffjdvEbzzmL6RDFYNTH2UMhKom1Xe6Bwubs1LVckNykeQ4AcZm8UKQSMAZCAsC36C134Rfy684smxgrfvz?cluster=devnet",
+    "lote 6: devolução": "https://explorer.solana.com/tx/2Km513DKhu3MgajWi6JjjuMa8FfQH8absKudwPaRLKjaG9ZhQgAEJ3y4FGUMfiCHtpewcJhKkWws7vtXEPzLPjkY?cluster=devnet",
+    "lote 6: vigília do guardião": "https://explorer.solana.com/tx/45WMbUj2k5MogdXoUQ1CbPbAbJJ8uve2YmKVubjCr1SyCi5gzHp7Uq7dqk4P3nXraS1GBhqbZ89vFCagLA45UbAT?cluster=devnet",
+    "lote 7: cadastro": "https://explorer.solana.com/tx/5N3MukLEZofyhbzfyrcR3ooviRG25iWrypaTm5qruT4Sqi1jBWFPAutKrQxNLhCPKk9tzdjdTzuk85d4sesJZTbZ?cluster=devnet",
+    "lote 7: real → dólar": "https://explorer.solana.com/tx/4SEqQvG8dS2JXrGyQJVnfSgKoaqxK82HWjPwDQN6X8hvYRWPveG8UT7S82uMFRoDeuc71qcMNS28jwJnAJPKHYr?cluster=devnet",
+    "lote 7: dólar → real (ida e volta)": "https://explorer.solana.com/tx/5puT5cup7ZL1zrKjkemyeDfgWTCdDLeS6rkfhciHU5Ai5rWtPzXa8A8vMmo3KdGyi9GB3zmRdzGVa5VmFxUm66dC?cluster=devnet",
+    "lote 7: devolução": "https://explorer.solana.com/tx/34Pz6s7UN7sNdkzkTBHShk4YDe22g5rwssiP7Gr187LA7ih1rHt2j5jyvMwezJkH7XYsC3sJopgahr6h75QGJihx?cluster=devnet",
+    "lote 7: vigília do guardião": "https://explorer.solana.com/tx/2KEUahngEUEXW1jceqEn7xdpD52YE5BgSraLDGaB4txUewK76t72FZ5S62QS6jrbBdtk51pHURvmaAbGcdPCGaPT?cluster=devnet",
+    "lote 8: cadastro": "https://explorer.solana.com/tx/2vX1FH84N82uTHZ3V5Df34unZboAR6UBmTE2aMicTrGvUhzcdcrvCY7qnz9ng8eWH42c5bTufbcjvhXGpiFicjog?cluster=devnet",
+    "lote 8: real → dólar": "https://explorer.solana.com/tx/5oQBfKeQVvkZbuGTSUZgjB3xU6kLp8ZDPLAaTovbRVPM5zn6JKmnSy4UgpAPekiL56KpWGvXKpwAURGyf6KqLJAg?cluster=devnet",
+    "lote 8: dólar → real (ida e volta)": "https://explorer.solana.com/tx/46GFMy9etrRbQaTKH9VEkJkHR9yZ4KZ7JSasP5RRBHufLYJc1dGJ8P6FGJLncwr4rPjsQUiszXse1YxC6MMiXicJ?cluster=devnet",
+    "lote 8: devolução": "https://explorer.solana.com/tx/Eq4fp5KspKKxdnukRfiNVGCKUpoSWDuqodTgHMP2zo4k4aaSKzxZpty2bcbzPhyAeUVEW3UuMbT6K2v1SbM9KLz?cluster=devnet",
+    "lote 8: vigília do guardião": "https://explorer.solana.com/tx/65uugzJUuvzJAANr29rqLciX4AwA2Ssd4iWqyPyHd1vTc278xTh2bj3WQeuM9tJXwJGyLyqN9eYXgaFLeXJiVcj5?cluster=devnet",
+    "lote 9: cadastro": "https://explorer.solana.com/tx/2jWLz9HAgcfua9dCzZpxeaMbia5xcjiZhaaLfJa9DufEgaBSpw1TUXw5BhmPAtGDFxZNM881RwKDrmCZSsNZZSLT?cluster=devnet",
+    "lote 9: real → dólar": "https://explorer.solana.com/tx/33wpkkVi7hBrFyyNe8FcVShBgbTp1c33LGxMVEcBAUPNi4Fxn3QugLwSBhCjqnjGpend649zc2gJzQzNkUruJTRd?cluster=devnet",
+    "lote 9: dólar → real (ida e volta)": "https://explorer.solana.com/tx/2v3HUayHmodf5cf66jU9DU2sn5MaNJvu54Cety1VCQd3jvLcappj2Af85qZifBDW8p6NxHuZuEvgnwtrZDCdtyTn?cluster=devnet",
+    "lote 9: devolução": "https://explorer.solana.com/tx/5WL3WXpEfuuGByYqVAJGXrQXN8Zn6GTXnauwDkDxCCTeSN7E4H9oe1TiiWECB8xvdrUtevQuEfWhduvoxibrnUvT?cluster=devnet",
+    "lote 9: vigília do guardião": "https://explorer.solana.com/tx/E6VjJbE4RXfGmhg7TNxpBER4d3GfeUM5dWdPGpMdpVzbHiByC52iWtfBpxJWG1wBckXMkgjFW1LREWPG55Nn4nK?cluster=devnet",
+    "conselho: cotação +5% (teste do guardião): proposta": "https://explorer.solana.com/tx/4evvt8PrYuuanq3D8hgoaTvVSo8Vg7SCGBmRwGxXytm3BserxDeRTeRJGFqaAEwqBBib5sEEDnEXhfGezf2PDhxH?cluster=devnet",
+    "conselho: cotação +5% (teste do guardião): 7 aprovações": "https://explorer.solana.com/tx/4WK3uvB14zmTP7XpDMMtD4QwzfTPnSjbHLovikUJvoAQJJUHa3hdPkbQLCn9BrPLfR8X1X8hgxzZzAHwf6FZ1geh?cluster=devnet",
+    "conselho: cotação +5% (teste do guardião): execução": "https://explorer.solana.com/tx/3167mApmHo1WRo2wm6jC4P79gnrBHFqiq2t9sofxGgwFUYUHEBLnhGsiZdMetrXdDZcCR5GHGNpRXLMgwqphrxyT?cluster=devnet",
+    "vigília depois do salto": "https://explorer.solana.com/tx/255zKSWDRWeCwYZoE9kNW89FtTebjQrWbqtbE6BLKxVaNQioxVhFEiuQysYTJgCP3SY4dRrGmLa9VHuuGBcCaGUM?cluster=devnet",
+    "descanso: pedido na fila de saque": "https://explorer.solana.com/tx/56Ge8DDTZbqhCbKjTdcasVRUD3HUMorYQUirhDX3mrP4dqBpLB4FYFsER985G2kqk9R9gLbWEgdGk21RfF1Kt9L8?cluster=devnet",
+    "conselho: cotação de volta: proposta": "https://explorer.solana.com/tx/2WohHf8XFAKULyVNGDqcWoVxAPeNn8GaNNex3nG5g7j7f13zZbpBGVYFKTts6nBEpAKUG4Va6xCVzR2gSGkX1TBb?cluster=devnet",
+    "conselho: cotação de volta: 7 aprovações": "https://explorer.solana.com/tx/Rr5KnPTTUGU1MxAzxfVLfdWCPY5sXEEeNTyeEAmt1wjqiAMYLm7LZKnTP25iXvXxPV9enQd5dfkRgGeNfiSSGu8?cluster=devnet",
+    "conselho: cotação de volta: execução": "https://explorer.solana.com/tx/2KCay2r8vDTNAeVPZqsmTN9Kr21Cg9LGFaK4JhbXT1LfMt1cVx9Uw8wwr9x2ECDShPRPXGe5S6vUR2T2jFBgBPUK?cluster=devnet",
+    "vigília com a cotação de volta": "https://explorer.solana.com/tx/2vF3hX6MJLGrP8L8hri6XRVSXpaLg7BFkvHny6iw8bn7Qs1vtqjCMkrYoewDTKbWWkKf8Egkwz3FXZVnjNc35tTT?cluster=devnet",
+    "conselho: solta as travas: proposta": "https://explorer.solana.com/tx/3iRMcKvHJwzMK7UoaXRkQFpwVmC4G1mdHHdxkMNp69edvbus7D9nzWJb1waqozUSHqDQcJDgREcSLPxsppkFa2jz?cluster=devnet",
+    "conselho: solta as travas: 7 aprovações": "https://explorer.solana.com/tx/LzsA5bi72Rxwwt6QgkJEhnavnLsHYpVs342PmuESwZUdhttVgNoDQjPMogtVX5evfewkDW6URB5YpXgWfJCWpW2?cluster=devnet",
+    "conselho: solta as travas: execução": "https://explorer.solana.com/tx/TA2Aih9jPbCQqm1fUrnYJgCW3hSGA7ZwwQVuuBJHMS3fJvXd3GkUjhzWFuHnjm7k6W5U42u3t9fdnDh3DBPPKoB?cluster=devnet",
+    "pool aberto de novo": "https://explorer.solana.com/tx/53xMkjBjJ7qk3oRtw59tVEwqgodJv2ivfa2dwiWuy23xZ9pfiiMr6P6o8fm5E5HYwNec9RCtznQDTUUM5P1v8sch?cluster=devnet",
+    "rende: colher rendimento": "https://explorer.solana.com/tx/5n8uCoW8dSoZmt6wkB7u1ZQWtFbjA8s4ekVLD5JyfSXFFZDVp2NdtFLdDVDtXfPnNRyA9faSBxzEfr66Cmq3v48R?cluster=devnet",
+    "rende: saque imediato do restante": "https://explorer.solana.com/tx/5o2o9k9crqx8oPZti4yN6gXzvEnYPWBqrFPaN6kjvKPYS3PdNxjKaGgRwAGW2qnwsefx4ymjvZArTUo3DNJVag4K?cluster=devnet",
+    "fila: resgate depois do aviso prévio": "https://explorer.solana.com/tx/3FRD7UjyW5kz7HQyu3moBaQBBwTN1BwN3QfqAZKjbwzg4LtQkoVRwNJprrt85vgrcfbk5aQo6a8Arct1Zp2Jj8gv?cluster=devnet",
+    "rende: devolução": "https://explorer.solana.com/tx/2s82pEy7hrJJhxYsRyCYTZRR2vQ4GUZp1j2LaszEnGRbM7sMynpiPQ1aqag5VwcYiUxfHspSQgRWPsSBmpP3PE1g?cluster=devnet",
+    "estresse: cadastro com faucet": "https://explorer.solana.com/tx/3BVBKQuuPyXKW8d52veEe9vibjymbFzGFhyEnxUUN6o8Fjdnuc16BtSAVxRYS1R2vS3TtAWGdKjpLWiHFQtdGyug?cluster=devnet",
+    "estresse: corrida ao dólar, rajada 1": "https://explorer.solana.com/tx/3UDZSsBghN3k7eLuXQCrKAbF76sFANaYpn6sCffvXzLjEC8g4gEFFRJSYkMojDFzEj9viM73pc8sfUrxxukHRu3a?cluster=devnet",
+    "estresse: vigília depois da rajada 1": "https://explorer.solana.com/tx/2xyY6d3d7vxLm93z831LFYNXkkx4E5ERKQuza7TjbJZwgoWA2EgBRPsaJaLh6ptewK9XGrENwHwRWQB4weLnFWNE?cluster=devnet",
+    "estresse: vigília depois da rajada 2": "https://explorer.solana.com/tx/5nezBbeuc8phyZ5gBfFoy5jCQExaYAHR78TuvowCQi3tJT71x9jroEmBaMc1kMgFNVzWmDUD5MXbFCUzZCqWwCC1?cluster=devnet",
+    "estresse: recuperação (devolvem o dólar)": "https://explorer.solana.com/tx/2U5z87UjBhnaY7iVZuSTXi244M9iBD6L9eKn9QSCKLuD5ettK33gExcLoHw9joAu2FkWk6mysGsCf6y585Bkp4X7?cluster=devnet",
+    "estresse: compra depois do respiro acabar": "https://explorer.solana.com/tx/2L1gXoyguapkSHUD2T4aVoKVjy7hZ4zdDFJrJ8vZ88bodCup9quXBq5e2D3cXPcN3jBS2buWXKxRc1vUDESfdXJG?cluster=devnet",
+    "estresse: devolução": "https://explorer.solana.com/tx/22CutGNi7hLACeVEbRHoLLML5VF3uaGBrRud24qnzCNjo9mayNNpwBdDdqStg6rS5zoagXZ5kXWrjHfJZMWqK11Q?cluster=devnet"
+  }
+}
