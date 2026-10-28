@@ -577,7 +577,7 @@ async function main() {
   );
   const depositedAt = Date.now();
   const positionsInfo = await accounts(rende.map((r) => positionPda(pid, pool, r.k.publicKey, RENDE, r.kind === "dolar" ? USD : BRL)));
-  const positions = positionsInfo.map((a) => (a ? program.coder.accounts.decode("Position", a.data) : null));
+  const positions = positionsInfo.map((a) => (a ? program.coder.accounts.decode("position", a.data) : null));
   const premiumBy = (kind: string) => {
     const v = rende
       .map((r, i) => ({ r, p: positions[i] }))
@@ -772,7 +772,7 @@ async function main() {
     yieldBrl += g;
     if (g > 0) earners++;
   });
-  const posNow = (await accounts(okDeposit.map((r) => positionPda(pid, pool, r.k.publicKey, RENDE, sideOf(r))))).map((a) => (a ? program.coder.accounts.decode("Position", a.data) : null));
+  const posNow = (await accounts(okDeposit.map((r) => positionPda(pid, pool, r.k.publicKey, RENDE, sideOf(r))))).map((a) => (a ? program.coder.accounts.decode("position", a.data) : null));
   await stage(
     "rende: saque imediato do restante",
     okDeposit
@@ -780,7 +780,7 @@ async function main() {
       .filter((x) => x.amount > 0)
       .map((x) => ({ stage: "rende: saque imediato", signers: [x.r.k], expect: "ok", build: async () => [await withdrawIx(x.r.k.publicKey, sideOf(x.r), x.amount)] })),
   );
-  const tickets = (await accounts(queued.map((r) => ticketPda(pid, positionPda(pid, pool, r.k.publicKey, RENDE, BRL))))).map((a) => (a ? program.coder.accounts.decode("WithdrawTicket", a.data) : null));
+  const tickets = (await accounts(queued.map((r) => ticketPda(pid, positionPda(pid, pool, r.k.publicKey, RENDE, BRL))))).map((a) => (a ? program.coder.accounts.decode("withdrawTicket", a.data) : null));
   const readyAt = Math.max(0, ...tickets.filter(Boolean).map((t) => Number(t.readyAt)));
   const waitMs = readyAt * 1000 + 5_000 - Date.now();
   if (waitMs > 0) {
