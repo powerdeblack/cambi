@@ -1,15 +1,15 @@
 {
-  "updatedAt": "2026-10-16T04:45:30.581Z",
+  "updatedAt": "2026-10-28T06:56:31.867Z",
   "program": "3xdkEsUvcgRDKyqN8rY3RVVP6CRrtcuvLYz9iNE7rdhE",
   "pool": "2jpkRKaQULxp6BMjuDxu3KhEBsaiDgmWbpe4JmiMkQbP",
   "transactionsRead": 43,
   "northStar": {
-    "activeWallets7d": 8,
+    "activeWallets7d": 0,
     "activeWallets30d": 8
   },
   "swaps": 13,
   "volumeBRL": 3489.6,
-  "volume7dBRL": 3489.6,
+  "volume7dBRL": 0,
   "feesBRL": {
     "total": 39.4,
     "rende": 7.29,
