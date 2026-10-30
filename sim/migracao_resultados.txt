@@ -11,29 +11,43 @@ Varejo: 2487 de 2489 trocas feitas (R$ 3.679.418); recusas: {'guardião: respiro
 Maior compra de dólar possível (por hora): mínima R$ 13.011, mediana R$ 29.667
 Cofre novo no fim: R$ 1.338.201, desequilíbrio +73.9% (pior: +79.7%)
 Guardião no novo: 1 respiros, 0 descansos, parada 0.0 h
+Horas com a Rende no novo sem colchão das Baleias (abaixo de 10%): 0.0 h
 
-=== B) Migração clássica, sem capital novo (regras do v2.6) ===
-Cofre antigo no anúncio: R$ 1.382.457, desequilíbrio +52.2% (sobra real, falta dólar)
-Rende: 637 carteiras migrando; 95% do valor fora do antigo em: 39.6 h
-  receberam na outra moeda: 0 | ainda presas no fim: 0
-  espera na fila: mediana 15 min, máxima 0.2 h
-Baleias que conseguiram sair do antigo: 9 de 10
-Varejo: 0 de 2489 trocas feitas (R$ 0); recusas: {'guardião: parada': 2489}
-Maior compra de dólar possível (por hora): mínima R$ 0, mediana R$ 0
-Cofre novo no fim: R$ 6.523, desequilíbrio +100.0% (pior: +100.0%)
-Guardião no novo: 0 respiros, 0 descansos, parada 168.0 h
-Dinheiro que saiu do antigo e NÃO conseguiu entrar no novo: R$ 1.274.198
-
-=== B2) Sem capital novo, com a correção: Baleia pode depositar com o pool parado ===
+=== B0) Sem capital novo e sem nenhuma Baleia no novo (o guardião não julga o colchão) ===
 Cofre antigo no anúncio: R$ 1.382.457, desequilíbrio +52.2% (sobra real, falta dólar)
 Rende: 637 carteiras migrando; 95% do valor fora do antigo em: 39.6 h
   receberam na outra moeda: 0 | ainda presas no fim: 0
   espera na fila: mediana 15 min, máxima 0.2 h
 Baleias que conseguiram sair do antigo: 9 de 10
 Varejo: 2482 de 2489 trocas feitas (R$ 3.645.403); recusas: {'disjuntor': 4, 'teto por troca': 3}
-Maior compra de dólar possível (por hora): mínima R$ 0, mediana R$ 32.263
+Maior compra de dólar possível (por hora): mínima R$ 0, mediana R$ 32.264
 Cofre novo no fim: R$ 1.317.823, desequilíbrio +71.9% (pior: +77.8%)
 Guardião no novo: 0 respiros, 0 descansos, parada 0.0 h
+Horas com a Rende no novo sem colchão das Baleias (abaixo de 10%): 0.0 h
+
+=== B) Sem capital novo, uma Baleia abre com R$ 2.000 (regras do v2.6) ===
+Cofre antigo no anúncio: R$ 1.382.457, desequilíbrio +52.2% (sobra real, falta dólar)
+Rende: 637 carteiras migrando; 95% do valor fora do antigo em: 39.6 h
+  receberam na outra moeda: 0 | ainda presas no fim: 0
+  espera na fila: mediana 15 min, máxima 0.2 h
+Baleias que conseguiram sair do antigo: 9 de 10
+Varejo: 2482 de 2489 trocas feitas (R$ 3.645.403); recusas: {'disjuntor': 4, 'teto por troca': 3}
+Maior compra de dólar possível (por hora): mínima R$ 0, mediana R$ 32.266
+Cofre novo no fim: R$ 1.319.823, desequilíbrio +71.9% (pior: +100.0%)
+Guardião no novo: 0 respiros, 0 descansos, parada 0.0 h
+Horas com a Rende no novo sem colchão das Baleias (abaixo de 10%): 0.0 h
+
+=== B2) Igual a B, com a correção: Baleia pode depositar com o pool parado ===
+Cofre antigo no anúncio: R$ 1.382.457, desequilíbrio +52.2% (sobra real, falta dólar)
+Rende: 637 carteiras migrando; 95% do valor fora do antigo em: 39.6 h
+  receberam na outra moeda: 0 | ainda presas no fim: 0
+  espera na fila: mediana 15 min, máxima 0.2 h
+Baleias que conseguiram sair do antigo: 9 de 10
+Varejo: 2482 de 2489 trocas feitas (R$ 3.645.403); recusas: {'disjuntor': 4, 'teto por troca': 3}
+Maior compra de dólar possível (por hora): mínima R$ 0, mediana R$ 32.266
+Cofre novo no fim: R$ 1.319.823, desequilíbrio +71.9% (pior: +100.0%)
+Guardião no novo: 0 respiros, 0 descansos, parada 0.0 h
+Horas com a Rende no novo sem colchão das Baleias (abaixo de 10%): 0.0 h
 
 === C) Cofres irmãos: o antigo segue trocando, roteador + ponte de reequilíbrio ===
 Cofre antigo no anúncio: R$ 1.382.457, desequilíbrio +52.2% (sobra real, falta dólar)
@@ -45,6 +59,7 @@ Varejo: 2489 de 2489 trocas feitas (R$ 3.682.239); recusas: nenhuma
 Maior compra de dólar possível (por hora): mínima R$ 17.919, mediana R$ 34.888
 Cofre novo no fim: R$ 1.337.697, desequilíbrio +73.2% (pior: +79.1%)
 Guardião no novo: 0 respiros, 0 descansos, parada 0.0 h
+Horas com a Rende no novo sem colchão das Baleias (abaixo de 10%): 0.0 h
 
 ##### Migração com PÂNICO (decisão média em 1 h) #####
 
@@ -58,8 +73,9 @@ Varejo: 2487 de 2489 trocas feitas (R$ 3.679.418); recusas: {'guardião: respiro
 Maior compra de dólar possível (por hora): mínima R$ 13.097, mediana R$ 30.952
 Cofre novo no fim: R$ 1.338.289, desequilíbrio +73.8% (pior: +79.7%)
 Guardião no novo: 1 respiros, 0 descansos, parada 0.0 h
+Horas com a Rende no novo sem colchão das Baleias (abaixo de 10%): 0.0 h
 
-=== B) Migração clássica, sem capital novo (regras do v2.6) ===
+=== B0) Sem capital novo e sem nenhuma Baleia no novo (o guardião não julga o colchão) ===
 Cofre antigo no anúncio: R$ 1.382.457, desequilíbrio +52.2% (sobra real, falta dólar)
 Rende: 637 carteiras migrando; 95% do valor fora do antigo em: 3.4 h
   receberam na outra moeda: 0 | ainda presas no fim: 0
@@ -69,8 +85,9 @@ Varejo: 2484 de 2489 trocas feitas (R$ 3.671.159); recusas: {'disjuntor': 3, 'gu
 Maior compra de dólar possível (por hora): mínima R$ 0, mediana R$ 30.027
 Cofre novo no fim: R$ 1.318.176, desequilíbrio +73.7% (pior: +79.6%)
 Guardião no novo: 1 respiros, 0 descansos, parada 0.0 h
+Horas com a Rende no novo sem colchão das Baleias (abaixo de 10%): 0.0 h
 
-=== B2) Sem capital novo, com a correção: Baleia pode depositar com o pool parado ===
+=== B) Sem capital novo, uma Baleia abre com R$ 2.000 (regras do v2.6) ===
 Cofre antigo no anúncio: R$ 1.382.457, desequilíbrio +52.2% (sobra real, falta dólar)
 Rende: 637 carteiras migrando; 95% do valor fora do antigo em: 3.4 h
   receberam na outra moeda: 0 | ainda presas no fim: 0
@@ -78,8 +95,21 @@ Rende: 637 carteiras migrando; 95% do valor fora do antigo em: 3.4 h
 Baleias que conseguiram sair do antigo: 9 de 10
 Varejo: 2484 de 2489 trocas feitas (R$ 3.671.159); recusas: {'disjuntor': 3, 'guardião: respiro': 2}
 Maior compra de dólar possível (por hora): mínima R$ 0, mediana R$ 30.027
-Cofre novo no fim: R$ 1.318.176, desequilíbrio +73.7% (pior: +79.6%)
+Cofre novo no fim: R$ 1.320.176, desequilíbrio +73.7% (pior: +100.0%)
 Guardião no novo: 1 respiros, 0 descansos, parada 0.0 h
+Horas com a Rende no novo sem colchão das Baleias (abaixo de 10%): 0.0 h
+
+=== B2) Igual a B, com a correção: Baleia pode depositar com o pool parado ===
+Cofre antigo no anúncio: R$ 1.382.457, desequilíbrio +52.2% (sobra real, falta dólar)
+Rende: 637 carteiras migrando; 95% do valor fora do antigo em: 3.4 h
+  receberam na outra moeda: 0 | ainda presas no fim: 0
+  espera na fila: mediana 15 min, máxima 0.2 h
+Baleias que conseguiram sair do antigo: 9 de 10
+Varejo: 2484 de 2489 trocas feitas (R$ 3.671.159); recusas: {'disjuntor': 3, 'guardião: respiro': 2}
+Maior compra de dólar possível (por hora): mínima R$ 0, mediana R$ 30.027
+Cofre novo no fim: R$ 1.320.176, desequilíbrio +73.7% (pior: +100.0%)
+Guardião no novo: 1 respiros, 0 descansos, parada 0.0 h
+Horas com a Rende no novo sem colchão das Baleias (abaixo de 10%): 0.0 h
 
 === C) Cofres irmãos: o antigo segue trocando, roteador + ponte de reequilíbrio ===
 Cofre antigo no anúncio: R$ 1.382.457, desequilíbrio +52.2% (sobra real, falta dólar)
@@ -91,3 +121,4 @@ Varejo: 2489 de 2489 trocas feitas (R$ 3.682.239); recusas: nenhuma
 Maior compra de dólar possível (por hora): mínima R$ 17.456, mediana R$ 36.106
 Cofre novo no fim: R$ 1.338.287, desequilíbrio +74.0% (pior: +79.9%)
 Guardião no novo: 0 respiros, 0 descansos, parada 0.0 h
+Horas com a Rende no novo sem colchão das Baleias (abaixo de 10%): 0.0 h

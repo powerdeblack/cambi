@@ -736,7 +736,9 @@ describe("cambi_pool", () => {
     const lp = await setupUser(connection, admin, m, { brl: 5_000, usd: 1_000 }, { airdropSol: 1 });
     const saver = await setupUser(connection, admin, m, { brl: 5_000, usd: 0 }, { airdropSol: 1 });
     await enroll(ctx, [lp, saver]);
-    // Cofre novo em que a Rende chega antes das Baleias: nenhum colchão.
+    // Cofre novo com um colchão de Baleia simbólico, e a Rende chegando antes do resto do capital das Baleias.
+    // (Sem nenhuma Baleia, o guardião não julga o colchão: ver has_baleias em cambi_guardian.)
+    await deposit(lp, BALEIA, BRL, 50, ctx);
     await deposit(saver, RENDE, BRL, 2_000, ctx);
 
     const [guardian] = PublicKey.findProgramAddressSync([Buffer.from("guardian"), ctx.pool.toBuffer()], guardianProgram.programId);
@@ -767,7 +769,7 @@ describe("cambi_pool", () => {
     await deposit(lp, BALEIA, USD, 400, ctx);
     await vigiar(); // colchão de volta: o guardião não para de novo
     let p = await program.account.pool.fetch(ctx.pool);
-    expect(p.principal[2].toNumber()).to.equal(2_000 * 1e6);
+    expect(p.principal[2].toNumber()).to.equal(2_050 * 1e6);
 
     // Soltar continua sendo do conselho; depois disso, Rende e trocas voltam.
     await program.methods.setPaused(false).accountsPartial({ admin: admin.publicKey, pool: ctx.pool }).rpc();

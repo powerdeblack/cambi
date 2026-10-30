@@ -50,7 +50,7 @@ class Pool:
         self.watch_start = 0
         self.breathes_today = 0
         self.day_start = 0
-        self.log = {"breathe_min": 0, "rest_min": 0, "stop_min": 0, "breathes": 0, "rests": 0, "stops": 0}
+        self.log = {"breathe_min": 0, "rest_min": 0, "stop_min": 0, "thin_min": 0, "breathes": 0, "rests": 0, "stops": 0}
 
     # ---- contas ----
     def avail(self, s):
@@ -99,9 +99,18 @@ class Pool:
         self.br_out[s] = max(0.0, self.br_out[s] - amount)
 
     # ---- guardião (vigília a cada minuto; o programa real roda quando alguém chama) ----
-    def baleia_cushion_ok(self):
+    def cushion_thin(self):
+        """Rende devendo e colchão das Baleias abaixo de 10% (com ou sem Baleia no pool)."""
         owed = self.value_brl(self.principal[RENDE])
         if owed <= 0:
+            return False
+        equity = self.value_brl([self.vault[s] - self.fees[s] - self.queued[s] for s in (BRL, USD)]) - owed
+        return equity < 0.10 * owed
+
+    def baleia_cushion_ok(self):
+        owed = self.value_brl(self.principal[RENDE])
+        # Igual ao cambi_guardian: sem nenhuma Baleia no pool, o colchão não é julgado (has_baleias).
+        if owed <= 0 or self.value_brl(self.principal[BALEIA]) <= 0:
             return True
         equity = self.value_brl([self.vault[s] - self.fees[s] - self.queued[s] for s in (BRL, USD)]) - owed
         return equity >= 0.10 * owed
@@ -128,6 +137,8 @@ class Pool:
                 if self.breathes_today >= 3 and now >= self.rest_until:
                     self.rest_until = now + HOUR
                     self.log["rests"] += 1
+        if self.cushion_thin():
+            self.log["thin_min"] += 1
         if self.stopped:
             self.log["stop_min"] += 1
         elif now < self.rest_until:
@@ -368,6 +379,9 @@ def run(scenario, seed, mean_start_h=12.0):
             if w.kind == "baleia":
                 for t, s, v in w.positions:
                     new.deposit(0, t, s, v)
+    if scenario in ("B", "B2"):
+        # Uma Baleia abre o cofre novo com um colchão simbólico (R$ 2.000) antes de a Rende chegar.
+        new.deposit(0, BALEIA, BRL, 2000.0)
     new.br_base = [new.swap_avail(BRL), new.swap_avail(USD)]
 
     # Cofre antigo na transição
@@ -527,6 +541,7 @@ def fmt(r, title):
     print(f"Cofre novo no fim: {brl(r['new_tvl_end'])}, desequilíbrio {pct(r['imb_new_end'])} (pior: {pct(r['imb_new_max'])})")
     g = r["guard_new"]
     print(f"Guardião no novo: {g['breathes']} respiros, {g['rests']} descansos, parada {g['stop_min'] / 60:.1f} h")
+    print(f"Horas com a Rende no novo sem colchão das Baleias (abaixo de 10%): {g['thin_min'] / 60:.1f} h")
     if r["outside_brl"]:
         print(f"Dinheiro que saiu do antigo e NÃO conseguiu entrar no novo: {brl(r['outside_brl'])}")
     if r["bridged_brl"]:
@@ -535,8 +550,9 @@ def fmt(r, title):
 
 SCENARIOS = [
     ("A", "A) Migração clássica, Baleias abrem o novo com capital novo"),
-    ("B", "B) Migração clássica, sem capital novo (regras do v2.6)"),
-    ("B2", "B2) Sem capital novo, com a correção: Baleia pode depositar com o pool parado"),
+    ("B0", "B0) Sem capital novo e sem nenhuma Baleia no novo (o guardião não julga o colchão)"),
+    ("B", "B) Sem capital novo, uma Baleia abre com R$ 2.000 (regras do v2.6)"),
+    ("B2", "B2) Igual a B, com a correção: Baleia pode depositar com o pool parado"),
     ("C", "C) Cofres irmãos: o antigo segue trocando, roteador + ponte de reequilíbrio"),
 ]
 
