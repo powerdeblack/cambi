@@ -19,7 +19,7 @@ concurrency:
 jobs:
   price:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -40,7 +40,12 @@ jobs:
           ANCHOR_WALLET: .devnet-keys/deployer.json
         run: |
           test -f .devnet-keys/deployer.json || { echo "::error::Chave do deployer não encontrada no cache"; exit 1; }
-          npx tsx scripts/pool-v26.ts
+          # Se as fontes discordarem (mais de 0,3%), o script não propõe cotação: tenta de novo a cada 10 min, até 1 h.
+          for i in 1 2 3 4 5 6 7; do
+            npx tsx scripts/pool-v26.ts && exit 0
+            [ "$i" -lt 7 ] && sleep 600
+          done
+          exit 1
       - name: Publicar o registro no branch v2
         if: always()
         env:
