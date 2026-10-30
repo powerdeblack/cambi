@@ -730,6 +730,53 @@ describe("cambi_pool", () => {
     await swap(trader, USD, 10, { ctx });
   });
 
+  it("v2.6: parado por falta de colchão, só a Baleia deposita; a Rende e as trocas esperam o conselho soltar", async () => {
+    const guardianProgram = anchor.workspace.CambiGuardian as Program<CambiGuardian>;
+    const { m, ctx } = await freshPool();
+    const lp = await setupUser(connection, admin, m, { brl: 5_000, usd: 1_000 }, { airdropSol: 1 });
+    const saver = await setupUser(connection, admin, m, { brl: 5_000, usd: 0 }, { airdropSol: 1 });
+    await enroll(ctx, [lp, saver]);
+    // Cofre novo em que a Rende chega antes das Baleias: nenhum colchão.
+    await deposit(saver, RENDE, BRL, 2_000, ctx);
+
+    const [guardian] = PublicKey.findProgramAddressSync([Buffer.from("guardian"), ctx.pool.toBuffer()], guardianProgram.programId);
+    const [watch] = PublicKey.findProgramAddressSync([Buffer.from("watch"), ctx.pool.toBuffer()], guardianProgram.programId);
+    await program.methods.setGuardian(guardian).accountsPartial({ admin: admin.publicKey, pool: ctx.pool }).rpc();
+    await guardianProgram.methods
+      .initWatch()
+      .accountsPartial({ payer: admin.publicKey, pool: ctx.pool, watch, brlVault: ctx.brlVault, usdVault: ctx.usdVault, systemProgram: SystemProgram.programId })
+      .rpc();
+    const anyone = Keypair.generate();
+    await connection.confirmTransaction(await connection.requestAirdrop(anyone.publicKey, 1e9), "confirmed");
+    const vigiar = async () => {
+      const ix = await guardianProgram.methods
+        .vigiar()
+        .accountsPartial({ watch, pool: ctx.pool, brlVault: ctx.brlVault, usdVault: ctx.usdVault, guardian, cambiPoolProgram: pid })
+        .instruction();
+      await sendAndConfirmTransaction(connection, new Transaction().add(ix), [anyone], { commitment: "confirmed" });
+    };
+
+    // Colchão das Baleias abaixo de 10% do que se deve à Rende: o guardião para o pool.
+    await vigiar();
+    expect((await program.account.pool.fetch(ctx.pool)).paused).to.equal(true);
+    await expectError(deposit(saver, RENDE, BRL, 100, ctx), "Paused");
+    await expectError(swap(saver, BRL, 100, { ctx }), "Paused");
+
+    // A Baleia deposita mesmo com o pool parado: é o capital que repõe o colchão.
+    await deposit(lp, BALEIA, BRL, 2_000, ctx);
+    await deposit(lp, BALEIA, USD, 400, ctx);
+    await vigiar(); // colchão de volta: o guardião não para de novo
+    let p = await program.account.pool.fetch(ctx.pool);
+    expect(p.principal[2].toNumber()).to.equal(2_000 * 1e6);
+
+    // Soltar continua sendo do conselho; depois disso, Rende e trocas voltam.
+    await program.methods.setPaused(false).accountsPartial({ admin: admin.publicKey, pool: ctx.pool }).rpc();
+    await deposit(saver, RENDE, BRL, 100, ctx);
+    await swap(saver, BRL, 100, { ctx });
+    p = await program.account.pool.fetch(ctx.pool);
+    expect(p.paused).to.equal(false);
+  });
+
   it("v2.6: a reserva da Rende fica fora das trocas; com a moeda em falta, a fila espera ou paga na outra moeda", async () => {
     const { m, ctx } = await freshPool();
     await setLimits(ctx, 3600, 1_000, 0);

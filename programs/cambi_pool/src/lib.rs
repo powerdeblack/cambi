@@ -390,9 +390,9 @@ pub mod cambi_pool {
 
     pub fn deposit(ctx: Context<Deposit>, tranche: u8, side: u8, amount: u64) -> Result<()> {
         require!(amount > 0, CambiError::ZeroAmount);
-        require!(!ctx.accounts.pool.paused, CambiError::Paused);
-        require!(Clock::get()?.unix_timestamp >= ctx.accounts.pool.rest_until, CambiError::GuardianResting);
         let t = tranche_idx(tranche)?;
+        require!(deposit_open(&ctx.accounts.pool, t), CambiError::Paused);
+        require!(Clock::get()?.unix_timestamp >= ctx.accounts.pool.rest_until, CambiError::GuardianResting);
         let s = side_idx(side)?;
         let now = Clock::get()?.unix_timestamp;
         // Shares são calculadas pelo preço: não aceita depósito com cotação velha.
@@ -964,6 +964,13 @@ pub fn price_move_ok(old: u64, new: u64, max_move_bps: u16) -> bool {
 }
 
 /// A Baleia só pode sacar se, depois do saque, a liquidez continuar cobrindo o principal da Rende.
+/// Com o pool parado (pausa ou guardião em nível 3), só a Baleia deposita: o capital júnior só aumenta o colchão
+/// que protege a Rende, e é ele que tira o pool da parada por falta de colchão (sem isso, a parada travaria a
+/// própria saída dela). A Rende e as trocas continuam paradas até o conselho soltar.
+pub fn deposit_open(pool: &Pool, tranche: usize) -> bool {
+    !pool.paused || tranche == BALEIA
+}
+
 pub fn baleia_can_withdraw(available: u64, amount: u64, rende_principal: u64) -> bool {
     available.checked_sub(amount).map_or(false, |left| left >= rende_principal)
 }
@@ -2144,6 +2151,16 @@ mod tests {
         let melhora = quote(&p, USD, 185 * R, UserKind::Retail, 900_000 * R, 50_000 * R).unwrap();
         assert!(piora.fee > 10 * R); // acima de 1%
         assert!(melhora.fee * 100 < 185 * R); // abaixo de 1%
+    }
+
+    #[test]
+    fn pool_parado_so_aceita_deposito_da_baleia() {
+        let mut p = pool(5_400_000);
+        assert!(deposit_open(&p, RENDE));
+        assert!(deposit_open(&p, BALEIA));
+        p.paused = true;
+        assert!(!deposit_open(&p, RENDE));
+        assert!(deposit_open(&p, BALEIA));
     }
 
     #[test]
