@@ -20,7 +20,9 @@ import math
 import random
 import sys
 
-PRICE = 5.38  # R$ por dólar
+PRICE = 5.38  # R$ por dólar: a cotação gravada no pool (oráculo)
+PRICE0 = 5.38
+MARKET = 5.38  # cotação de mercado; o oráculo acompanha a cada 15 min, com no máximo 10% por atualização
 BRL, USD = 0, 1
 RENDE, BALEIA = 0, 1
 MIN = 60
@@ -50,7 +52,8 @@ class Pool:
         self.watch_start = 0
         self.breathes_today = 0
         self.day_start = 0
-        self.log = {"breathe_min": 0, "rest_min": 0, "stop_min": 0, "thin_min": 0, "breathes": 0, "rests": 0, "stops": 0}
+        self.log = {"breathe_min": 0, "rest_min": 0, "stop_min": 0, "thin_min": 0, "breathes": 0, "rests": 0, "stops": 0,
+                    "min_cushion": None, "min_rende_cover": None}
 
     # ---- contas ----
     def avail(self, s):
@@ -127,6 +130,11 @@ class Pool:
         if now - self.watch_start >= 15 * MIN or now == 0:
             self.watch_start = now
             self.watch_base = [self.swap_avail(BRL), self.swap_avail(USD)]
+            # Salto de cotação de 3% ou mais desde a última vigília: descanso de 1 h (igual ao cambi_guardian).
+            if getattr(self, "last_price", 0) and abs(PRICE / self.last_price - 1) >= 0.03 and now >= self.rest_until:
+                self.rest_until = now + HOUR
+                self.log["rests"] += 1
+            self.last_price = PRICE
         for s in (BRL, USD):
             base = self.watch_base[s]
             if base > 0 and self.swap_avail(s) <= 0.80 * base and now >= self.breathe_until[s]:
@@ -361,8 +369,21 @@ def bridge(now, a, b):
     return moved
 
 
-def run(scenario, seed, mean_start_h=12.0):
+def market_at(now, move, mode):
+    """Dólar de mercado: sobe `move` (0,10 = 10%) aos poucos em 24 h a partir da 2ª hora, ou de uma vez na 6ª hora."""
+    if mode == "choque":  # 5 min depois de uma atualização do oráculo: o pool fica até 10 min com a cotação velha
+        return PRICE0 * (1 + move) if now >= 6 * HOUR + 5 * MIN else PRICE0
+    if mode == "choque-tarde":  # no 5º dia, quando o cofre novo já vendeu muito dólar ao varejo
+        return PRICE0 * (1 + move) if now >= 5 * DAY + 5 * MIN else PRICE0
+    f = min(1.0, max(0.0, (now - 2 * HOUR) / DAY))
+    return PRICE0 * (1 + move * f)
+
+
+def run(scenario, seed, mean_start_h=12.0, move=0.0, mode="gradual"):
+    global PRICE, MARKET
+    PRICE = MARKET = PRICE0
     rng = random.Random(seed)
+    arb = {"trades": 0, "profit_brl": 0.0}
     wallets = build(rng)
     old, new = Pool("v2.6"), Pool("v2.7")
     imb0 = seed_old(old, wallets, rng)
@@ -409,7 +430,18 @@ def run(scenario, seed, mean_start_h=12.0):
     pending_new = []  # (carteira, camada, moeda, valor) esperando o cofre novo aceitar depósito
     new_stop_first = None
     for now in range(0, HORIZON, MIN):
+        MARKET = market_at(now, move, mode)
+        if now % (15 * MIN) == 0 and PRICE != MARKET:
+            PRICE = min(MARKET, PRICE * 1.10) if MARKET > PRICE else max(MARKET, PRICE * 0.90)
         for p in (old, new):
+            # Medidas de lastro em valor (pela cotação do pool): colchão das Baleias e cobertura da Rende.
+            owed = p.value_brl(p.principal[RENDE])
+            have = p.value_brl([p.vault[x] - p.fees[x] - p.queued[x] for x in (BRL, USD)])
+            if owed > 1:
+                c = (have - owed) / owed
+                cov = have / owed
+                p.log["min_cushion"] = c if p.log["min_cushion"] is None else min(p.log["min_cushion"], c)
+                p.log["min_rende_cover"] = cov if p.log["min_rende_cover"] is None else min(p.log["min_rende_cover"], cov)
             p.guardian(now)
 
         # Rende e Baleias saindo do antigo
@@ -462,6 +494,20 @@ def run(scenario, seed, mean_start_h=12.0):
             bridged += bridge(now, old, new)
 
         # Varejo trocando no novo (ou nos dois, no cenário C)
+        # Arbitragem: se o mercado passou da cotação do pool por mais que a taxa, alguém compra todo o dólar possível.
+        if MARKET / PRICE - 1 > 0.015:
+            for p in ((old, new) if scenario == "C" else (new,)):
+                if p.swap_block(now, USD):
+                    continue
+                cap = p.max_out(now, USD)
+                if cap <= 1:
+                    continue
+                spend = cap * PRICE * 0.97
+                why, out = p.swap(now, BRL, spend)
+                if not why:
+                    arb["trades"] += 1
+                    arb["profit_brl"] += out * MARKET - spend
+
         f = retail_flow(rng)
         if f:
             s_in, amt = f
@@ -521,6 +567,8 @@ def run(scenario, seed, mean_start_h=12.0):
         "bridged_brl": bridged,
         "outside_brl": sum(x[3] * (1 if x[2] == BRL else PRICE) for x in pending_new),
         "rende_target": rende_target,
+        "arb": arb,
+        "price_end": PRICE,
     }
 
 
@@ -556,8 +604,28 @@ SCENARIOS = [
     ("C", "C) Cofres irmãos: o antigo segue trocando, roteador + ponte de reequilíbrio"),
 ]
 
-if __name__ == "__main__":
-    seed = int(sys.argv[1]) if len(sys.argv) > 1 else 42
+def fx_report(seed=42):
+    """Dólar subindo 10%, 20% e 30% durante a migração (calma), aos poucos em 24 h ou de uma vez."""
+    print("\n##### Dólar subindo durante a migração (calma, cenários A e C) #####")
+    print("colchão = (patrimônio do cofre − devido à Rende) ÷ devido à Rende, pela cotação do pool; < 0 = a Rende perde")
+    for mode in ("gradual", "choque", "choque-tarde"):
+        for move in (0.0, 0.10, 0.20, 0.30):
+            for sc in ("A", "C"):
+                r = run(sc, seed, 12.0, move, mode)
+                g = r["guard_new"]
+                o = r["guard_old"]
+                print(
+                    f"{mode:12s} +{move * 100:2.0f}% {sc}: colchão mín novo {g['min_cushion'] * 100:+6.1f}% | antigo "
+                    f"{(o['min_cushion'] or 0) * 100:+6.1f}% | cobertura mín da Rende {min(g['min_rende_cover'], o['min_rende_cover'] or 9) * 100:5.1f}% "
+                    f"| parado {g['stop_min'] / 60:4.1f} h | descansos {g['rests'] + o['rests']} | arbitragem {r['arb']['trades']} trocas, "
+                    f"lucro R$ {r['arb']['profit_brl']:,.0f} | varejo {r['trades_ok']}/{r['trades']}".replace(",", ".")
+                )
+
+
+if __name__ == "__main__" and "--fx" in sys.argv:
+    fx_report()
+elif __name__ == "__main__":
+    seed = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 42
     for mean_h, label in ((12.0, "CALMA (decisão média em 12 h)"), (1.0, "PÂNICO (decisão média em 1 h)")):
         print(f"\n##### Migração com {label} #####")
         for sc, title in SCENARIOS:

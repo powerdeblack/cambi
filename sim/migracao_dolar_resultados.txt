@@ -1,0 +1,27 @@
+
+##### Dólar subindo durante a migração (calma, cenários A e C) #####
+colchão = (patrimônio do cofre − devido à Rende) ÷ devido à Rende, pela cotação do pool; < 0 = a Rende perde
+gradual      + 0% A: colchão mín novo  +18.2% | antigo   +2.5% | cobertura mín da Rende 102.5% | parado  0.0 h | descansos 0 | arbitragem 0 trocas. lucro R$ 0 | varejo 2487/2489
+gradual      + 0% C: colchão mín novo  +18.2% | antigo   +1.3% | cobertura mín da Rende 101.3% | parado  0.0 h | descansos 0 | arbitragem 0 trocas. lucro R$ 0 | varejo 2489/2489
+gradual      +10% A: colchão mín novo  +18.6% | antigo   +2.5% | cobertura mín da Rende 102.5% | parado  0.0 h | descansos 0 | arbitragem 0 trocas. lucro R$ 0 | varejo 2489/2489
+gradual      +10% C: colchão mín novo  +18.7% | antigo   +1.3% | cobertura mín da Rende 101.3% | parado  0.0 h | descansos 0 | arbitragem 0 trocas. lucro R$ 0 | varejo 2489/2489
+gradual      +20% A: colchão mín novo  +19.1% | antigo   +2.5% | cobertura mín da Rende 102.5% | parado  0.0 h | descansos 0 | arbitragem 0 trocas. lucro R$ 0 | varejo 2489/2489
+gradual      +20% C: colchão mín novo  +19.2% | antigo   +1.3% | cobertura mín da Rende 101.3% | parado  0.0 h | descansos 0 | arbitragem 0 trocas. lucro R$ 0 | varejo 2489/2489
+gradual      +30% A: colchão mín novo  +19.5% | antigo   +2.5% | cobertura mín da Rende 102.5% | parado  0.0 h | descansos 0 | arbitragem 0 trocas. lucro R$ 0 | varejo 2489/2489
+gradual      +30% C: colchão mín novo  +19.7% | antigo   +1.3% | cobertura mín da Rende 101.3% | parado  0.0 h | descansos 0 | arbitragem 0 trocas. lucro R$ 0 | varejo 2489/2489
+choque       + 0% A: colchão mín novo  +18.2% | antigo   +2.5% | cobertura mín da Rende 102.5% | parado  0.0 h | descansos 0 | arbitragem 0 trocas. lucro R$ 0 | varejo 2487/2489
+choque       + 0% C: colchão mín novo  +18.2% | antigo   +1.3% | cobertura mín da Rende 101.3% | parado  0.0 h | descansos 0 | arbitragem 0 trocas. lucro R$ 0 | varejo 2489/2489
+choque       +10% A: colchão mín novo  +18.2% | antigo   +2.5% | cobertura mín da Rende 102.5% | parado  0.0 h | descansos 2 | arbitragem 2 trocas. lucro R$ 3.638 | varejo 2471/2489
+choque       +10% C: colchão mín novo  +18.2% | antigo   +1.3% | cobertura mín da Rende 101.3% | parado  0.0 h | descansos 2 | arbitragem 2 trocas. lucro R$ 3.821 | varejo 2471/2489
+choque       +20% A: colchão mín novo  +18.1% | antigo   +2.5% | cobertura mín da Rende 102.5% | parado  0.0 h | descansos 2 | arbitragem 2 trocas. lucro R$ 7.919 | varejo 2471/2489
+choque       +20% C: colchão mín novo  +18.2% | antigo   +1.3% | cobertura mín da Rende 101.3% | parado  0.0 h | descansos 2 | arbitragem 2 trocas. lucro R$ 8.309 | varejo 2472/2489
+choque       +30% A: colchão mín novo  +18.1% | antigo   +2.5% | cobertura mín da Rende 102.5% | parado  0.0 h | descansos 2 | arbitragem 2 trocas. lucro R$ 12.200 | varejo 2472/2489
+choque       +30% C: colchão mín novo  +18.3% | antigo   +1.3% | cobertura mín da Rende 101.3% | parado  0.0 h | descansos 2 | arbitragem 2 trocas. lucro R$ 12.797 | varejo 2472/2489
+choque-tarde + 0% A: colchão mín novo  +18.2% | antigo   +2.5% | cobertura mín da Rende 102.5% | parado  0.0 h | descansos 0 | arbitragem 0 trocas. lucro R$ 0 | varejo 2487/2489
+choque-tarde + 0% C: colchão mín novo  +18.2% | antigo   +1.3% | cobertura mín da Rende 101.3% | parado  0.0 h | descansos 0 | arbitragem 0 trocas. lucro R$ 0 | varejo 2489/2489
+choque-tarde +10% A: colchão mín novo  +17.3% | antigo   +2.5% | cobertura mín da Rende 102.5% | parado  0.0 h | descansos 2 | arbitragem 2 trocas. lucro R$ 2.671 | varejo 2469/2489
+choque-tarde +10% C: colchão mín novo  +17.3% | antigo   +1.3% | cobertura mín da Rende 101.3% | parado  0.0 h | descansos 2 | arbitragem 4 trocas. lucro R$ 3.310 | varejo 2469/2489
+choque-tarde +20% A: colchão mín novo  +16.4% | antigo   +2.5% | cobertura mín da Rende 102.5% | parado  0.0 h | descansos 2 | arbitragem 2 trocas. lucro R$ 5.821 | varejo 2469/2489
+choque-tarde +20% C: colchão mín novo  +16.5% | antigo   +1.3% | cobertura mín da Rende 101.3% | parado  0.0 h | descansos 2 | arbitragem 4 trocas. lucro R$ 7.213 | varejo 2469/2489
+choque-tarde +30% A: colchão mín novo  +15.5% | antigo   +2.5% | cobertura mín da Rende 102.5% | parado  0.0 h | descansos 2 | arbitragem 2 trocas. lucro R$ 8.972 | varejo 2469/2489
+choque-tarde +30% C: colchão mín novo  +15.6% | antigo   +1.3% | cobertura mín da Rende 101.3% | parado  0.0 h | descansos 2 | arbitragem 4 trocas. lucro R$ 11.115 | varejo 2470/2489
