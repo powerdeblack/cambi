@@ -3,7 +3,7 @@
   "version": "2.6",
   "rpc": "https://api.devnet.solana.com",
   "createdAt": "2026-10-28T12:30:53.541Z",
-  "updatedAt": "2026-10-29T04:44:40.405Z",
+  "updatedAt": "2026-10-30T12:47:15.808Z",
   "programId": "8b6oXzaazxCm7SrPNi6A3deyY8eftZRrx5bDoL55FeKA",
   "guardianProgramId": "2pxrxRUENAopmSjet6mwieussPutCR52ja5ygLL9FpE2",
   "pool": "9M2dP4qVM9ywYGY2MaDfiZkQcH7MX2NApgZmauX31v76",
@@ -37,6 +37,15 @@
       "62nvZpcPZUvpfdsgZ2PbKRW8jXkZEzmT73EXT36caYTf"
     ],
     "validations": [
+      {
+        "index": 10,
+        "action": "Cotação R$ 5.3468 → R$ 5.4287 (Coinbase 5.4290, Mercado Bitcoin 5.4285, ExchangeRate-API 5.3621 (fora), BCE (Frankfurter) 5.3516 (fora))",
+        "at": "2026-10-30T12:47:15.808Z",
+        "approvals": 7,
+        "createSignature": "4phoqRzJH4L9pcreSjxEBZGxaqqENy9ZkHHRr6SdWnzyYHH81vpaBokPfztoJw7vq9crYi1dJpmrBRAcFzqhAQWL",
+        "approveSignature": "2tr8tXy53uhTsgaC8sEmAMbRfziS7u2Y8LMGBfQmaMwMUiC2PndrfZXu3LTQVPUAFFxuZwLeAQ3shjG1Vct44DcX",
+        "executeSignature": "cCUgn8H7DfAQPN1mN5MkwDNF7VUFSJFKVNJAk6zySXdzw4PyQ1GLSGAHif3H4qnUzYNtf5ZDwmyVAdWxbaC8us2"
+      },
       {
         "index": 9,
         "action": "Cotação R$ 5.3760 → R$ 5.3468 (Coinbase 5.3465, Mercado Bitcoin 5.3594, ExchangeRate-API 5.3468)",
