@@ -51,10 +51,19 @@ export async function fromMercadoBitcoin(timeoutMs = 6000): Promise<LiveQuote> {
   return { price: Number(t.last), source: "Mercado Bitcoin", publishedAt: Number(t.date) || Math.floor(Date.now() / 1000) };
 }
 
+/** Frankfurter (Banco Central Europeu): referência oficial, uma vez por dia útil. Só o oráculo usa. */
+export async function fromFrankfurterLatest(timeoutMs = 6000): Promise<LiveQuote> {
+  const data = await getJson("https://api.frankfurter.dev/v1/latest?base=USD&symbols=BRL", timeoutMs);
+  const day = String(data?.date ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error("Frankfurter sem data");
+  // O BCE publica perto das 16h de Frankfurt (14h UTC).
+  return { price: Number(data.rates?.BRL), source: "BCE (Frankfurter)", publishedAt: Date.parse(`${day}T14:00:00Z`) / 1000 };
+}
+
 /** Fontes do app (só exibição). */
 export const SOURCES = [fromCoinbase, fromAwesome, fromErApi];
 /** Fontes do oráculo que grava na blockchain: precisam concordar entre si. */
-export const ORACLE_SOURCES = [fromCoinbase, fromMercadoBitcoin, fromAwesome, fromErApi];
+export const ORACLE_SOURCES = [fromCoinbase, fromMercadoBitcoin, fromAwesome, fromErApi, fromFrankfurterLatest];
 
 export interface Consensus {
   price: number;
@@ -96,6 +105,29 @@ export async function fetchConsensusQuote(
   });
   if (used.length < minSources) throw new Error(`Fontes não concordam (${used.length}/${minSources}). ${rejected.join("; ")}`);
   return { price: median(used.map((q) => q.price)), used, rejected };
+}
+
+/**
+ * Maior grupo de cotações que concordam entre si (diferença máxima de `band`, ex.: 0,003 = 0,3%), e o preço do
+ * grupo (mediana). Diferente de medir a distância até a mediana de todas: com uma fonte em estresse (ex.: dólar
+ * cripto com prêmio depois de um hack) a mediana geral cai entre os grupos e nenhum par "concorda", mesmo com duas
+ * fontes comerciais iguais. Empate: o grupo mais perto da mediana geral.
+ */
+export function agreeingCluster(quotes: LiveQuote[], band = 0.003): { price: number; members: LiveQuote[] } | null {
+  const v = [...quotes].sort((a, b) => a.price - b.price);
+  const med = (xs: number[]) => {
+    const s = [...xs].sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  const all = med(v.map((q) => q.price));
+  let best: LiveQuote[] = [];
+  for (let i = 0; i < v.length; i++) {
+    const group = v.filter((q, j) => j >= i && q.price / v[i].price - 1 <= band);
+    const closer = (g: LiveQuote[]) => Math.abs(med(g.map((q) => q.price)) - all);
+    if (group.length > best.length || (group.length === best.length && group.length > 0 && closer(group) < closer(best))) best = group;
+  }
+  return best.length >= 2 ? { price: med(best.map((q) => q.price)), members: best } : null;
 }
 
 /** Tenta as fontes em ordem e devolve a primeira cotação válida. */

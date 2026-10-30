@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LiveQuote, fetchConsensusQuote, fetchLiveQuote, isSanePrice } from "./quote";
+import { LiveQuote, agreeingCluster, fetchConsensusQuote, fetchLiveQuote, isSanePrice } from "./quote";
 
 const ok = (price: number, source = "A"): (() => Promise<LiveQuote>) => async () => ({ price, source, publishedAt: 1 });
 const fail = (msg: string) => async (): Promise<LiveQuote> => {
@@ -57,3 +57,25 @@ describe("consenso do oráculo", () => {
     await expect(fetchConsensusQuote([at(5.0, "A"), at(5.0, "B", 0)], { now: 200_000 })).rejects.toThrow(/insuficientes/);
   });
 });
+
+describe("grupo de fontes que concordam (oráculo)", () => {
+  const q = (price: number, source: string): LiveQuote => ({ price, source, publishedAt: 0 });
+
+  it("30/10/2026: dólar cripto com prêmio e duas fontes comerciais longe: ninguém concorda, nada é gravado", () => {
+    expect(agreeingCluster([q(5.3852, "Coinbase"), q(5.4211, "Mercado Bitcoin"), q(5.3621, "ExchangeRate-API")])).toBeNull();
+  });
+
+  it("com uma 4ª fonte comercial perto da Coinbase, grava o preço do grupo e deixa o dólar cripto de fora", () => {
+    const c = agreeingCluster([q(5.3852, "Coinbase"), q(5.4211, "Mercado Bitcoin"), q(5.3621, "ExchangeRate-API"), q(5.3801, "BCE")]);
+    expect(c?.members.map((m) => m.source).sort()).toEqual(["BCE", "Coinbase"]);
+    expect(c?.price).toBeCloseTo((5.3852 + 5.3801) / 2, 6);
+  });
+
+  it("o maior grupo ganha; empate fica com o grupo mais perto da mediana geral", () => {
+    const c = agreeingCluster([q(5.0, "A"), q(5.01, "B"), q(5.3, "C"), q(5.305, "D"), q(5.31, "E")]);
+    expect(c?.members.map((m) => m.source)).toEqual(["C", "D", "E"]);
+    const tie = agreeingCluster([q(5.0, "A"), q(5.01, "B"), q(5.2, "M"), q(5.4, "C"), q(5.41, "D")]);
+    expect(tie?.members.length).toBe(2);
+  });
+});
+

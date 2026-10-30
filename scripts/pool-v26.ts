@@ -27,7 +27,7 @@ import {
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction, TransactionMessage } from "@solana/web3.js";
 import * as multisig from "@sqds/multisig";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { fetchConsensusQuote } from "../app/src/quote";
+import { agreeingCluster, fetchConsensusQuote } from "../app/src/quote";
 import { BALEIA, BRL, RENDE, USD, credentialPda, mintAuthorityPda, poolPda, positionPda, programDataPda, u, vaultPda } from "./common";
 import { deriveKey } from "./derive-key";
 
@@ -135,9 +135,12 @@ async function main() {
   let agree = true;
   try {
     const q = await fetchConsensusQuote();
-    price = q.price;
-    source = q.used.map((x) => `${x.source} ${x.price.toFixed(4)}`).join(", ");
-    agree = q.used.filter((x) => Math.abs(x.price / q.price - 1) <= 0.003).length >= 2;
+    // Grava o preço do maior grupo de fontes que concordam a até 0,3% entre si (pelo menos 2).
+    const cluster = agreeingCluster(q.used, 0.003);
+    agree = cluster !== null;
+    price = cluster?.price ?? q.price;
+    source = q.used.map((x) => `${x.source} ${x.price.toFixed(4)}${cluster?.members.includes(x) ? "" : " (fora)"}`).join(", ");
+    if (q.rejected.length) console.log(`Fontes descartadas: ${q.rejected.join("; ")}`);
   } catch (e) {
     console.log(`Consenso indisponível, usando ${price}: ${(e as Error).message}`);
   }

@@ -5,7 +5,7 @@ import { Wallet, isDepositor } from "../wallet";
 import { Brand } from "./Brand";
 import { ACTIVITY_ICON, activityTitle } from "../activity";
 import { ChevronIcon, EyeIcon, EyeOffIcon, GrowIcon, ListIcon, QrIcon, ScanIcon, SendIcon, SwapIcon } from "./Icons";
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 
 interface Props {
   pool: PoolState;
@@ -23,6 +23,40 @@ interface Props {
   onToggleHidden: () => void;
   /** Conteúdo logo abaixo dos atalhos (cartão do dólar, conta na Solana). */
   afterActions?: ReactNode;
+}
+
+const SAFETY_KEY = "cambi-safety-tip-v1";
+const safetySeen = () => {
+  try {
+    return localStorage.getItem(SAFETY_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+
+/** Aviso antigolpe: depois de um hack grande, golpistas oferecem "reembolso" e "suporte" por mensagem. */
+function SafetyTip() {
+  const [open, setOpen] = useState(() => !safetySeen());
+  if (!open) return null;
+  const close = () => {
+    try {
+      localStorage.setItem(SAFETY_KEY, "1");
+    } catch {
+      /* ignora */
+    }
+    setOpen(false);
+  };
+  return (
+    <section className="card safety-tip" role="note" aria-label="Aviso de segurança">
+      <p>
+        <strong>A <Brand /> nunca pede sua frase-semente, sua senha ou para você assinar algo fora do app.</strong> Ninguém do
+        suporte manda link de "reembolso" ou de "recuperação" por mensagem. Na dúvida, não clique: fale com a gente pelo app.
+      </p>
+      <button className="secondary" onClick={close}>
+        Entendi
+      </button>
+    </section>
+  );
 }
 
 const greeting = () => {
@@ -125,6 +159,8 @@ export function Home({ pool, wallet, go, onSend, onQr, onAdd, onSimulateMarket, 
           </li>
         </ul>
       </section>
+
+      <SafetyTip />
 
       {isDepositor(wallet) ? (
         <section className="card hint">
