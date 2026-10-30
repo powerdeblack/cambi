@@ -112,8 +112,8 @@ class Pool:
 
     def baleia_cushion_ok(self):
         owed = self.value_brl(self.principal[RENDE])
-        # Igual ao cambi_guardian: sem nenhuma Baleia no pool, o colchão não é julgado (has_baleias).
-        if owed <= 0 or self.value_brl(self.principal[BALEIA]) <= 0:
+        # Igual ao cambi_guardian (30/10): o colchão é julgado mesmo sem nenhuma Baleia no pool.
+        if owed <= 0:
             return True
         equity = self.value_brl([self.vault[s] - self.fees[s] - self.queued[s] for s in (BRL, USD)]) - owed
         return equity >= 0.10 * owed
@@ -393,16 +393,14 @@ def run(scenario, seed, mean_start_h=12.0, move=0.0, mode="gradual"):
 
     # Abertura do cofre novo
     fresh = scenario in ("A", "C")
-    new.baleia_fix = old.baleia_fix = scenario == "B2"
+    # Regra de 30/10: com o pool parado, a Baleia ainda deposita. O cenário B mostra a regra antiga.
+    new.baleia_fix = old.baleia_fix = scenario != "B"
     if fresh:
         # Baleias abrem o novo com capital novo igual ao que têm no antigo.
         for w in wallets:
             if w.kind == "baleia":
                 for t, s, v in w.positions:
                     new.deposit(0, t, s, v)
-    if scenario in ("B", "B2"):
-        # Uma Baleia abre o cofre novo com um colchão simbólico (R$ 2.000) antes de a Rende chegar.
-        new.deposit(0, BALEIA, BRL, 2000.0)
     new.br_base = [new.swap_avail(BRL), new.swap_avail(USD)]
 
     # Cofre antigo na transição
@@ -598,9 +596,8 @@ def fmt(r, title):
 
 SCENARIOS = [
     ("A", "A) Migração clássica, Baleias abrem o novo com capital novo"),
-    ("B0", "B0) Sem capital novo e sem nenhuma Baleia no novo (o guardião não julga o colchão)"),
-    ("B", "B) Sem capital novo, uma Baleia abre com R$ 2.000 (regras do v2.6)"),
-    ("B2", "B2) Igual a B, com a correção: Baleia pode depositar com o pool parado"),
+    ("B", "B) Sem capital novo, regra antiga: a parada do guardião bloqueava também a Baleia"),
+    ("B2", "B2) Sem capital novo, regras de 30/10: o guardião para e só a Baleia deposita até repor o colchão"),
     ("C", "C) Cofres irmãos: o antigo segue trocando, roteador + ponte de reequilíbrio"),
 ]
 

@@ -180,7 +180,9 @@ pub fn decide(snap: &Snapshot, view: &PoolView, now: i64) -> Decision {
     if !view.backed {
         return Decision { level: 3, side: 0, secs: 0, reason: REASON_UNBACKED };
     }
-    if view.has_baleias && view.rende_owed_brl > 0 && view.baleia_equity_brl * (BPS as i128) < (view.rende_owed_brl * MIN_CUSHION_BPS) as i128 {
+    // Vale também sem nenhuma Baleia: Rende sem colchão é justamente o caso a parar (simulação de migração, 30/10).
+    // Parado, o pool só aceita depósito de Baleia, que repõe o colchão; a Rende espera o conselho soltar.
+    if view.rende_owed_brl > 0 && view.baleia_equity_brl * (BPS as i128) < (view.rende_owed_brl * MIN_CUSHION_BPS) as i128 {
         return Decision { level: 3, side: 0, secs: 0, reason: REASON_THIN_CUSHION };
     }
     if snap.last_price > 0 {
@@ -344,8 +346,12 @@ mod tests {
         let mut v = view(10_000 * R, 2_000 * R);
         v.baleia_equity_brl = 9_999 * R as i128; // abaixo de 10% de R$ 100 mil
         assert_eq!(decide(&snap(10_000 * R, 2_000 * R), &v, 1_300).reason, REASON_THIN_CUSHION);
-        // Sem camada júnior, não há colchão a medir.
+        // Sem camada júnior a Rende está sem colchão nenhum: também para.
         v.has_baleias = false;
+        v.baleia_equity_brl = 0;
+        assert_eq!(decide(&snap(10_000 * R, 2_000 * R), &v, 1_300).reason, REASON_THIN_CUSHION);
+        // Pool vazio (nada devido à Rende): nada a julgar.
+        v.rende_owed_brl = 0;
         assert_eq!(decide(&snap(10_000 * R, 2_000 * R), &v, 1_300).level, 0);
     }
 
