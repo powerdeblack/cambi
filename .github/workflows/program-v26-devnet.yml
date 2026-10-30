@@ -110,7 +110,11 @@ jobs:
                 echo "$name já está na devnet com este binário."; return 0
               fi
               local cur=$(solana program show "$id" --output json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).dataLen||0))')
-              [ "$size" -gt "$cur" ] && solana program extend "$id" $((size - cur))
+              # A Solana só amplia a conta do programa em blocos de pelo menos 10.240 bytes.
+              if [ "$size" -gt "$cur" ]; then
+                local add=$((size - cur)); [ "$add" -lt 10240 ] && add=10240
+                solana program extend "$id" "$add"
+              fi
             fi
             for i in 1 2 3 4 5 6; do
               MODE=""; [ $((i % 2)) -eq 1 ] && MODE="--use-rpc"
